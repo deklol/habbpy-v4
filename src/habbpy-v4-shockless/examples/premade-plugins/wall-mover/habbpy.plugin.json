@@ -1,0 +1,38 @@
+{
+  "id": "premade-wall-mover",
+  "name": "Wall Mover Premade Module",
+  "version": "1.0.0",
+  "author": "Habbpy v4",
+  "description": "Readable user-plugin source reference for the built-in Wall Mover module.",
+  "entry": "plugin.js",
+  "icon": "hammer",
+  "category": "automation",
+  "permissions": [
+    "ui.panel",
+    "console.commands",
+    "events.room",
+    "engine.snapshot",
+    "events.packet",
+    "packet.read",
+    "actions.furni",
+    "storage"
+  ],
+  "surfaces": [
+    {
+      "id": "panel",
+      "kind": "panel",
+      "label": "Wall Mover Panel",
+      "enabledByDefault": false,
+      "summary": "Compact wall item target and move controls."
+    },
+    {
+      "id": "commands",
+      "kind": "commands",
+      "label": "Wall Mover Commands",
+      "enabledByDefault": false,
+      "summary": "Nudge, flip, pickup, and step commands."
+    }
+  ],
+  "commands": [],
+  "hotkeys": []
+}

@@ -1,0 +1,38 @@
+{
+  "id": "premade-gardening",
+  "name": "Gardening Premade Module",
+  "version": "1.0.0",
+  "author": "Habbpy v4",
+  "description": "Readable user-plugin source reference for the built-in Gardening module.",
+  "entry": "plugin.js",
+  "icon": "bot",
+  "category": "automation",
+  "permissions": [
+    "ui.panel",
+    "console.commands",
+    "events.room",
+    "engine.snapshot",
+    "events.packet",
+    "packet.read",
+    "actions.plants",
+    "storage"
+  ],
+  "surfaces": [
+    {
+      "id": "panel",
+      "kind": "panel",
+      "label": "Gardening Panel",
+      "enabledByDefault": false,
+      "summary": "Compact plant state with v3-style move/action/return Gardening controls."
+    },
+    {
+      "id": "commands",
+      "kind": "commands",
+      "label": "Gardening Commands",
+      "enabledByDefault": false,
+      "summary": "Start, compost, water, harvest, and return commands mapped through the local relay; room tracking remains pending."
+    }
+  ],
+  "commands": [],
+  "hotkeys": []
+}

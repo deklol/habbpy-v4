@@ -1,0 +1,27 @@
+{
+  "id": "premade-about",
+  "name": "About Premade Module",
+  "version": "1.0.0",
+  "author": "Habbpy v4",
+  "description": "Readable user-plugin source reference for the built-in About module.",
+  "entry": "plugin.js",
+  "icon": "info",
+  "category": "developer",
+  "permissions": [
+    "ui.panel",
+    "events.session",
+    "engine.snapshot",
+    "storage"
+  ],
+  "surfaces": [
+    {
+      "id": "panel",
+      "kind": "panel",
+      "label": "About Panel",
+      "enabledByDefault": true,
+      "summary": "Compact project information and credits in the dock."
+    }
+  ],
+  "commands": [],
+  "hotkeys": []
+}

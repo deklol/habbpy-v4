@@ -1,0 +1,38 @@
+{
+  "id": "premade-injection",
+  "name": "Injection Premade Module",
+  "version": "1.0.0",
+  "author": "Habbpy v4",
+  "description": "Readable user-plugin source reference for the built-in Injection module.",
+  "entry": "plugin.js",
+  "icon": "terminal",
+  "category": "developer",
+  "permissions": [
+    "ui.panel",
+    "console.commands",
+    "actions.avatar",
+    "actions.social",
+    "actions.fishing",
+    "actions.furni",
+    "actions.plants",
+    "storage"
+  ],
+  "surfaces": [
+    {
+      "id": "panel",
+      "kind": "panel",
+      "label": "Injection Panel",
+      "enabledByDefault": false,
+      "summary": "Compact mapped-command editor."
+    },
+    {
+      "id": "commands",
+      "kind": "commands",
+      "label": "Injection Commands",
+      "enabledByDefault": false,
+      "summary": "Run mapped chat, Navigator, room entry, user, window, and stage actions."
+    }
+  ],
+  "commands": [],
+  "hotkeys": []
+}

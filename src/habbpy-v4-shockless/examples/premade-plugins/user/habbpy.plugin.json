@@ -1,0 +1,44 @@
+{
+  "id": "premade-user",
+  "name": "User Premade Module",
+  "version": "1.0.0",
+  "author": "Habbpy v4",
+  "description": "Readable user-plugin source reference for the built-in User module.",
+  "entry": "plugin.js",
+  "icon": "user",
+  "category": "user",
+  "permissions": [
+    "ui.panel",
+    "ui.overlay",
+    "console.commands",
+    "events.room",
+    "engine.snapshot",
+    "actions.avatar",
+    "storage"
+  ],
+  "surfaces": [
+    {
+      "id": "panel",
+      "kind": "panel",
+      "label": "User Panel",
+      "enabledByDefault": true,
+      "summary": "Selected user details and safe mapped user actions."
+    },
+    {
+      "id": "overlay",
+      "kind": "overlay",
+      "label": "User Overlay",
+      "enabledByDefault": false,
+      "summary": "Optional user hover labels above the game view."
+    },
+    {
+      "id": "commands",
+      "kind": "commands",
+      "label": "User Commands",
+      "enabledByDefault": false,
+      "summary": "Wave and dance controls."
+    }
+  ],
+  "commands": [],
+  "hotkeys": []
+}

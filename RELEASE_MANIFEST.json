@@ -1,0 +1,13 @@
+{
+  "generatedAt": "2026-06-23T18:16:24.513Z",
+  "ok": true,
+  "releaseRoot": "release",
+  "files": 667,
+  "findings": [],
+  "paths": {
+    "portable": "portable/HabbpyV4/Habbpy v4.exe",
+    "appSource": "src/habbpy-v4-shockless",
+    "engineSource": "src/habbo-origins-engine",
+    "docs": "docs"
+  }
+}

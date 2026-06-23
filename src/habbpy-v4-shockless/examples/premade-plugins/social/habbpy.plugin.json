@@ -1,0 +1,47 @@
+{
+  "id": "premade-social",
+  "name": "Social Premade Module",
+  "version": "1.0.0",
+  "author": "Habbpy v4",
+  "description": "Readable user-plugin source reference for the built-in Social module.",
+  "entry": "plugin.js",
+  "icon": "messages",
+  "category": "social",
+  "permissions": [
+    "ui.panel",
+    "ui.status",
+    "console.commands",
+    "events.room",
+    "engine.snapshot",
+    "events.chat",
+    "events.packet",
+    "packet.read",
+    "actions.social",
+    "storage"
+  ],
+  "surfaces": [
+    {
+      "id": "panel",
+      "kind": "panel",
+      "label": "Social Panel",
+      "enabledByDefault": true,
+      "summary": "Social status and split panels."
+    },
+    {
+      "id": "status",
+      "kind": "status",
+      "label": "Social Status",
+      "enabledByDefault": true,
+      "summary": "Account and notification status in the bottom strip."
+    },
+    {
+      "id": "commands",
+      "kind": "commands",
+      "label": "Social Commands",
+      "enabledByDefault": false,
+      "summary": "Chat, combined user lookup, private message, friend request, accept, decline, follow, and remove commands."
+    }
+  ],
+  "commands": [],
+  "hotkeys": []
+}

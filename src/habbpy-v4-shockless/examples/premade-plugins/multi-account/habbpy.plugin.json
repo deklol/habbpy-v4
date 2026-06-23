@@ -1,0 +1,35 @@
+{
+  "id": "premade-multi-account",
+  "name": "Multi Account Premade Module",
+  "version": "1.0.0",
+  "author": "Habbpy v4",
+  "description": "Readable user-plugin source reference for the built-in Multi Account module.",
+  "entry": "plugin.js",
+  "icon": "bot",
+  "category": "session",
+  "permissions": [
+    "ui.panel",
+    "console.commands",
+    "events.session",
+    "engine.snapshot",
+    "storage"
+  ],
+  "surfaces": [
+    {
+      "id": "panel",
+      "kind": "panel",
+      "label": "Multi Account Panel",
+      "enabledByDefault": true,
+      "summary": "Sessions, loading, summon, and mimic controls in one module."
+    },
+    {
+      "id": "commands",
+      "kind": "commands",
+      "label": "Multi Account Commands",
+      "enabledByDefault": true,
+      "summary": "newclient/load/accounts/main/summon/mimic commands through the backtick console."
+    }
+  ],
+  "commands": [],
+  "hotkeys": []
+}

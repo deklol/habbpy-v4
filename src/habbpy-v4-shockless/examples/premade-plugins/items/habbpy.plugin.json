@@ -1,0 +1,38 @@
+{
+  "id": "premade-items",
+  "name": "Items Premade Module",
+  "version": "1.0.0",
+  "author": "Habbpy v4",
+  "description": "Readable user-plugin source reference for the built-in Items module.",
+  "entry": "plugin.js",
+  "icon": "sofa",
+  "category": "inventory",
+  "permissions": [
+    "ui.panel",
+    "ui.overlay",
+    "events.room",
+    "engine.snapshot",
+    "events.packet",
+    "packet.read",
+    "actions.furni",
+    "storage"
+  ],
+  "surfaces": [
+    {
+      "id": "panel",
+      "kind": "panel",
+      "label": "Items Panel",
+      "enabledByDefault": true,
+      "summary": "Floor and wall item browser."
+    },
+    {
+      "id": "overlay",
+      "kind": "overlay",
+      "label": "Items Item Overlay",
+      "enabledByDefault": false,
+      "summary": "Item hover/selection labels above the game."
+    }
+  ],
+  "commands": [],
+  "hotkeys": []
+}
