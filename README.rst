@@ -54,8 +54,11 @@ This public release is provided under the GNU Affero General Public License v3.0
 Release Layout
 --------------
 
-- portable/HabbpyV4/Habbpy v4.exe
-  Runnable Windows portable build.
+- ``habbpy-v4-portable-windows.zip`` from GitHub Releases
+  Ready-to-run Windows portable build. Extract the full ``HabbpyV4`` folder and run ``Habbpy v4.exe`` from inside it. This archive includes the bundled Shockless importer resources required by ``Import/Build Client``.
+
+- ``habbpy-v4-source-agplv3.zip`` or a GitHub source checkout
+  Source and public documentation only. This does not include the portable executable or built Shockless importer resources until you build them locally.
 
 - src/habbpy-v4-shockless
   Electron/React application source, plugin manager, packet log, multi-session shell, relay bridge, and plugin API.
@@ -82,11 +85,15 @@ Key Features
 How To Import A Client
 ----------------------
 
-1. Run ``portable/HabbpyV4/Habbpy v4.exe``.
-2. Open the Connection panel and choose ``Import/Build Client``.
-3. Select either a compiled Habbo client folder or an existing Shockless profile folder.
-4. Leave the importer open while it validates the folder, copies the client, indexes casts, extracts text, prepares assets, prepares scripts, and validates the playable profile.
-5. When the profile is ready, select it in the client library and press ``Start``.
+1. Download ``habbpy-v4-portable-windows.zip`` from GitHub Releases.
+2. Extract the full ``HabbpyV4`` folder.
+3. Run ``HabbpyV4/Habbpy v4.exe``.
+4. Open the Connection panel and choose ``Import/Build Client``.
+5. Select either a compiled Habbo client folder or an existing Shockless profile folder.
+6. Leave the importer open while it validates the folder, copies the client, indexes casts, extracts text, prepares assets, prepares scripts, and validates the playable profile.
+7. When the profile is ready, select it in the client library and press ``Start``.
+
+Do not run a plain GitHub source checkout as if it were the portable app. Source checkouts must be built first so ``resources/engine/standalone/dist/main/cli/profile-import.js`` exists.
 
 Imported playable profiles are stored beside the portable app in its local client profile folder and are reused on later launches. Habbpy v4 does not hardcode client build folders; the importer discovers the selected folder and builds or reuses the matching playable profile.
 
@@ -109,19 +116,15 @@ Build the engine::
    npm run build
    cd standalone
    npm install
-   npm run build
+   npm run compile
 
-Build the desktop app::
+Build and package the desktop app::
 
    cd ../../habbpy-v4-shockless
    npm install
-   npm run build
-
-Build a portable app::
-
    npm run package:portable
 
-The app packaging script expects src/habbo-origins-engine to sit beside src/habbpy-v4-shockless, which is already how this release is laid out.
+The packaged app is written to ``src/habbpy-v4-shockless/dist/portable/HabbpyV4``. The app packaging script expects ``src/habbo-origins-engine`` to sit beside ``src/habbpy-v4-shockless``, which is already how this release is laid out. ``npm run package:portable`` verifies that the Shockless standalone profile importer and ProjectorRays resources are included before the package is considered valid.
 
 Limitations
 -----------

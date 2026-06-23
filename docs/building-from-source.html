@@ -387,19 +387,19 @@
           </div>
           <a class="status-pill" href="index.html">Index</a>
         </div>
-        <div class="doc-body"><p>The source tree is laid out so the desktop app and engine are sibling folders under src.</p>
+        <div class="doc-body"><p>The source tree is laid out so the desktop app and engine are sibling folders under src. A source checkout does not include the packaged Shockless importer; build the engine standalone package before packaging Habbpy v4.</p>
 <pre><code>cd src/habbo-origins-engine
 npm install
 npm run build
 cd standalone
 npm install
-npm run build
+npm run compile
 
 cd ../../habbpy-v4-shockless
 npm install
-npm run build
 npm run package:portable</code></pre>
-<p>The desktop packaging script discovers the sibling engine folder automatically from this release layout.</p></div>
+<p>The desktop packaging script discovers the sibling engine folder automatically from this release layout. The portable output is written to <code>src/habbpy-v4-shockless/dist/portable/HabbpyV4</code> and the package verifier checks that <code>resources/engine/standalone/dist/main/cli/profile-import.js</code> and the importer resource payload are present.</p>
+<p>If Import/Build Client reports that the Shockless profile importer was not found, rebuild the standalone importer with <code>npm --prefix ../habbo-origins-engine/standalone run compile</code> from <code>src/habbpy-v4-shockless</code>, then run <code>npm run package:portable</code> again.</p></div>
       </section>
     </main>
   </div>

@@ -11,6 +11,8 @@ Build:
   npm run build
   cd standalone
   npm install
-  npm run build
+  npm run compile
+
+The standalone compile step generates dist/main/cli/profile-import.js and the browser/runtime assets that Habbpy v4 packages into its portable Import/Build Client flow.
 
 Generated clients, local caches, extracted reference corpora, and direction notes are not included in this public release.

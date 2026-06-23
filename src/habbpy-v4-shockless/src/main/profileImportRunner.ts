@@ -65,9 +65,7 @@ export async function runPlayableProfileImport(options: {
 }): Promise<ProfileImportRunnerResult> {
   const cliPath = resolveProfileImportCli();
   if (!cliPath) {
-    throw new Error(
-      "Shockless profile importer was not found. Build/package Habbpy v4 with the Shockless engine importer resources.",
-    );
+    throw new Error(profileImportCliMissingMessage());
   }
 
   const clientsRoot = habbpyClientsRoot(options.appDataPath);
@@ -204,15 +202,30 @@ export function resolveProfileImportCli(): string | null {
     );
   }
 
-  const candidates = [
+  return profileImportCliCandidatePaths().map(resolveExistingFile).find((candidate): candidate is string => Boolean(candidate)) ?? null;
+}
+
+export function profileImportCliMissingMessage(): string {
+  const checked = profileImportCliCandidatePaths().slice(0, 8).join("; ");
+  return [
+    "Shockless profile importer was not found.",
+    "Use the packaged portable release, or build the sibling Shockless standalone importer before importing clients from source.",
+    "From src/habbpy-v4-shockless, run: npm --prefix ../habbo-origins-engine/standalone run compile",
+    "Then run: npm run package:portable",
+    "Advanced: set HABBPY_V4_PROFILE_IMPORT_CLI to the built standalone/dist/main/cli/profile-import.js.",
+    `Checked: ${checked}`,
+  ].join(" ");
+}
+
+function profileImportCliCandidatePaths(): readonly string[] {
+  return [
     resolve(MAIN_DIR, "..", "..", "..", "..", "engine", "standalone", "dist", "main", "cli", "profile-import.js"),
     process.env.HABBPY_V4_SHOCKLESS_ENGINE_ROOT
       ? join(process.env.HABBPY_V4_SHOCKLESS_ENGINE_ROOT, "standalone", "dist", "main", "cli", "profile-import.js")
       : undefined,
     resolve(process.cwd(), "..", "habbo-origins-engine", "standalone", "dist", "main", "cli", "profile-import.js"),
     ...ancestorSiblingCandidates("habbo-origins-engine", "standalone", "dist", "main", "cli", "profile-import.js"),
-  ];
-  return candidates.map(resolveExistingFile).find((candidate): candidate is string => Boolean(candidate)) ?? null;
+  ].filter((candidate): candidate is string => Boolean(candidate));
 }
 
 function runNodeCli(

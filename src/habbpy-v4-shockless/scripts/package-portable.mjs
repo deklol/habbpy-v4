@@ -21,11 +21,11 @@ function assertInside(parent, target) {
   }
 }
 
-async function assertPathExists(path, label) {
+async function assertPathExists(path, label, hint = "run npm run build first") {
   try {
     await stat(path);
   } catch {
-    throw new Error(`${label} is missing at ${path}; run npm run build first.`);
+    throw new Error(`${label} is missing at ${path}; ${hint}.`);
   }
 }
 
@@ -55,7 +55,7 @@ async function resolveShocklessEngineRoot() {
     }
   }
   throw new Error(
-    "Shockless engine build/importer was not found. Set HABBPY_V4_SHOCKLESS_ENGINE_ROOT or build the sibling habbo-origins-engine checkout.",
+    "Shockless engine build/importer was not found. Set HABBPY_V4_SHOCKLESS_ENGINE_ROOT or run npm --prefix ../habbo-origins-engine/standalone run compile from the Habbpy v4 app folder.",
   );
 }
 
@@ -87,9 +87,17 @@ await assertPathExists(join(bundledPluginsRoot, "welcome-message", "plugin.js"),
 await assertPathExists(join(premadePluginsRoot, "README.txt"), "Premade plugin source README");
 await assertPathExists(join(premadePluginsRoot, "room", "habbpy.plugin.json"), "Premade Room plugin manifest");
 await assertPathExists(join(premadePluginsRoot, "packet-log", "plugin.js"), "Premade Packet Log plugin entry");
-await assertPathExists(join(shocklessEngineRoot, "dist", "index.html"), "Shockless engine renderer build");
-await assertPathExists(join(shocklessStandaloneRoot, "dist", "main", "cli", "profile-import.js"), "Shockless standalone profile importer");
-await assertPathExists(join(shocklessStandaloneRoot, "resources", "compiler", "profile-script-compiler.mjs"), "Shockless profile script compiler");
+await assertPathExists(join(shocklessEngineRoot, "dist", "index.html"), "Shockless engine renderer build", "run npm --prefix ../habbo-origins-engine run build first");
+await assertPathExists(
+  join(shocklessStandaloneRoot, "dist", "main", "cli", "profile-import.js"),
+  "Shockless standalone profile importer",
+  "run npm --prefix ../habbo-origins-engine/standalone run compile first",
+);
+await assertPathExists(
+  join(shocklessStandaloneRoot, "resources", "compiler", "profile-script-compiler.mjs"),
+  "Shockless profile script compiler",
+  "run npm --prefix ../habbo-origins-engine/standalone run compile first",
+);
 
 await cleanupPreserveTempDirs();
 await clearPortableRootPreservingClients();
