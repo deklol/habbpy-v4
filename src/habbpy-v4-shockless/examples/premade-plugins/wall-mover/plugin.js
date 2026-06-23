@@ -150,4 +150,3 @@ function parsePair(value) {
   const parts = String(value ?? '').match(/-?\d+/g)?.map(Number) ?? [];
   return parts.length >= 2 ? parts.slice(0, 2) : null;
 }
-

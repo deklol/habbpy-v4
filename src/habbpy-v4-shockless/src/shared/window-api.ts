@@ -369,6 +369,12 @@ export type FurniRelayAction =
       readonly direction: number;
       readonly className?: string;
     }
+  | {
+      readonly action: "useFloorItem";
+      readonly objectId: number;
+      readonly value?: string | number;
+      readonly className?: string;
+    }
   | { readonly action: "pickupFloorItem"; readonly objectId: number; readonly className?: string }
   | {
       readonly action: "moveWallItem";

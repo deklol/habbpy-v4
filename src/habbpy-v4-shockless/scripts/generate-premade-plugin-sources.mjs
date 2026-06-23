@@ -12,7 +12,7 @@ await mkdir(outputRoot, { recursive: true });
 
 await writeFile(
   join(outputRoot, "README.txt"),
-  `${[
+  withFinalNewline([
     "# Premade Plugin Modules",
     "",
     "These folders are readable user-plugin versions of the built-in Habbpy v4 modules.",
@@ -23,8 +23,7 @@ await writeFile(
     "",
     "The generated code demonstrates the public plugin host API: session, runtime, room, chat, packet, and storage hooks.",
     "It intentionally avoids credentials, webhook values, local account files, and hardcoded Habbo client versions.",
-    "",
-  ].join("\n")}\n`,
+  ]),
   "utf8",
 );
 
@@ -68,13 +67,13 @@ function extraPermissionsFor(plugin) {
   if (["connection", "multi-account", "plugin-manager", "settings", "about", "dev-tools"].includes(plugin.id)) {
     permissions.push("events.session", "engine.snapshot");
   }
-  if (["info", "room", "user", "items", "inventory", "visitors", "chat", "social", "automation", "fishing", "gardening", "wall-mover"].includes(plugin.id)) {
+  if (["info", "room", "user", "items", "inventory", "visitors", "chat", "social", "automation", "fishing", "gardening", "present-catcher", "wall-mover"].includes(plugin.id)) {
     permissions.push("events.room", "engine.snapshot");
   }
   if (["chat", "social", "visitors"].includes(plugin.id)) {
     permissions.push("events.chat");
   }
-  if (["packet-log", "info", "items", "inventory", "social", "fishing", "gardening", "wall-mover"].includes(plugin.id)) {
+  if (["packet-log", "info", "items", "inventory", "social", "fishing", "gardening", "present-catcher", "wall-mover"].includes(plugin.id)) {
     permissions.push("events.packet", "packet.read");
   }
   if (plugin.id === "chat") {
@@ -84,6 +83,7 @@ function extraPermissionsFor(plugin) {
   if (plugin.id === "social") permissions.push("actions.social");
   if (plugin.id === "fishing") permissions.push("actions.fishing", "actions.avatar");
   if (plugin.id === "gardening") permissions.push("actions.plants");
+  if (plugin.id === "present-catcher") permissions.push("actions.avatar", "actions.furni", "packet.inject");
   if (plugin.id === "items") permissions.push("actions.furni");
   if (plugin.id === "wall-mover") permissions.push("actions.furni");
   if (plugin.id === "automation") permissions.push("actions.avatar", "actions.fishing", "actions.furni", "actions.plants");
@@ -100,7 +100,7 @@ function pluginSourceFor(plugin, manifest) {
     permissions: manifest.permissions,
     surfaces: manifest.surfaces.map((surface) => ({ id: surface.id, kind: surface.kind })),
   };
-  return [
+  return withFinalNewline([
     `const MODULE = ${JSON.stringify(moduleData, null, 2)};`,
     "",
     "export async function activate(api) {",
@@ -119,8 +119,7 @@ function pluginSourceFor(plugin, manifest) {
     "}",
     "",
     ...commonHelperLines(plugin.id),
-    "",
-  ].join("\n");
+  ]);
 }
 
 function apiGroupsFor(id) {
@@ -133,7 +132,8 @@ function apiGroupsFor(id) {
   if (id === "social") groups.add("social");
   if (id === "fishing") groups.add("fishing");
   if (id === "gardening") groups.add("plants");
-  if (["items", "automation", "injection", "wall-mover"].includes(id)) groups.add("furni");
+  if (id === "present-catcher") groups.add("avatar");
+  if (["items", "automation", "injection", "present-catcher", "wall-mover"].includes(id)) groups.add("furni");
   return [...groups];
 }
 
@@ -406,6 +406,59 @@ function moduleSourceLines(id) {
         "    return plants.movePlant(plan.objectId, plan.originalX, plan.originalY, plan.originalDirection, { clientId });",
         "  }",
         "  await remember(storage, 'availableActions', ['movePlantToWorkTile(clientId)', 'waterSelected(clientId)', 'harvestSelected(clientId)', 'returnPlant(clientId)', 'runPlantCycle(clientId)']);",
+      ];
+    case "present-catcher":
+      return [
+        "  const presentHeaders = new Set([65, 74, 78, 90, 93, 94, 1240, 1241, 3400, 3401, 3402, 3403, 3404, 3600, 3601, 3602, 3603, 3604]);",
+        "  let selectedHammer = null;",
+        "  let selectedPresent = null;",
+        "  on(disposers, events, 'runtime.snapshot', async (event) => {",
+        "    const snapshot = snapshotFromEvent(event);",
+        "    const items = floorItems(snapshot);",
+        "    const hammers = items.filter((item) => String(item?.className ?? item?.name ?? '').trim().toLowerCase() === 'toby_hammer');",
+        "    const presents = items.filter((item) => String(item?.className ?? item?.name ?? '').trim().toLowerCase().startsWith('anniv_present_gen'));",
+        "    selectedHammer = selectedHammer ? hammers.find((item) => objectId(item) === objectId(selectedHammer)) ?? hammers[0] ?? null : hammers[0] ?? null;",
+        "    selectedPresent = selectedPresent ? presents.find((item) => objectId(item) === objectId(selectedPresent)) ?? presents[0] ?? null : presents[0] ?? null;",
+        "    await remember(storage, 'presentTargets', {",
+        "      room: roomSummary(snapshot),",
+        "      ready: roomReady(snapshot),",
+        "      hammers: hammers.map(itemSummary).slice(0, 20),",
+        "      presents: presents.map(itemSummary).slice(0, 20),",
+        "      selectedHammer: itemSummary(selectedHammer),",
+        "      selectedPresent: itemSummary(selectedPresent),",
+        "    });",
+        "  });",
+        "  onPacket(disposers, packets, 'all', {}, async (packet) => {",
+        "    if (presentHeaders.has(Number(packet?.header))) await remember(storage, 'latestPresentPacket', packetSummary(packet));",
+        "    return packet.allow();",
+        "  });",
+        "  async function collectSelectedHammer(clientId) {",
+        "    const id = objectId(selectedHammer);",
+        "    const tile = tileOf(selectedHammer);",
+        "    if (!id || !tile) throw new Error('No selected toby_hammer with tile/object id.');",
+        "    await avatar.walkTo(tile.x, tile.y, id, { clientId });",
+        "    await delay(350);",
+        "    return furni.useFloorItem({ objectId: id, kind: 'floor' }, '0', { clientId });",
+        "  }",
+        "  async function useSelectedPresent(clientId) {",
+        "    const id = objectId(selectedPresent);",
+        "    const tile = tileOf(selectedPresent);",
+        "    if (!id || !tile) throw new Error('No selected anniv_present_gen* item with tile/object id.');",
+        "    const target = tileBeside(tile, tile);",
+        "    await avatar.walkTo(target.x, target.y, 0, { clientId });",
+        "    await delay(350);",
+        "    return furni.useFloorItem({ objectId: id, kind: 'floor' }, '0', { clientId });",
+        "  }",
+        "  async function refreshStrip(clientId) {",
+        "    return packets.send(clientId, { header: 65, bodyText: 'new' });",
+        "  }",
+        "  async function openPlacedObject(objectIdValue, clientId) {",
+        "    const id = Number(objectIdValue);",
+        "    if (!Number.isInteger(id) || id <= 0) throw new Error('openPlacedObject requires a placed object id.');",
+        "    return packets.send(clientId, { header: 78, bodyText: String(id) });",
+        "  }",
+        "  await remember(storage, 'availableActions', ['collectSelectedHammer(clientId)', 'useSelectedPresent(clientId)', 'refreshStrip(clientId)', 'openPlacedObject(objectId, clientId)']);",
+        "  await remember(storage, 'untestedLiveRoutes', ['anniversary event present timing', 'treasure fragment trade packet family 3400..3404']);",
       ];
     case "wall-mover":
       return [
@@ -744,6 +797,7 @@ function helperNamesFor(id) {
     "automation",
     "fishing",
     "gardening",
+    "present-catcher",
     "wall-mover",
     "visitors",
     "chat",
@@ -754,6 +808,7 @@ function helperNamesFor(id) {
     "info",
     "inventory",
     "fishing",
+    "present-catcher",
     "social",
     "injection",
     "packet-log",
@@ -790,6 +845,8 @@ function helperGroupsFor(id) {
       return ["snapshotFromEvent", "roomReady", "roomSummary", "floorItems", "fishingAreaItems", "tileOf", "objectId", "itemSummary", "packetSummary", "delay"];
     case "gardening":
       return ["snapshotFromEvent", "roomReady", "roomSummary", "floorItems", "itemSearchText", "plantItems", "selfUser", "tileOf", "plantCyclePlan", "tileBeside", "requirePlantPlan", "delay", "objectId", "itemSummary"];
+    case "present-catcher":
+      return ["snapshotFromEvent", "roomReady", "roomSummary", "floorItems", "tileOf", "tileBeside", "delay", "objectId", "itemSummary", "packetSummary"];
     case "wall-mover":
       return ["snapshotFromEvent", "roomReady", "roomSummary", "wallItems", "tileOf", "objectId", "itemSummary", "wallItemActionShape", "wallMoveAction", "parsePair"];
     case "social":
@@ -811,7 +868,7 @@ function lines(name, value) {
 }
 
 function readmeFor(plugin, manifest) {
-  return `${[
+  return withFinalNewline([
     `# ${manifest.name}`,
     "",
     manifest.description,
@@ -839,11 +896,16 @@ function readmeFor(plugin, manifest) {
     "- The plugin keeps state in plugin-scoped storage.",
     "- Packet hooks observe and allow packets; they do not mutate traffic.",
     "- Raw packet injection, custom React panels, and custom console commands remain reserved host phases.",
-    "",
-  ].join("\n")}\n`;
+  ]);
 }
 
 function relativePath(path) {
   return path.replace(`${workspace}\\`, "").replaceAll("\\", "/");
+}
+
+function withFinalNewline(lines) {
+  const output = [...lines];
+  while (output.at(-1) === "") output.pop();
+  return `${output.join("\n")}\n`;
 }
 

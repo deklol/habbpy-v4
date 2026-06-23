@@ -677,7 +677,7 @@ my-plugin/
 <ul>
 <li><code>actions.furni</code>: plugin sends validated floor/wall furniture move, rotate,</li>
 </ul>
-<p>  and pickup packets through <code>furni.*</code>.</p>
+<p>  use, and pickup packets through <code>furni.*</code>.</p>
 <ul>
 <li><code>actions.plants</code>: plugin sends validated Gardening plant move, water,</li>
 </ul>
@@ -827,7 +827,7 @@ export async function activate(api) {
 </code></pre>
 <p><code>walkToItem()</code> resolves only floor/passive objects with tile coordinates. Use</p>
 <p><code>furni.*</code> for moving, rotating, or picking up furniture.</p>
-<p>Find, move, rotate, or pick up furniture with selectors:</p>
+<p>Find, move, rotate, use, or pick up furniture with selectors:</p>
 <pre><code>
 export async function activate(api) {
   const { events, furni, log } = api;
@@ -850,6 +850,22 @@ export async function activate(api) {
 const posters = await furni.findItems({ query: &quot;poster&quot;, kind: &quot;wall&quot; });
 for (const poster of posters) await furni.pickupItem(poster);
 </code></pre>
+<p>Use a floor item by id or selector:</p>
+<pre><code>
+export async function activate({ avatar, furni }) {
+  const hammer = await furni.findItem({ className: &quot;toby_hammer&quot;, kind: &quot;floor&quot; });
+  if (!hammer?.tile) return;
+
+  await avatar.walkTo(hammer.tile.x, hammer.tile.y, Number(hammer.objectId));
+  await furni.useFloorItem(hammer, &quot;0&quot;);
+}
+</code></pre>
+<p><code>furni.useFloorItem()</code> sends <code>SET_STUFF_DATA [74]</code> with the selected object id</p>
+<p>and value as outgoing Shockwave strings. It is the typed item-use route used by</p>
+<p>the built-in event-item workflow for <code>toby_hammer</code> and <code>anniv_present_gen*</code></p>
+<p>room objects.</p>
+<p>Untested live route: event-present and treasure-fragment packet families are</p>
+<p>documented but not marked proven until matching Origins event data is available.</p>
 <p>Use live Fishing state and named relay actions:</p>
 <pre><code>
 export async function activate(api) {

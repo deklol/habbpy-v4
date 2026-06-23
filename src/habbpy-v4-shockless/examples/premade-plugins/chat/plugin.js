@@ -66,4 +66,3 @@ function on(disposers, events, eventName, handler) {
 async function remember(storage, key, value) {
   await storage.set(key, { value, updatedAt: new Date().toISOString() });
 }
-

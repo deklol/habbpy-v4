@@ -18,6 +18,7 @@ const pluginDisplayOrder = new Map(
     "gardening",
     "wall-mover",
     "fishing",
+    "present-catcher",
     "packet-log",
     "automation",
     "injection",

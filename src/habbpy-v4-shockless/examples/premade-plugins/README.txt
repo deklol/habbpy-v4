@@ -8,4 +8,3 @@ The installed plugin id is prefixed with `premade-` so it does not collide with 
 
 The generated code demonstrates the public plugin host API: session, runtime, room, chat, packet, and storage hooks.
 It intentionally avoids credentials, webhook values, local account files, and hardcoded Habbo client versions.
-

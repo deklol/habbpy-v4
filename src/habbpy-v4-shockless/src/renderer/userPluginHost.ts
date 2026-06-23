@@ -354,6 +354,7 @@ const api = {
     findItem: (selector = {}, options = {}) => request("furni.findItem", { selector, options }),
     moveFloorItem: (selector, x, y, direction = null, options = {}) => request("furni.moveFloorItem", { selector, x, y, direction, options }),
     rotateFloorItem: (selector, direction, options = {}) => request("furni.rotateFloorItem", { selector, direction, options }),
+    useFloorItem: (selector, value = "0", options = {}) => request("furni.useFloorItem", { selector, value, options }),
     pickupFloorItem: (selector, options = {}) => request("furni.pickupFloorItem", { selector, options }),
     moveWallItem: (selector, location, options = {}) => request("furni.moveWallItem", { selector, location, options }),
     pickupWallItem: (selector, options = {}) => request("furni.pickupWallItem", { selector, options }),

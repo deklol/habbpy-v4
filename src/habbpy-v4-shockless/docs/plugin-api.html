@@ -893,6 +893,7 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
           ["furni.findItem(selector = {}, options?)", "Promise<RoomItemPayload | null>", "Returns the first matching live room item.", "const poster = await furni.findItem({ kind: 'wall', query: 'poster' })"],
           ["furni.moveFloorItem(selector, x, y, direction = null, options?)", "Promise<Result & { item }>", "Moves a floor/passive item. Numeric ids can avoid snapshot lookup when x/y/direction are supplied.", "await furni.moveFloorItem('chair', 5, 7, 2)"],
           ["furni.rotateFloorItem(selector, direction, options?)", "Promise<Result & { item }>", "Rotates a floor/passive item while preserving/resolving tile coordinates.", "await furni.rotateFloorItem(12345, 4)"],
+          ["furni.useFloorItem(selector, value = '0', options?)", "Promise<Result & { item }>", "Uses a floor/passive item through SET_STUFF_DATA [74]. Numeric ids can avoid snapshot lookup; selectors require engine.snapshot.", "await furni.useFloorItem({ className: 'toby_hammer' }, '0')"],
           ["furni.pickupFloorItem(selector, options?)", "Promise<Result & { item }>", "Picks up a floor/passive item by id or selector.", "await furni.pickupFloorItem({ objectId: 12345 })"],
           ["furni.moveWallItem(selector, location, options?)", "Promise<Result & { item }>", "Moves a wall item by absolute wall/local coordinates or delta from parsed location.", "await furni.moveWallItem('poster', { deltaX: 1 })"],
           ["furni.pickupWallItem(selector, options?)", "Promise<Result & { item }>", "Picks up a wall item by id or selector.", "await furni.pickupWallItem('poster')"],
@@ -1096,7 +1097,7 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
       },
       {
         name: "Move All Matching Furni",
-        build: "Find items by name/class and move, rotate, or pick them up using typed furni APIs.",
+        build: "Find items by name/class and move, rotate, use, or pick them up using typed furni APIs.",
         permissions: "engine.snapshot, actions.furni",
         apis: "furni.findItems(), furni.moveFloorItem(), furni.pickupItem()",
         notes: "Selector-based lookup requires the selected rendered client. Numeric ids can target other clients when already known.",
@@ -1107,6 +1108,20 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
     await timers.sleep(250);
   }
   log.info(\`Moved \${mats.length} matching item(s).\`);
+}`
+      },
+      {
+        name: "Use Event Furni",
+        build: "Find a live floor item, walk to it, and use it with the typed SET_STUFF_DATA route.",
+        permissions: "engine.snapshot, actions.avatar, actions.furni",
+        apis: "furni.findItem(), avatar.walkTo(), furni.useFloorItem()",
+        notes: "This is the safe typed API path used by built-in event-item handling for toby_hammer and anniv_present_gen* objects. Untested live route: event-present behavior is documented but not marked proven until matching Origins event data is available.",
+        code: `export async function activate({ avatar, furni, log }) {
+  const hammer = await furni.findItem({ className: "toby_hammer", kind: "floor" });
+  if (!hammer?.tile) return log.warn("No hammer in room.");
+  await avatar.walkTo(hammer.tile.x, hammer.tile.y, Number(hammer.objectId));
+  await furni.useFloorItem(hammer, "0");
+  log.info("Hammer use routed through SET_STUFF_DATA.");
 }`
       },
       {

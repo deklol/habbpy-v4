@@ -48,4 +48,3 @@ export async function activate(api) {
 async function remember(storage, key, value) {
   await storage.set(key, { value, updatedAt: new Date().toISOString() });
 }
-

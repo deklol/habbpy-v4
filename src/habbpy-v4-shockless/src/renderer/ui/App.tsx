@@ -60,7 +60,7 @@ import { RendererUserPluginHost, type UserPluginHostRequest } from "../userPlugi
 import { getPluginById, plugins } from "../../plugins/registry";
 import type { PluginDefinition, PluginPermission, PluginRegistryState } from "../../shared/plugin";
 import { parseConsoleCommand, redactConsoleCommandInput, type ConsoleRendererAction } from "../../shared/consoleCommand";
-import { formatShockwavePacketParts } from "../../shared/shockwavePacketText";
+import { encodeShockwaveBase64Int, formatShockwavePacketParts } from "../../shared/shockwavePacketText";
 import type {
   AppPreferencesPatch,
   AppPreferencesState,
@@ -415,6 +415,23 @@ function isFishingAreaObject(entry: RuntimeObjectSummary): boolean {
   return className.endsWith("fish_area");
 }
 
+function isPresentCatcherHammerObject(entry: RuntimeObjectSummary): boolean {
+  return compactValue(entry.className ?? entry.name).trim().toLowerCase() === "toby_hammer";
+}
+
+function isPresentCatcherPresentObject(entry: RuntimeObjectSummary): boolean {
+  return compactValue(entry.className ?? entry.name).trim().toLowerCase().startsWith("anniv_present_gen");
+}
+
+function isPresentCatcherGiftItem(entry: RuntimeInventoryItemSummary, classFilter: string): boolean {
+  const filter = classFilter.trim().toLowerCase();
+  if (!filter) return false;
+  const text = [entry.className, entry.itemId, entry.objectId, entry.slotId, entry.inventoryKind].map(compactValue).join(" ").toLowerCase();
+  return text.includes(filter);
+}
+
+const presentCatcherPacketHeaders = new Set([65, 74, 78, 90, 93, 94, 1240, 1241, 3400, 3401, 3402, 3403, 3404, 3600, 3601, 3602, 3603, 3604]);
+
 type ItemRow = RuntimeItemRow;
 
 interface WallMoverLocation {
@@ -546,6 +563,72 @@ function workingTileNearSelf(
 
 function findCurrentPlantRow(rows: readonly ItemRow[], objectId: number): ItemRow | null {
   return rows.find((row) => objectNumericId(row.item) === objectId) ?? null;
+}
+
+function adjacentTileForItem(
+  row: ItemRow | null | undefined,
+  itemRows: readonly ItemRow[],
+  users: readonly RuntimeUserSummary[],
+  self: RuntimeUserSummary | null | undefined,
+): { readonly x: number; readonly y: number } | null {
+  const tile = itemRowTile(row);
+  if (!tile) return null;
+  const occupied = occupiedGardeningTiles(itemRows, users, self, objectIdText(row?.item));
+  const selfTile = userTile(self);
+  const candidates = [
+    { x: tile.x, y: tile.y + 1 },
+    { x: tile.x + 1, y: tile.y },
+    { x: tile.x - 1, y: tile.y },
+    { x: tile.x, y: tile.y - 1 },
+  ].filter((candidate) => !occupied.has(tileKey(candidate.x, candidate.y)));
+  const pool = candidates.length > 0 ? candidates : [{ x: tile.x, y: tile.y + 1 }];
+  if (!selfTile) return pool[0] ?? null;
+  return [...pool].sort((left, right) => Math.abs(left.x - selfTile.x) + Math.abs(left.y - selfTile.y) - (Math.abs(right.x - selfTile.x) + Math.abs(right.y - selfTile.y)))[0] ?? null;
+}
+
+function latin1ByteArray(text: string): readonly number[] {
+  const bytes: number[] = [];
+  for (let index = 0; index < text.length; index += 1) {
+    const value = text.charCodeAt(index);
+    if (value > 0xff) throw new Error("Text cannot be encoded as Latin-1.");
+    bytes.push(value);
+  }
+  return bytes;
+}
+
+function shockwaveVl64ByteArray(value: number): readonly number[] {
+  if (!Number.isInteger(value)) throw new Error(`VL64 value must be an integer: ${value}`);
+  const negative = value < 0;
+  let remaining = Math.abs(value);
+  const bytes: number[] = [64 + (remaining & 0x03)];
+  remaining = Math.floor(remaining / 4);
+  while (remaining > 0) {
+    bytes.push(64 + (remaining & 0x3f));
+    remaining = Math.floor(remaining / 64);
+  }
+  if (bytes.length > 6) throw new Error(`VL64 value uses ${bytes.length} bytes; max supported is 6`);
+  bytes[0] = bytes[0]! | (bytes.length << 3) | (negative ? 0x04 : 0);
+  return bytes;
+}
+
+function shockwaveOutgoingStringByteArray(value: string): readonly number[] {
+  return [...encodeShockwaveBase64Int(value.length, 2), ...latin1ByteArray(value)];
+}
+
+function decodeShockwaveVl64Text(value: string): number | null {
+  if (!value) return null;
+  const bytes = latin1ByteArray(value);
+  const first = bytes[0];
+  if (first === undefined || first < 64) return null;
+  const length = (first >> 3) & 0x07;
+  if (length <= 0 || bytes.length < length) return null;
+  let result = first & 0x03;
+  let shift = 2;
+  for (let index = 1; index < length; index += 1) {
+    result += (bytes[index]! & 0x3f) << shift;
+    shift += 6;
+  }
+  return (first & 0x04) !== 0 ? -result : result;
 }
 
 type GardeningPhase = "idle" | "move_out" | "compost" | "water" | "harvest" | "return" | "complete" | "failed";
@@ -972,6 +1055,8 @@ function runtimeProbeScopesForPlugin(pluginId: string): readonly EngineRuntimeSn
     case "chat":
     case "visitors":
       return ["core", "room"];
+    case "present-catcher":
+      return ["core", "room", "inventory"];
     case "inventory":
       return ["core", "inventory"];
     default:
@@ -4011,6 +4096,27 @@ export function App() {
   const [gardeningRunning, setGardeningRunning] = useState(false);
   const [fishingMessage, setFishingMessage] = useState("");
   const [gardeningMessage, setGardeningMessage] = useState("");
+  const [presentCatcherRunning, setPresentCatcherRunning] = useState(false);
+  const [presentCatcherMessage, setPresentCatcherMessage] = useState("");
+  const [presentCatcherTab, setPresentCatcherTab] = useState<"catcher" | "gifts" | "fragments">("catcher");
+  const [presentCatcherPanicDraft, setPresentCatcherPanicDraft] = useState("");
+  const [presentCatcherPanicNames, setPresentCatcherPanicNames] = useState<string[]>(() => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem("habbpy-v4:present-catcher:panic-names") ?? "[]");
+      return Array.isArray(parsed) ? parsed.map((entry) => String(entry).trim()).filter(Boolean) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [presentCatcherGiftClass, setPresentCatcherGiftClass] = useState("balloon");
+  const [selectedPresentGiftKey, setSelectedPresentGiftKey] = useState("");
+  const [presentPlaceX, setPresentPlaceX] = useState("");
+  const [presentPlaceY, setPresentPlaceY] = useState("");
+  const [presentPlaceDirection, setPresentPlaceDirection] = useState("2");
+  const [presentOpenObjectId, setPresentOpenObjectId] = useState("");
+  const [presentFragmentEvent, setPresentFragmentEvent] = useState("second_anniversary");
+  const [presentFragmentSlotId, setPresentFragmentSlotId] = useState("");
+  const [presentFragmentTradeTarget, setPresentFragmentTradeTarget] = useState("");
   const [selectedWallMoverKey, setSelectedWallMoverKey] = useState("");
   const [wallMoverStep, setWallMoverStep] = useState("1");
   const [wallMoverMessage, setWallMoverMessage] = useState("");
@@ -4060,6 +4166,7 @@ export function App() {
   const injectionFileInputRef = useRef<HTMLInputElement | null>(null);
   const lastChatRoomMarkerKeyRef = useRef("");
   const lastAutoHideBulletinKeyRef = useRef("");
+  const presentCatcherActionInFlightRef = useRef(false);
   const visibleLoginSubmittedRef = useRef<Set<string>>(new Set());
   const visibleLoginInFlightRef = useRef<Set<string>>(new Set());
   const visibleLoginWarnedRef = useRef<Set<string>>(new Set());
@@ -4340,6 +4447,20 @@ export function App() {
   const selectedFishingAreaRow = fishingAreaRows[0] ?? null;
   const plantRows = useMemo(() => itemRows.filter((row) => row.kind !== "wall" && isPlantLikeObject(row.item)), [itemRows]);
   const selectedPlantRow = plantRows.find((row) => row.key === selectedPlantKey) ?? plantRows[0] ?? null;
+  const presentHammerRows = useMemo(() => itemRows.filter((row) => row.kind !== "wall" && isPresentCatcherHammerObject(row.item)), [itemRows]);
+  const presentRows = useMemo(() => itemRows.filter((row) => row.kind !== "wall" && isPresentCatcherPresentObject(row.item)), [itemRows]);
+  const presentGiftRows = useMemo(
+    () => (selectedRuntimeSnapshot?.inventory?.items ?? []).filter((row) => isPresentCatcherGiftItem(row, presentCatcherGiftClass)),
+    [presentCatcherGiftClass, selectedRuntimeSnapshot?.inventory?.items],
+  );
+  const selectedPresentGiftRow = presentGiftRows.find((row) => row.rowId === selectedPresentGiftKey) ?? presentGiftRows[0] ?? null;
+  const presentCatcherPacketRows = useMemo(
+    () =>
+      (relayLog?.entries ?? [])
+        .filter((entry) => (entry.clientId === null || entry.clientId === selectedClientId) && entry.header !== null && presentCatcherPacketHeaders.has(entry.header))
+        .slice(-14),
+    [relayLog?.entries, selectedClientId],
+  );
   const wallMoverRows = useMemo(() => itemRows.filter((row) => row.kind === "wall"), [itemRows]);
   const selectedWallMoverRow = wallMoverRows.find((row) => row.key === selectedWallMoverKey) ?? wallMoverRows[0] ?? null;
   const selectedWallMoverLocation = wallMoverLocation(selectedWallMoverRow?.item);
@@ -4710,6 +4831,10 @@ export function App() {
   }, [refreshMimicState]);
 
   useEffect(() => {
+    localStorage.setItem("habbpy-v4:present-catcher:panic-names", JSON.stringify(presentCatcherPanicNames));
+  }, [presentCatcherPanicNames]);
+
+  useEffect(() => {
     if (!desktopBridgeAvailable) return;
     void refreshSelectedClientSnapshot(clientSessions?.selectedClientId);
   }, [clientSessions?.selectedClientId, desktopBridgeAvailable, refreshSelectedClientSnapshot]);
@@ -4850,6 +4975,213 @@ export function App() {
     }
     await sendFishingAction({ action: "startFishing", areaId }, `Fishing start ${areaId}`);
   }, [appendTimeline, selectedFishingAreaRow, sendFishingAction]);
+
+  const sendPresentCatcherPacket = useCallback(
+    async (packet: PluginPacketInput, label: string) => {
+      if (!window.habbpyV4) {
+        const message = "Run the Electron shell before sending Present Catcher packets.";
+        setPresentCatcherMessage(message);
+        appendTimeline("warning", message);
+        return { ok: false, message };
+      }
+      const result = await window.habbpyV4.sendPluginPacket(packet, selectedClientId);
+      setPresentCatcherMessage(result.message);
+      appendTimeline(result.ok ? "success" : "warning", `${label}: ${result.message}`);
+      await Promise.all([refreshRuntimeSnapshot(["core", "room", "inventory"]).catch(() => null), refreshRelayLog().catch(() => null)]);
+      return result;
+    },
+    [appendTimeline, refreshRelayLog, refreshRuntimeSnapshot, selectedClientId],
+  );
+
+  const usePresentCatcherFloorItem = useCallback(
+    async (row: ItemRow, mode: "hammer" | "present") => {
+      if (!window.habbpyV4) {
+        const message = "Run the Electron shell before using Present Catcher actions.";
+        setPresentCatcherMessage(message);
+        appendTimeline("warning", message);
+        return { ok: false, message };
+      }
+      const objectId = objectNumericId(row.item);
+      const tile = itemRowTile(row);
+      if (objectId === null || !tile) {
+        const message = "Selected target is missing a numeric object id or tile.";
+        setPresentCatcherMessage(message);
+        appendTimeline("warning", message);
+        return { ok: false, message };
+      }
+
+      const moveTarget = mode === "hammer"
+        ? { x: tile.x, y: tile.y, furniId: objectId }
+        : { ...(adjacentTileForItem(row, itemRows, userRows, selfUser) ?? { x: tile.x, y: tile.y + 1 }), furniId: 0 };
+      const move = await window.habbpyV4.sendRoomRelayAction(
+        { action: "move", x: moveTarget.x, y: moveTarget.y, furniId: moveTarget.furniId },
+        selectedClientId,
+      );
+      appendTimeline(move.ok ? "success" : "warning", `Present Catcher move: ${move.message}`);
+      if (!move.ok) {
+        setPresentCatcherMessage(move.message);
+        await refreshRelayLog().catch(() => null);
+        return move;
+      }
+
+      await new Promise((resolve) => window.setTimeout(resolve, 350));
+      const used = await window.habbpyV4.sendFurniRelayAction({ action: "useFloorItem", objectId, value: "0" }, selectedClientId);
+      setPresentCatcherMessage(used.message);
+      appendTimeline(used.ok ? "success" : "warning", `${mode === "hammer" ? "Collect Hammer" : "Use Present"}: ${used.message}`);
+      await Promise.all([refreshRuntimeSnapshot(["core", "room", "inventory"]).catch(() => null), refreshRelayLog().catch(() => null)]);
+      return used;
+    },
+    [appendTimeline, itemRows, refreshRelayLog, refreshRuntimeSnapshot, selectedClientId, selfUser, userRows],
+  );
+
+  const runPresentCatcherStep = useCallback(
+    async (auto = false) => {
+      if (presentCatcherActionInFlightRef.current) return;
+      const panicSet = new Set(presentCatcherPanicNames.map((name) => name.trim().toLowerCase()).filter(Boolean));
+      const panicHit = userRows.find((user) => panicSet.has(userDisplayName(user, selectedRuntimeSnapshot?.userState?.sessionUserName).trim().toLowerCase()));
+      if (panicHit) {
+        setPresentCatcherRunning(false);
+        const name = userDisplayName(panicHit, selectedRuntimeSnapshot?.userState?.sessionUserName);
+        await sendPresentCatcherPacket({ header: 53 }, `Panic leave for ${name}`);
+        setPresentCatcherMessage(`Stopped because panic user ${name} is in the room.`);
+        return;
+      }
+      const target = presentHammerRows[0] ? { row: presentHammerRows[0], mode: "hammer" as const } : presentRows[0] ? { row: presentRows[0], mode: "present" as const } : null;
+      if (!target) {
+        setPresentCatcherMessage(auto ? "Watching current room; no hammers or event presents parsed." : "No hammers or event presents parsed in this room.");
+        return;
+      }
+      presentCatcherActionInFlightRef.current = true;
+      try {
+        await usePresentCatcherFloorItem(target.row, target.mode);
+      } finally {
+        presentCatcherActionInFlightRef.current = false;
+      }
+    },
+    [
+      presentCatcherPanicNames,
+      presentHammerRows,
+      presentRows,
+      selectedRuntimeSnapshot?.userState?.sessionUserName,
+      sendPresentCatcherPacket,
+      usePresentCatcherFloorItem,
+      userRows,
+    ],
+  );
+
+  useEffect(() => {
+    if (!presentCatcherRunning) return;
+    let cancelled = false;
+    let timer = 0;
+    const tick = async () => {
+      if (cancelled) return;
+      await runPresentCatcherStep(true).catch((error) => {
+        setPresentCatcherMessage(error instanceof Error ? error.message : String(error));
+        appendTimeline("warning", `Present Catcher: ${error instanceof Error ? error.message : String(error)}`);
+      });
+      if (!cancelled) timer = window.setTimeout(tick, 1800);
+    };
+    void tick();
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [appendTimeline, presentCatcherRunning, runPresentCatcherStep]);
+
+  const requestPresentCatcherInventory = useCallback(async () => {
+    await runRuntimeAction({ kind: "requestInventory" });
+    await refreshRuntimeSnapshot(["core", "inventory"]).catch(() => null);
+  }, [refreshRuntimeSnapshot, runRuntimeAction]);
+
+  const placeSelectedPresentGift = useCallback(async () => {
+    const item = selectedPresentGiftRow;
+    const token = compactValue(item?.itemId ?? item?.rowId).trim();
+    if (!item || !token || token === "-") {
+      const message = "Select an inventory gift token first.";
+      setPresentCatcherMessage(message);
+      appendTimeline("warning", message);
+      return;
+    }
+    try {
+      const selfTile = userTile(selfUser);
+      const x = cleanInteger(presentPlaceX, selfTile ? selfTile.x + 1 : 0);
+      const y = cleanInteger(presentPlaceY, selfTile ? selfTile.y : 0);
+      const direction = cleanInteger(presentPlaceDirection, 2);
+      setPresentPlaceX(String(x));
+      setPresentPlaceY(String(y));
+      setPresentPlaceDirection(String(direction));
+      const bodyBytes = [...latin1ByteArray(token), ...shockwaveVl64ByteArray(x), ...shockwaveVl64ByteArray(y), ...shockwaveVl64ByteArray(direction)];
+      const result = await sendPresentCatcherPacket({ header: 90, bodyBytes }, `Place gift ${token}`);
+      const decodedId = decodeShockwaveVl64Text(token);
+      const fallbackId = finiteNumber(item.objectId ?? item.slotId ?? item.itemId);
+      const openId = decodedId !== null ? Math.abs(decodedId) : fallbackId !== null ? Math.trunc(Math.abs(fallbackId)) : null;
+      if (result.ok && openId) setPresentOpenObjectId(String(openId));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setPresentCatcherMessage(message);
+      appendTimeline("warning", `Present gift place: ${message}`);
+    }
+  }, [
+    appendTimeline,
+    presentPlaceDirection,
+    presentPlaceX,
+    presentPlaceY,
+    selectedPresentGiftRow,
+    selfUser,
+    sendPresentCatcherPacket,
+  ]);
+
+  const openPresentObject = useCallback(async () => {
+    const objectId = cleanPositiveInt(presentOpenObjectId, 0);
+    if (!objectId) {
+      const message = "Enter a placed present object id first.";
+      setPresentCatcherMessage(message);
+      appendTimeline("warning", message);
+      return;
+    }
+    await sendPresentCatcherPacket({ header: 78, bodyText: String(objectId) }, `Open present ${objectId}`);
+  }, [appendTimeline, presentOpenObjectId, sendPresentCatcherPacket]);
+
+  const sendPresentFragmentPacket = useCallback(
+    async (kind: "request" | "backpack" | "trade" | "add" | "accept" | "cancel") => {
+      const eventName = presentFragmentEvent.trim() || "second_anniversary";
+      if (kind === "request") {
+        await sendPresentCatcherPacket({ header: 3400, bodyBytes: shockwaveOutgoingStringByteArray(eventName) }, `Request fragments ${eventName}`);
+        return;
+      }
+      if (kind === "backpack") {
+        await sendPresentCatcherPacket({ header: 1240 }, "Request backpack");
+        return;
+      }
+      if (kind === "trade") {
+        const target = presentFragmentTradeTarget.trim();
+        if (!target) {
+          setPresentCatcherMessage("Enter a receiver room index before opening a fragment trade.");
+          return;
+        }
+        await sendPresentCatcherPacket(
+          { header: 3403, bodyBytes: [...shockwaveOutgoingStringByteArray(eventName), ...shockwaveOutgoingStringByteArray(target)] },
+          `Trade fragments with ${target}`,
+        );
+        return;
+      }
+      if (kind === "add") {
+        const slotId = cleanPositiveInt(presentFragmentSlotId, 0);
+        if (!slotId) {
+          setPresentCatcherMessage("Enter a fragment slot id before adding a fragment.");
+          return;
+        }
+        await sendPresentCatcherPacket({ header: 3404, bodyBytes: shockwaveVl64ByteArray(slotId) }, `Add fragment slot ${slotId}`);
+        return;
+      }
+      if (kind === "accept") {
+        await sendPresentCatcherPacket({ header: 3402, bodyBytes: shockwaveVl64ByteArray(1) }, "Accept fragment trade");
+        return;
+      }
+      await sendPresentCatcherPacket({ header: 3401 }, "Cancel fragment trade");
+    },
+    [presentFragmentEvent, presentFragmentSlotId, presentFragmentTradeTarget, sendPresentCatcherPacket],
+  );
 
   const sendUserAction = useCallback(
     async (action: UserRelayAction, label: string, clientId?: number) => {
@@ -5743,6 +6075,24 @@ export function App() {
       if (!objectId) throw new Error("furni.pickupFloorItem needs a floor item id or a selector that resolves to a floor item.");
       const result = await window.habbpyV4.sendFurniRelayAction(
         { action: "pickupFloorItem", objectId, className: compactValue(resolved?.row.item.className) },
+        targetClientId,
+      );
+      await Promise.all([refreshRuntimeSnapshot().catch(() => null), refreshRelayLog().catch(() => null)]);
+      return { ...result, item: resolved ? pluginRuntimeItemPayload(resolved.row, furniMetadata) : null };
+    }
+    if (request.api === "furni.useFloorItem") {
+      requirePluginPermission(plugin, ["actions.furni"]);
+      if (!window.habbpyV4) throw new Error("Desktop bridge unavailable for furni use.");
+      const targetClientId = requestedPluginClientId(args, selectedClientIdRef.current);
+      const selector = args.selector ?? args.objectId ?? args.item;
+      const directId = pluginSelectorNumericId(selector);
+      if (!directId) requirePluginPermission(plugin, ["engine.snapshot"]);
+      const snapshot = directId ? null : await fullSnapshotForClient(targetClientId);
+      const resolved = snapshot ? pluginResolveFloorItem(snapshot, selector, furniMetadata) : null;
+      const objectId = directId ?? resolved?.id ?? null;
+      if (!objectId) throw new Error("furni.useFloorItem needs a floor item id or a selector that resolves to a floor item.");
+      const result = await window.habbpyV4.sendFurniRelayAction(
+        { action: "useFloorItem", objectId, value: String(args.value ?? "0"), className: compactValue(resolved?.row.item.className) },
         targetClientId,
       );
       await Promise.all([refreshRuntimeSnapshot().catch(() => null), refreshRelayLog().catch(() => null)]);
@@ -7197,6 +7547,7 @@ export function App() {
       selectedPlugin.id === "info" ||
       selectedPlugin.id === "inventory" ||
       selectedPlugin.id === "items" ||
+      selectedPlugin.id === "present-catcher" ||
       selectedPlugin.id === "social" ||
       selectedPlugin.id === "user" ||
       selectedPlugin.id === "visitors" ||
@@ -9948,6 +10299,291 @@ export function App() {
                     ) : null}
                   </div>
                 </div>
+              </div>
+            ) : null}
+
+            {selectedPlugin.id === "present-catcher" ? (
+              <div className="runtime-panel present-catcher-panel">
+                <div className="runtime-actions automation-actions">
+                  <button
+                    className="wide-action"
+                    type="button"
+                    disabled={!desktopBridgeAvailable || !roomReady || presentCatcherRunning}
+                    onClick={() => {
+                      setPresentCatcherRunning(true);
+                      setPresentCatcherMessage("Watching current room for hammers and event presents.");
+                    }}
+                  >
+                    Start
+                  </button>
+                  <button
+                    className="wide-action"
+                    type="button"
+                    disabled={!presentCatcherRunning}
+                    onClick={() => {
+                      setPresentCatcherRunning(false);
+                      setPresentCatcherMessage("Stopped.");
+                    }}
+                  >
+                    Stop
+                  </button>
+                  <button
+                    className="wide-action"
+                    type="button"
+                    disabled={!desktopBridgeAvailable || !roomReady}
+                    onClick={() => void runPresentCatcherStep(false)}
+                  >
+                    Step
+                  </button>
+                  <button className="wide-action" type="button" disabled={!engineUrl || runtimeBusy} onClick={() => void refreshRuntimeSnapshot(["core", "room", "inventory"])}>
+                    Refresh
+                  </button>
+                </div>
+                <div className="present-catcher-tab-row" role="tablist" aria-label="Present Catcher views">
+                  {(["catcher", "gifts", "fragments"] as const).map((tab) => (
+                    <button
+                      className={presentCatcherTab === tab ? "active" : ""}
+                      key={tab}
+                      type="button"
+                      onClick={() => setPresentCatcherTab(tab)}
+                    >
+                      {labelCase(tab)}
+                    </button>
+                  ))}
+                </div>
+                <div className="kv-grid">
+                  <span>Room Ready</span>
+                  <strong>{compactValue(roomReady)}</strong>
+                  <span>Room</span>
+                  <strong>{runtimeRoomName(selectedRuntimeSnapshot)}</strong>
+                  <span>Hammers</span>
+                  <strong>{compactValue(presentHammerRows.length)}</strong>
+                  <span>Presents</span>
+                  <strong>{compactValue(presentRows.length)}</strong>
+                  <span>Inventory Gifts</span>
+                  <strong>{compactValue(presentGiftRows.length)}</strong>
+                  <span>Panic Users</span>
+                  <strong>{compactValue(presentCatcherPanicNames.length)}</strong>
+                  <span>Status</span>
+                  <strong>{presentCatcherRunning ? "Running" : "Idle"}</strong>
+                  <span>Packets</span>
+                  <strong>{compactValue(presentCatcherPacketRows.length)}</strong>
+                </div>
+                {presentCatcherMessage ? <p className="runtime-message">{presentCatcherMessage}</p> : null}
+
+                {presentCatcherTab === "catcher" ? (
+                  <>
+                    <div className="mini-section">
+                      <h3>Targets</h3>
+                      <div className="item-list">
+                        {[...presentHammerRows, ...presentRows].slice(0, 12).map((row) => {
+                          const isHammer = isPresentCatcherHammerObject(row.item);
+                          return (
+                            <button
+                              className="item-row"
+                              key={row.key}
+                              type="button"
+                              disabled={!desktopBridgeAvailable || !roomReady}
+                              onClick={() => void usePresentCatcherFloorItem(row, isHammer ? "hammer" : "present")}
+                            >
+                              <span>{isHammer ? "Hammer" : "Present"}</span>
+                              <div>
+                                <strong>{itemRowTitle(row, furniMetadata)}</strong>
+                                <small>{itemRowMeta(row, furniMetadata)}</small>
+                              </div>
+                            </button>
+                          );
+                        })}
+                        {presentHammerRows.length + presentRows.length === 0 ? (
+                          <div className="item-row empty">
+                            <span>-</span>
+                            <div>
+                              <strong>No event targets parsed</strong>
+                              <small>Enter an event room with hammers or anniversary presents.</small>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="mini-section">
+                      <h3>Panic List</h3>
+                      <form
+                        className="runtime-input-row"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          const name = presentCatcherPanicDraft.trim();
+                          if (!name) return;
+                          setPresentCatcherPanicNames((current) => [...new Set([...current, name])]);
+                          setPresentCatcherPanicDraft("");
+                        }}
+                      >
+                        <input value={presentCatcherPanicDraft} onChange={(event) => setPresentCatcherPanicDraft(event.currentTarget.value)} placeholder="Name to avoid" />
+                        <button type="submit">Add</button>
+                      </form>
+                      <div className="mini-table user-list-table">
+                        {userRows.slice(0, 10).map((user) => {
+                          const name = userDisplayName(user, selectedRuntimeSnapshot?.userState?.sessionUserName);
+                          const listed = presentCatcherPanicNames.some((entry) => entry.toLowerCase() === name.toLowerCase());
+                          return (
+                            <p key={pluginRuntimeUserKey(user, selectedRuntimeSnapshot?.userState?.sessionUserName)}>
+                              <span>{listed ? "Avoid" : "Room"}</span>
+                              <strong>
+                                {name}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (listed) setPresentCatcherPanicNames((current) => current.filter((entry) => entry.toLowerCase() !== name.toLowerCase()));
+                                    else setPresentCatcherPanicNames((current) => [...new Set([...current, name])]);
+                                  }}
+                                >
+                                  {listed ? "Remove" : "Add"}
+                                </button>
+                              </strong>
+                            </p>
+                          );
+                        })}
+                        {userRows.length === 0 ? <p>No room users parsed yet.</p> : null}
+                      </div>
+                    </div>
+                  </>
+                ) : null}
+
+                {presentCatcherTab === "gifts" ? (
+                  <>
+                    <div className="mini-section">
+                      <h3>Gift Opener</h3>
+                      <div className="inline-field-grid">
+                        <label className="field-stack">
+                          <span>Class Filter</span>
+                          <input value={presentCatcherGiftClass} onChange={(event) => setPresentCatcherGiftClass(event.currentTarget.value)} />
+                        </label>
+                        <label className="field-stack">
+                          <span>X</span>
+                          <input value={presentPlaceX} onChange={(event) => setPresentPlaceX(event.currentTarget.value.replace(/[^\d-]/g, ""))} />
+                        </label>
+                        <label className="field-stack">
+                          <span>Y</span>
+                          <input value={presentPlaceY} onChange={(event) => setPresentPlaceY(event.currentTarget.value.replace(/[^\d-]/g, ""))} />
+                        </label>
+                        <label className="field-stack">
+                          <span>Dir</span>
+                          <input value={presentPlaceDirection} onChange={(event) => setPresentPlaceDirection(event.currentTarget.value.replace(/[^\d-]/g, ""))} />
+                        </label>
+                      </div>
+                      <div className="runtime-actions automation-actions">
+                        <button className="wide-action" type="button" disabled={!engineUrl || runtimeBusy} onClick={() => void requestPresentCatcherInventory()}>
+                          Request Inventory
+                        </button>
+                        <button className="wide-action" type="button" disabled={!desktopBridgeAvailable || !selectedPresentGiftRow} onClick={() => void placeSelectedPresentGift()}>
+                          Place Selected
+                        </button>
+                        <button className="wide-action" type="button" disabled={!desktopBridgeAvailable} onClick={() => void sendPresentCatcherPacket({ header: 65, bodyText: "new" }, "Refresh strip")}>
+                          Refresh Strip
+                        </button>
+                      </div>
+                      <form
+                        className="runtime-input-row"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void openPresentObject();
+                        }}
+                      >
+                        <input value={presentOpenObjectId} onChange={(event) => setPresentOpenObjectId(event.currentTarget.value.replace(/[^\d]/g, ""))} placeholder="Placed object id" />
+                        <button type="submit" disabled={!desktopBridgeAvailable}>
+                          Open
+                        </button>
+                      </form>
+                    </div>
+                    <div className="mini-section">
+                      <h3>Matching Inventory</h3>
+                      <div className="item-list inventory-table">
+                        {presentGiftRows.slice(0, 14).map((row) => (
+                          <button
+                            className={`item-row ${selectedPresentGiftRow?.rowId === row.rowId ? "active" : ""}`}
+                            key={row.rowId}
+                            type="button"
+                            onClick={() => {
+                              setSelectedPresentGiftKey(row.rowId);
+                              const decodedId = decodeShockwaveVl64Text(compactValue(row.itemId));
+                              const fallbackId = finiteNumber(row.objectId ?? row.slotId ?? row.itemId);
+                              const openId = decodedId !== null ? Math.abs(decodedId) : fallbackId !== null ? Math.trunc(Math.abs(fallbackId)) : null;
+                              if (openId) setPresentOpenObjectId(String(openId));
+                            }}
+                          >
+                            <span>{row.inventoryKind || "item"}</span>
+                            <div>
+                              <strong>{compactValue(row.className)}</strong>
+                              <small>token {compactValue(row.itemId)} / object {compactValue(row.objectId)}</small>
+                            </div>
+                          </button>
+                        ))}
+                        {presentGiftRows.length === 0 ? (
+                          <div className="item-row empty">
+                            <span>-</span>
+                            <div>
+                              <strong>No matching inventory gifts</strong>
+                              <small>Open/request inventory and adjust the class filter.</small>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </>
+                ) : null}
+
+                {presentCatcherTab === "fragments" ? (
+                  <>
+                    <div className="mini-section">
+                      <h3>Treasure Fragments</h3>
+                      <div className="inline-field-grid">
+                        <label className="field-stack">
+                          <span>Event</span>
+                          <input value={presentFragmentEvent} onChange={(event) => setPresentFragmentEvent(event.currentTarget.value)} />
+                        </label>
+                        <label className="field-stack">
+                          <span>Receiver Index</span>
+                          <input value={presentFragmentTradeTarget} onChange={(event) => setPresentFragmentTradeTarget(event.currentTarget.value)} />
+                        </label>
+                        <label className="field-stack">
+                          <span>Slot Id</span>
+                          <input value={presentFragmentSlotId} onChange={(event) => setPresentFragmentSlotId(event.currentTarget.value.replace(/[^\d]/g, ""))} />
+                        </label>
+                      </div>
+                      <div className="runtime-actions automation-actions">
+                        <button className="wide-action" type="button" disabled={!desktopBridgeAvailable} onClick={() => void sendPresentFragmentPacket("request")}>
+                          Read Fragments
+                        </button>
+                        <button className="wide-action" type="button" disabled={!desktopBridgeAvailable} onClick={() => void sendPresentFragmentPacket("backpack")}>
+                          Read Backpack
+                        </button>
+                        <button className="wide-action" type="button" disabled={!desktopBridgeAvailable} onClick={() => void sendPresentFragmentPacket("trade")}>
+                          Trade With
+                        </button>
+                        <button className="wide-action" type="button" disabled={!desktopBridgeAvailable} onClick={() => void sendPresentFragmentPacket("add")}>
+                          Add Slot
+                        </button>
+                        <button className="wide-action" type="button" disabled={!desktopBridgeAvailable} onClick={() => void sendPresentFragmentPacket("accept")}>
+                          Accept
+                        </button>
+                        <button className="wide-action" type="button" disabled={!desktopBridgeAvailable} onClick={() => void sendPresentFragmentPacket("cancel")}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mini-section">
+                      <h3>Fragment Packet Feed</h3>
+                      <div className="mini-table packet-detail-table">
+                        {presentCatcherPacketRows.slice().reverse().map((entry) => (
+                          <p key={entry.id}>
+                            <span>{compactValue(entry.header)}</span>
+                            <strong>{relayEntryPlain(entry, relayLog?.updatedAt)}</strong>
+                          </p>
+                        ))}
+                        {presentCatcherPacketRows.length === 0 ? <p>No present/gift/fragment packets parsed yet.</p> : null}
+                      </div>
+                    </div>
+                  </>
+                ) : null}
               </div>
             ) : null}
 

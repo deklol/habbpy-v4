@@ -1009,6 +1009,30 @@ img {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.present-catcher-tab-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.present-catcher-tab-row button {
+  height: 30px;
+  border: 1px solid var(--line);
+  background: rgba(20, 20, 20, 0.72);
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 9px;
+  text-transform: uppercase;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.08), inset -1px -1px 0 #000;
+}
+
+.present-catcher-tab-row button.active {
+  color: #171108;
+  background: linear-gradient(#f2ce54, #c39418);
+  border-color: #f5d760;
+}
+
 .plugin-manager-list {
   display: grid;
   gap: 10px;

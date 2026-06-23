@@ -116,4 +116,3 @@ function plantItems(snapshot) {
 function fishingAreaItems(snapshot) {
   return floorItems(snapshot).filter((item) => String(item?.className ?? item?.name ?? '').trim().toLowerCase().endsWith('fish_area'));
 }
-

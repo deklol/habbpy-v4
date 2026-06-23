@@ -15,6 +15,7 @@ function text(bytes: Uint8Array): string {
 test("furni relay builds source-backed floor move rotate and pickup packets", () => {
   assert.equal(text(packet({ action: "moveFloorItem", objectId: 42, x: 3, y: 5, direction: 2 })), "AIRJKQAJ");
   assert.equal(text(packet({ action: "rotateFloorItem", objectId: 42, x: 3, y: 5, direction: 4 })), "AIRJKQAPA");
+  assert.equal(text(packet({ action: "useFloorItem", objectId: 42, value: "0", className: "toby_hammer" })), "AJ@B42@A0");
   assert.equal(text(packet({ action: "pickupFloorItem", objectId: 42, className: "chair" })), "ACnew stuff 42");
 });
 
@@ -29,6 +30,8 @@ test("furni relay builds source-backed wall move and pickup packets", () => {
 
 test("furni relay validation rejects unsafe or incomplete actions", () => {
   assert.equal(isAllowedFurniRelayAction({ action: "pickupFloorItem", objectId: 0 }), false);
+  assert.equal(isAllowedFurniRelayAction({ action: "useFloorItem", objectId: 42, value: "0" }), true);
+  assert.equal(isAllowedFurniRelayAction({ action: "useFloorItem", objectId: 0, value: "0" }), false);
   assert.equal(isAllowedFurniRelayAction({ action: "pickupWallItem", itemId: 77 }), true);
   assert.equal(
     isAllowedFurniRelayAction({ action: "moveFloorItem", objectId: 42, x: 3, y: Number.NaN, direction: 2 }),
@@ -38,5 +41,6 @@ test("furni relay validation rejects unsafe or incomplete actions", () => {
     isAllowedFurniRelayAction({ action: "moveWallItem", itemId: 77, wallX: -2, wallY: 5, localX: 0, localY: 1, orientation: "x" as "l" }),
     false,
   );
+  assert.equal(buildFurniRelayPacketFromControl({ action: "useFloorItem", objectId: 42, value: "snowman ☃" }).ok, false);
   assert.equal(buildFurniRelayPacketFromControl({ action: "rawPacket", objectId: 42 }).ok, false);
 });

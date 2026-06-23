@@ -62,4 +62,3 @@ function onPacket(disposers, packets, direction, filter, handler) {
 async function remember(storage, key, value) {
   await storage.set(key, { value, updatedAt: new Date().toISOString() });
 }
-

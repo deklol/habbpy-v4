@@ -1,6 +1,6 @@
-# Chat Premade Module
+# Present Catcher Premade Module
 
-Readable user-plugin source reference for the built-in Chat module.
+Readable user-plugin source reference for the built-in Present Catcher module.
 
 This folder is a premade user-plugin source reference for the native built-in module.
 It does not replace the native panel; it shows how a third-party plugin can subscribe to the same public events and APIs.
@@ -15,22 +15,24 @@ It does not replace the native panel; it shows how a third-party plugin can subs
 ## Permissions
 
 - `ui.panel`
-- `ui.status`
 - `console.commands`
 - `events.room`
+- `events.packet`
 - `engine.snapshot`
-- `events.chat`
-- `chat.send`
+- `engine.control`
+- `packet.read`
+- `packet.inject`
+- `actions.avatar`
+- `actions.furni`
 - `storage`
 
 ## Capabilities Mirrored From The Built-In Module
 
-- Send room chat
-- Talk/whisper/shout/system filters
-- Display clear
-- Runtime chat history
-- Packet-backed CHAT/CHAT_2/CHAT_3 fallback rows
-- Room entry/clear markers from runtime room events
+- Live hammer and event-present target lists from parsed room objects
+- Panic list using parsed room users
+- Packet-backed walk, hammer collect, and present-use actions
+- Gift opener controls for inventory tokens and present-open packets
+- Treasure fragment request/trade packet controls
 
 ## Notes
 

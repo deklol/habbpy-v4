@@ -68,4 +68,3 @@ async function remember(storage, key, value) {
 function visitorKey(user) {
   return String(user?.accountId ?? user?.id ?? user?.name ?? 'unknown').toLowerCase();
 }
-

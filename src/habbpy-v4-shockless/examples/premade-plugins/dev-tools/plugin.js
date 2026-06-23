@@ -75,4 +75,3 @@ async function remember(storage, key, value) {
 function snapshotFromEvent(event) {
   return event?.snapshot ?? event?.runtime ?? event ?? null;
 }
-

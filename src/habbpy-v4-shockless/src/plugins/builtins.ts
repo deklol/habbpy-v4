@@ -11,6 +11,7 @@ import { inventoryPlugin } from "./inventory/plugin.js";
 import { automationPlugin } from "./automation/plugin.js";
 import { fishingPlugin } from "./fishing/plugin.js";
 import { gardeningPlugin } from "./gardening/plugin.js";
+import { presentCatcherPlugin } from "./present-catcher/plugin.js";
 import { wallMoverPlugin } from "./wall-mover/plugin.js";
 import { socialPlugin } from "./social/plugin.js";
 import { visitorsPlugin } from "./visitors/plugin.js";
@@ -33,6 +34,7 @@ export const builtInPluginDefinitions: readonly PluginDefinition[] = [
   automationPlugin,
   fishingPlugin,
   gardeningPlugin,
+  presentCatcherPlugin,
   wallMoverPlugin,
   socialPlugin,
   visitorsPlugin,

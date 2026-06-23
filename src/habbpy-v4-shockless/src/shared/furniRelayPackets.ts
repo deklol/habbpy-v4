@@ -32,6 +32,17 @@ export function buildFurniRelayPacketFromControl(record: Record<string, unknown>
         note: `Furni pickup floor item header=67 objectId=${objectId.value}`,
       };
     }
+    case "useFloorItem": {
+      const objectId = parsePositiveControlInt(record.objectId, "objectId");
+      if (!objectId.ok) return objectId;
+      const value = normalizeStuffDataValue(record.value);
+      if (!value.ok) return value;
+      return {
+        ok: true,
+        packet: makePacket(74, concatBytes(writeOutgoingStringBytes(String(objectId.value)), writeOutgoingStringBytes(value.value))),
+        note: `Furni use floor item header=74 objectId=${objectId.value} value=${value.value}`,
+      };
+    }
     case "moveWallItem": {
       const itemId = parsePositiveControlInt(record.itemId, "itemId");
       if (!itemId.ok) return itemId;
@@ -127,6 +138,16 @@ function normalizeOrientation(value: unknown): { readonly ok: true; readonly val
   const orientation = String(value ?? "").trim().toLowerCase();
   if (orientation === "l" || orientation === "r") return { ok: true, value: orientation };
   return { ok: false, message: `Furni relay orientation must be l or r: ${String(value ?? "")}.` };
+}
+
+function normalizeStuffDataValue(value: unknown): { readonly ok: true; readonly value: string } | { readonly ok: false; readonly message: string } {
+  const normalized = value === null || value === undefined ? "0" : String(value);
+  if (normalized.length > 512) return { ok: false, message: "Furni relay use value is too long." };
+  for (let index = 0; index < normalized.length; index += 1) {
+    const code = normalized.charCodeAt(index);
+    if (code > 0xff) return { ok: false, message: "Furni relay use value must be Latin-1 text." };
+  }
+  return { ok: true, value: normalized };
 }
 
 function latin1Bytes(text: string): Uint8Array {
