@@ -271,7 +271,7 @@ export class MultiSessionManager {
 
     let updated = false;
     let error: string | undefined;
-    if (settingBuild !== null && settingBuild !== detected.build) {
+    if (settings.activeProfileId !== profile.id || settingBuild !== detected.build) {
       try {
         writeShocklessSettings(this.options.appDataPath, {
           activeProfileId: profile.id,

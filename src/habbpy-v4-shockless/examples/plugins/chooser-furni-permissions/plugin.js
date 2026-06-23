@@ -31,8 +31,14 @@ export async function activate({ client, events, log, storage }) {
   await tryGrantChooserRights("activation");
   const offRoomReady = events.on("room.ready", () => tryGrantChooserRights("room.ready"));
 
-  return () => {
+  return async () => {
     offRoomReady();
+    try {
+      await client.removeRights(CHOOSER_RIGHTS);
+      log.info("Chooser/Furni rights removed.");
+    } catch (error) {
+      log.warn(`Chooser/Furni rights cleanup failed: ${error?.message || error}`);
+    }
   };
 }
 

@@ -138,6 +138,9 @@ export class ClientLibraryStore {
       sourceName: found.compiledClient.sourceFolderName,
       onProgress: options.onProgress,
     });
+    if (!existsSync(join(imported.profileRoot, "profile.json"))) {
+      throw new Error(`Profile importer reported success, but ${join(imported.profileRoot, "profile.json")} was not created.`);
+    }
     const registered = new Set([...(stored.registeredProfileRoots ?? []), imported.profileRoot]);
     this.writeStore({
       selectedProfileRoot: imported.profileRoot,
@@ -213,7 +216,7 @@ export function findProfileRootsInSource(sourcePath: string): {
   const resolved = resolve(sourcePath);
   if (!existsSync(resolved) || !statSync(resolved).isDirectory()) return { kind: "unknown", profileRoots: [] };
 
-  if (existsSync(join(resolved, "profile.json"))) {
+  if (!isTransientProfileRoot(resolved) && existsSync(join(resolved, "profile.json"))) {
     return { kind: "profiles", profileRoots: [resolved] };
   }
 
@@ -224,6 +227,7 @@ export function findProfileRootsInSource(sourcePath: string): {
 
   const childProfileRoots = readdirSync(resolved, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
+    .filter((entry) => !isTransientProfileName(entry.name))
     .map((entry) => join(resolved, entry.name))
     .filter((candidate) => existsSync(join(candidate, "profile.json")));
   if (childProfileRoots.length > 0) {
@@ -232,6 +236,14 @@ export function findProfileRootsInSource(sourcePath: string): {
 
   const compiledClient = resolveCompiledClientReference(resolved);
   return compiledClient ? { kind: "compiled-client", profileRoots: [], compiledClient } : { kind: "unknown", profileRoots: [] };
+}
+
+function isTransientProfileRoot(profileRoot: string): boolean {
+  return isTransientProfileName(basename(resolve(profileRoot)));
+}
+
+function isTransientProfileName(name: string): boolean {
+  return name.startsWith(".importing-") || name.startsWith(".failed-");
 }
 
 function defaultProfileRoots(appDataPath: string): readonly string[] {

@@ -15,6 +15,7 @@ export interface UserPluginHostContext {
 interface RuntimeRecord {
   readonly plugin: PluginDefinition;
   readonly worker: Worker;
+  disposeTimer?: ReturnType<typeof setTimeout>;
 }
 
 export class RendererUserPluginHost {
@@ -93,6 +94,10 @@ export class RendererUserPluginHost {
     if (message.type === "status") {
       const status = String(message.status ?? "");
       if (status === "active") this.context.log(runtime.plugin, "info", "Plugin activated.");
+      if (status === "disposed") {
+        if (runtime.disposeTimer) clearTimeout(runtime.disposeTimer);
+        runtime.worker.terminate();
+      }
       return;
     }
     if (message.type !== "request") return;
@@ -110,8 +115,8 @@ export class RendererUserPluginHost {
     const runtime = this.runtimes.get(pluginId);
     if (!runtime) return;
     runtime.worker.postMessage({ type: "dispose" });
-    runtime.worker.terminate();
     this.runtimes.delete(pluginId);
+    runtime.disposeTimer = setTimeout(() => runtime.worker.terminate(), 1500);
   }
 }
 
@@ -440,9 +445,13 @@ onmessage = (event) => {
     return;
   }
   if (message.type === "dispose") {
-    for (const dispose of disposeCallbacks.splice(0)) {
-      Promise.resolve().then(dispose).catch((error) => log("error", error?.message || error));
-    }
+    const callbacks = disposeCallbacks.splice(0);
+    Promise.allSettled(callbacks.map((dispose) => Promise.resolve().then(dispose)))
+      .then(() => postMessage({ type: "status", status: "disposed" }))
+      .catch((error) => {
+        log("error", error?.message || error);
+        postMessage({ type: "status", status: "disposed" });
+      });
   }
 };
 `;

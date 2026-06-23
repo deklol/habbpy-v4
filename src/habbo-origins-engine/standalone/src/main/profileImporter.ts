@@ -526,8 +526,11 @@ function commitProfileDirectory(tempRoot: string, finalRoot: string): void {
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
     if (code !== "EPERM" && code !== "EXDEV") throw error;
-    cpSync(tempRoot, finalRoot, { recursive: true });
+    cpSync(tempRoot, finalRoot, { recursive: true, force: true });
     rmSync(tempRoot, { recursive: true, force: true });
+  }
+  if (!existsSync(join(finalRoot, "profile.json"))) {
+    throw new Error(`Profile commit did not create ${join(finalRoot, "profile.json")}.`);
   }
 }
 

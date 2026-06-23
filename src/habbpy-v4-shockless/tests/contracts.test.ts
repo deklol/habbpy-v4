@@ -502,6 +502,22 @@ test("client library direct profile registration activates the selected profile 
   }
 });
 
+test("client library ignores incomplete importer work folders", () => {
+  const root = mkdtempSync(join(tmpdir(), "habbpy-v4-profile-transient-"));
+  try {
+    const clientsRoot = join(root, "clients");
+    const importingRoot = join(clientsRoot, ".importing-release324-fixture");
+    const readyRoot = join(clientsRoot, "release324-fixture");
+    writeReadyProfileFixture(importingRoot, "release324", 324, "compiled 324");
+    writeReadyProfileFixture(readyRoot, "release324", 324, "compiled 324");
+
+    const scan = findProfileRootsInSource(clientsRoot);
+    assert.deepEqual(scan.profileRoots, [readyRoot]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("client library compiled-client import discovers existing appdata profile cache", () => {
   const root = mkdtempSync(join(tmpdir(), "habbpy-v4-appdata-library-"));
   try {
@@ -519,6 +535,35 @@ test("client library compiled-client import discovers existing appdata profile c
     assert.match(state.message, /Registered existing release324 profile cache by reference/);
     assert.match(state.message, /no files copied or decompiled/);
   } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("client library rejects importer success when final profile json is missing", async () => {
+  const root = mkdtempSync(join(tmpdir(), "habbpy-v4-import-missing-profile-"));
+  const previousCli = process.env.HABBPY_V4_PROFILE_IMPORT_CLI;
+  const previousClientsRoot = process.env.HABBPY_V4_IMPORT_CLIENTS_ROOT;
+  const previousCacheRoot = process.env.HABBPY_V4_IMPORT_CACHE_ROOT;
+  try {
+    const appData = join(root, "appdata");
+    const clientRoot = join(root, "compiled 326");
+    const clientsRoot = join(root, "habbpy-clients");
+    const fakeCli = join(root, "fake-profile-import-missing-profile.js");
+    writeCompiledClientFixture(clientRoot, 326);
+    writeFakeProfileImportCliWithoutProfileJson(fakeCli);
+    process.env.HABBPY_V4_PROFILE_IMPORT_CLI = fakeCli;
+    process.env.HABBPY_V4_IMPORT_CLIENTS_ROOT = clientsRoot;
+    process.env.HABBPY_V4_IMPORT_CACHE_ROOT = join(root, "import-cache");
+
+    const library = new ClientLibraryStore(appData);
+    await assert.rejects(() => library.importOrRegisterSource(clientRoot), /profile\.json.*was not created/);
+  } finally {
+    if (previousCli === undefined) delete process.env.HABBPY_V4_PROFILE_IMPORT_CLI;
+    else process.env.HABBPY_V4_PROFILE_IMPORT_CLI = previousCli;
+    if (previousClientsRoot === undefined) delete process.env.HABBPY_V4_IMPORT_CLIENTS_ROOT;
+    else process.env.HABBPY_V4_IMPORT_CLIENTS_ROOT = previousClientsRoot;
+    if (previousCacheRoot === undefined) delete process.env.HABBPY_V4_IMPORT_CACHE_ROOT;
+    else process.env.HABBPY_V4_IMPORT_CACHE_ROOT = previousCacheRoot;
     rmSync(root, { recursive: true, force: true });
   }
 });
@@ -615,6 +660,26 @@ writeFileSync(join(profileRoot, "profile.json"), JSON.stringify({
 }, null, 2) + "\\n", "utf8");
 console.log("[done] fake import complete");
 console.log(JSON.stringify({ id: "release325-imported", profileRoot, runtime: { ready: true } }, null, 2));
+`,
+    "utf8",
+  );
+}
+
+function writeFakeProfileImportCliWithoutProfileJson(cliPath: string): void {
+  writeFileSync(
+    cliPath,
+    `
+const { mkdirSync } = require("node:fs");
+const { join } = require("node:path");
+const args = process.argv.slice(2);
+function arg(name) {
+  const index = args.indexOf(name);
+  return index >= 0 ? args[index + 1] : "";
+}
+const clientsRoot = arg("--clients-root");
+const profileRoot = join(clientsRoot, "release326-imported");
+mkdirSync(join(profileRoot, "client"), { recursive: true });
+console.log(JSON.stringify({ id: "release326-imported", profileRoot, runtime: { ready: true } }, null, 2));
 `,
     "utf8",
   );
