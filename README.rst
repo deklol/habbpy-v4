@@ -41,6 +41,11 @@ Main app UI with the plugin dock closed
 
 Embedded Shockless room view
 
+Credits
+-------
+
+Habbpy v4's client import/build flow uses `ProjectorRays <https://github.com/ProjectorRays/ProjectorRays>`_ for Shockwave/Director decompilation during profile preparation. ProjectorRays is an independent open-source decompiler for Macromedia/Adobe Director and Shockwave projects.
+
 License
 -------
 
