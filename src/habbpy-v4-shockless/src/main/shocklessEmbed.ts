@@ -728,10 +728,14 @@ function valueForExternalVariable(lines: readonly string[], key: string): string
 
 function setExternalVariable(lines: string[], keys: Set<string>, key: string, value: string): void {
   const normalizedKey = key.toLowerCase();
-  const index = lines.findIndex((line) => variableKey(line) === normalizedKey);
   const nextLine = `${key}=${value}`;
-  if (index >= 0) lines[index] = nextLine;
-  else lines.push(nextLine);
+  let found = false;
+  for (let index = 0; index < lines.length; index += 1) {
+    if (variableKey(lines[index] ?? "") !== normalizedKey) continue;
+    lines[index] = nextLine;
+    found = true;
+  }
+  if (!found) lines.push(nextLine);
   keys.add(normalizedKey);
 }
 

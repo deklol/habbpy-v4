@@ -366,7 +366,10 @@ test("external variables normalization keeps live gamedata dynamic", () => {
 });
 
 test("external variables normalization applies accepted VERSIONCHECK build", () => {
-  const normalized = normalizeOriginsExternalVariables("client.version.id=401\rflash.dynamic.download.url=https://example.test/dyn/", 1129);
+  const normalized = normalizeOriginsExternalVariables(
+    "client.version.id=401\rflash.dynamic.download.url=https://example.test/dyn/\rclient.version.id=401",
+    1129,
+  );
   assert.match(normalized, /client\.version\.id=1129/);
   assert.doesNotMatch(normalized, /client\.version\.id=401/);
 });

@@ -3127,6 +3127,10 @@ function requirePluginPermission(plugin: PluginDefinition, permissions: readonly
   throw new Error(`${plugin.name} needs ${permissions.map(permissionLabel).join(" or ")} permission.`);
 }
 
+function isDisabledPluginCleanupRequest(api: string): boolean {
+  return ["storage.get", "storage.set", "storage.delete", "client.getRights", "client.removeRights"].includes(api);
+}
+
 function pluginRoomKey(snapshot: EngineRuntimeSnapshot | null): string {
   if (!snapshot) return "";
   return `${runtimeRoomType(snapshot)}:${runtimeRoomId(snapshot)}:${runtimeRoomName(snapshot)}`;
@@ -5715,6 +5719,10 @@ export function App() {
   };
 
   userPluginRequestHandlerRef.current = async (plugin, request) => {
+    const pluginEnabled = pluginEnabledById[plugin.id] !== false;
+    if (!pluginEnabled && !isDisabledPluginCleanupRequest(request.api)) {
+      throw new Error(`${plugin.name} is disabled.`);
+    }
     const args = request.args && typeof request.args === "object" ? (request.args as Record<string, unknown>) : {};
     const fullSnapshotForClient = async (clientId: number): Promise<EngineRuntimeSnapshot | null> => {
       if (clientId === selectedClientIdRef.current) return selectedRuntimeSnapshotRef.current;
