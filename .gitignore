@@ -1,0 +1,5 @@
+portable/
+artifacts/
+*.zip
+*.7z
+*.log

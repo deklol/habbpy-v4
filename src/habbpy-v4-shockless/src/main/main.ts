@@ -1,0 +1,658 @@
+import { app, BrowserWindow, dialog, ipcMain, shell, webContents, type WebContents } from "electron";
+import net from "node:net";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { appPreferencesState, earlyAppDataPath, GPU_LAUNCH_SWITCHES, readAppPreferences, writeAppPreferences, type AppPreferences } from "./appPreferences.js";
+import { ClientLibraryStore } from "./clientLibrary.js";
+import { readFurniMetadataSnapshot } from "./furnidata.js";
+import { MultiSessionManager } from "./multiSessionManager.js";
+import { lookupOriginsUser } from "./originsUserLookup.js";
+import { PluginManager } from "./pluginManager.js";
+import { stopActiveProfileImports } from "./profileImportRunner.js";
+import { readRelayLogDeltaSnapshot, readRelayLogSnapshot } from "./relayLog.js";
+import { readShocklessSettings, stopActiveEmbeddedRelays, writeShocklessSettings } from "./shocklessEmbed.js";
+import { isAllowedGardeningRelayAction } from "../shared/gardeningRelayPackets.js";
+import { isAllowedFurniRelayAction } from "../shared/furniRelayPackets.js";
+import { isAllowedFishingRelayAction } from "../shared/fishingRelayPackets.js";
+import { isAllowedRoomRelayAction } from "../shared/roomRelayPackets.js";
+import { isAllowedSocialRelayAction } from "../shared/socialRelayPackets.js";
+import { pluginPacketRelayControlPayload } from "../shared/shockwavePluginPacketBuilder.js";
+import { isAllowedUserRelayAction } from "../shared/userRelayPackets.js";
+import { isAllowedWallMoverRelayAction } from "../shared/wallMoverRelayPackets.js";
+import type {
+  GardeningRelayAction,
+  FishingRelayAction,
+  FurniRelayAction,
+  GardeningRelayResult,
+  ProfileImportProgress,
+  EngineLaunchSettingsPatch,
+  PluginPacketInput,
+  RoomRelayAction,
+  SocialRelayAction,
+  UserRelayAction,
+  WallMoverRelayAction,
+} from "../shared/window-api.js";
+import type { PluginCreateRequest } from "../shared/plugin.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const isDev = process.env.HABBPY_V4_DEV === "1" || !app.isPackaged;
+const RELAY_CONTROL_HOST = "127.0.0.1";
+let clientLibrary: ClientLibraryStore | null = null;
+let multiSessionManager: MultiSessionManager | null = null;
+let pluginManagerInstance: PluginManager | null = null;
+let mainWindow: BrowserWindow | null = null;
+let isQuitting = false;
+let forcedExitTimer: NodeJS.Timeout | null = null;
+let activeImportJobId: string | null = null;
+const launchHardwareAccelerationEnabled = readAppPreferences(earlyAppDataPath()).hardwareAcceleration;
+
+if (launchHardwareAccelerationEnabled) {
+  for (const flag of GPU_LAUNCH_SWITCHES) app.commandLine.appendSwitch(flag);
+} else {
+  app.disableHardwareAcceleration();
+}
+
+function rendererUrl(): string {
+  if (isDev) {
+    return process.env.HABBPY_V4_RENDERER_URL || "http://127.0.0.1:5178";
+  }
+  return pathToFileURL(path.join(__dirname, "../../renderer/index.html")).toString();
+}
+
+function createWindow(): void {
+  const window = new BrowserWindow({
+    width: 1440,
+    height: 760,
+    minWidth: 720,
+    minHeight: 520,
+    useContentSize: true,
+    show: process.env.HABBPY_V4_MAIN_WINDOW_SHOW === "0" ? false : true,
+    title: "Habbpy v4",
+    backgroundColor: "#090a0d",
+    webPreferences: {
+      preload: path.join(__dirname, "../preload/preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      webviewTag: true,
+      backgroundThrottling: false,
+    },
+  });
+
+  mainWindow = window;
+  window.on("close", () => {
+    disposeAppResources();
+  });
+  window.on("closed", () => {
+    if (mainWindow === window) mainWindow = null;
+  });
+
+  void window.loadURL(rendererUrl());
+}
+
+ipcMain.handle("habbpy-v4:get-app-info", () => ({
+  name: "Habbpy v4",
+  version: appVersion(),
+  mode: app.isPackaged ? "desktop" : "browser-preview",
+}));
+ipcMain.handle("habbpy-v4:get-app-preferences", () =>
+  appPreferencesState(appDataPath(), launchHardwareAccelerationEnabled),
+);
+ipcMain.handle("habbpy-v4:set-app-preferences", (_event, patch: Partial<Record<keyof AppPreferences, unknown>> | null) => {
+  const current = readAppPreferences(appDataPath());
+  writeAppPreferences(appDataPath(), {
+    hardwareAcceleration: typeof patch?.hardwareAcceleration === "boolean" ? patch.hardwareAcceleration : current.hardwareAcceleration,
+    packetOutputWrap: typeof patch?.packetOutputWrap === "boolean" ? patch.packetOutputWrap : current.packetOutputWrap,
+    packetOutputAutoScroll:
+      typeof patch?.packetOutputAutoScroll === "boolean" ? patch.packetOutputAutoScroll : current.packetOutputAutoScroll,
+    defaultAccountFile: typeof patch?.defaultAccountFile === "string" ? patch.defaultAccountFile : current.defaultAccountFile,
+    defaultAccountCount: typeof patch?.defaultAccountCount === "number" ? patch.defaultAccountCount : current.defaultAccountCount,
+    defaultAccountConcurrency:
+      typeof patch?.defaultAccountConcurrency === "number" ? patch.defaultAccountConcurrency : current.defaultAccountConcurrency,
+    defaultAccountKeyEnv: typeof patch?.defaultAccountKeyEnv === "string" ? patch.defaultAccountKeyEnv : current.defaultAccountKeyEnv,
+    defaultSummonTarget: typeof patch?.defaultSummonTarget === "string" ? patch.defaultSummonTarget : current.defaultSummonTarget,
+    defaultLoadMode: patch?.defaultLoadMode === "visible" ? "visible" : patch?.defaultLoadMode === "headless" ? "headless" : current.defaultLoadMode,
+    autoSubmitVisibleLogin:
+      typeof patch?.autoSubmitVisibleLogin === "boolean" ? patch.autoSubmitVisibleLogin : current.autoSubmitVisibleLogin,
+  });
+  return appPreferencesState(appDataPath(), launchHardwareAccelerationEnabled);
+});
+ipcMain.handle("habbpy-v4:get-plugin-registry-state", () => pluginManager().state());
+ipcMain.handle("habbpy-v4:set-plugin-enabled", (_event, pluginId: string, enabled: boolean) =>
+  pluginManager().setPluginEnabled(String(pluginId ?? ""), enabled === true),
+);
+ipcMain.handle("habbpy-v4:set-plugin-surface-enabled", (_event, pluginId: string, surfaceId: string, enabled: boolean) =>
+  pluginManager().setPluginSurfaceEnabled(String(pluginId ?? ""), String(surfaceId ?? ""), enabled === true),
+);
+ipcMain.handle("habbpy-v4:reload-plugins", () => pluginManager().reload());
+ipcMain.handle("habbpy-v4:open-plugins-folder", async () => {
+  const manager = pluginManager();
+  mkdirSync(manager.userPluginRoot(), { recursive: true });
+  const message = await shell.openPath(manager.userPluginRoot());
+  return { ok: !message, message: message || "Plugins folder opened.", state: manager.state() };
+});
+ipcMain.handle("habbpy-v4:create-plugin-from-template", (_event, request: PluginCreateRequest) =>
+  pluginManager().createFromTemplate(request),
+);
+ipcMain.handle("habbpy-v4:read-plugin-entry-source", (_event, pluginId: string) =>
+  pluginManager().readPluginEntrySource(String(pluginId ?? "")),
+);
+ipcMain.handle("habbpy-v4:install-plugin-from-folder", async () => {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  const result = focusedWindow
+    ? await dialog.showOpenDialog(focusedWindow, {
+        title: "Install Habbpy Plugin Folder",
+        properties: ["openDirectory"],
+      })
+    : await dialog.showOpenDialog({
+        title: "Install Habbpy Plugin Folder",
+        properties: ["openDirectory"],
+      });
+  if (result.canceled || !result.filePaths[0]) return { ok: false, message: "Plugin install cancelled.", state: pluginManager().state() };
+  return pluginManager().installFromFolder(result.filePaths[0]);
+});
+
+ipcMain.handle("habbpy-v4:get-client-library-state", () => library().state());
+ipcMain.handle("habbpy-v4:get-client-sessions", () => sessionManager().sessions());
+ipcMain.handle("habbpy-v4:get-client-snapshot", (_event, clientId?: number) => sessionManager().clientSnapshot(normalizedClientId(clientId) ?? undefined));
+ipcMain.handle("habbpy-v4:get-client-snapshots", () => sessionManager().clientSnapshots());
+ipcMain.handle("habbpy-v4:select-client-session", (_event, clientId: number) => sessionManager().selectClient(Number(clientId)));
+ipcMain.handle("habbpy-v4:rename-client-session", (_event, clientId: number, label: string) =>
+  sessionManager().renameClient(Number(clientId), String(label ?? "")),
+);
+ipcMain.handle("habbpy-v4:run-console-command", (_event, input: string) => sessionManager().runConsoleCommand(String(input ?? "")));
+ipcMain.handle("habbpy-v4:run-console-binding", (_event, key: string) => sessionManager().runConsoleBinding(String(key ?? "")));
+ipcMain.handle("habbpy-v4:get-console-command-state", () => sessionManager().consoleCommandState());
+ipcMain.handle("habbpy-v4:get-mimic-state", () => sessionManager().mimicStateSnapshot());
+
+ipcMain.handle("habbpy-v4:import-client-reference", async (event) => {
+  if (activeImportJobId) return library().state("An import/build job is already running. Watch the GameHost importer progress.");
+  const dialogOptions: Electron.OpenDialogOptions = {
+    title: "Import Compiled Client Or Shockless Profile",
+    properties: ["openDirectory"],
+  };
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  const result = focusedWindow
+    ? await dialog.showOpenDialog(focusedWindow, dialogOptions)
+    : await dialog.showOpenDialog(dialogOptions);
+  if (result.canceled || !result.filePaths[0]) return library().state("Import cancelled.");
+  const sourcePath = result.filePaths[0];
+  const jobId = `profile-import-${Date.now().toString(36)}`;
+  activeImportJobId = jobId;
+  sendProfileImportProgress(event.sender, {
+    jobId,
+    sourceName: path.basename(sourcePath),
+    stage: "validate",
+    state: "running",
+    message: "Preparing importer",
+    detail: "Selected folder accepted",
+    percent: 1,
+    elapsedMs: 0,
+    logPath: null,
+    updatedAt: new Date().toISOString(),
+  });
+  try {
+    const importedLibrary = await library().importOrRegisterSource(sourcePath, {
+      jobId,
+      onProgress: (progress) => sendProfileImportProgress(event.sender, progress),
+    });
+    sendProfileImportProgress(event.sender, {
+      jobId,
+      sourceName: path.basename(sourcePath),
+      stage: "validate-profile",
+      state: "running",
+      message: "Repairing VERSIONCHECK",
+      detail: "Probing the live accepted build before enabling Start",
+      percent: 99,
+      elapsedMs: undefined,
+      logPath: null,
+      updatedAt: new Date().toISOString(),
+    });
+    const repair = await sessionManager().repairSelectedVersionCheckBuild();
+    const message = appendVersionCheckRepairMessage(importedLibrary.message, repair);
+    sendProfileImportProgress(event.sender, {
+      jobId,
+      sourceName: path.basename(sourcePath),
+      stage: "validate-profile",
+      state: repair.error ? "warning" : "done",
+      message: "Profile is ready to launch",
+      detail: versionCheckRepairDetail(repair),
+      percent: 100,
+      elapsedMs: undefined,
+      logPath: null,
+      updatedAt: new Date().toISOString(),
+    });
+    return library().state(message);
+  } catch (error) {
+    sendProfileImportProgress(event.sender, {
+      jobId,
+      sourceName: path.basename(sourcePath),
+      stage: "validate-profile",
+      state: "failed",
+      message: "Import failed",
+      detail: error instanceof Error ? error.message : String(error),
+      percent: 99,
+      elapsedMs: undefined,
+      logPath: null,
+      updatedAt: new Date().toISOString(),
+    });
+    throw error;
+  } finally {
+    activeImportJobId = null;
+  }
+});
+
+ipcMain.handle("habbpy-v4:set-active-client-profile", async (_event, profileRoot: string) => {
+  const selected = library().setSelectedProfile(profileRoot);
+  const repair = await sessionManager().repairSelectedVersionCheckBuild();
+  return library().state(appendVersionCheckRepairMessage(selected.message, repair));
+});
+
+ipcMain.handle("habbpy-v4:get-engine-launch-state", () => sessionManager().engineStatus());
+ipcMain.handle("habbpy-v4:set-engine-launch-settings", (_event, patch: EngineLaunchSettingsPatch) => {
+  const profile = library().selectedProfile();
+  const profileId = profile?.id ?? null;
+  const current = readShocklessSettings(appDataPath());
+  const settingSameProfile = Boolean(profileId && current.activeProfileId === profileId);
+  const versionCheckBuild =
+    profileId && (patch?.versionCheckBuild === null || (Number.isInteger(patch?.versionCheckBuild) && Number(patch.versionCheckBuild) > 0))
+      ? patch.versionCheckBuild
+      : profileId && !settingSameProfile
+        ? profile?.versionCheckBuild ?? null
+        : undefined;
+  writeShocklessSettings(appDataPath(), {
+    activeProfileId: profileId,
+    resizablePresentation: typeof patch?.resizablePresentation === "boolean" ? patch.resizablePresentation : undefined,
+    customHotelView: typeof patch?.customHotelView === "boolean" ? patch.customHotelView : undefined,
+    versionCheckBuild,
+  });
+  return sessionManager().engineStatus();
+});
+ipcMain.handle("habbpy-v4:start-embedded-engine", () => sessionManager().startSelected());
+ipcMain.handle("habbpy-v4:stop-embedded-engine", () => sessionManager().stopSelected());
+ipcMain.handle("habbpy-v4:submit-visible-client-login", (_event, clientId: number, webContentsId: number) => {
+  const contents = webContents.fromId(Number(webContentsId));
+  if (!contents) return { ok: false, message: `Visible webview ${webContentsId} is not available.` };
+  return sessionManager().submitVisibleClientLogin(Number(clientId), contents);
+});
+ipcMain.handle("habbpy-v4:get-relay-log-snapshot", () => readRelayLogSnapshot(appDataPath(), relayLogClients()));
+ipcMain.handle("habbpy-v4:get-relay-log-delta-snapshot", (_event, currentLogPath: string | null, afterLineNumber: number) =>
+  readRelayLogDeltaSnapshot(appDataPath(), typeof currentLogPath === "string" ? currentLogPath : null, Number(afterLineNumber), relayLogClients()),
+);
+ipcMain.handle("habbpy-v4:get-furni-metadata-snapshot", () => readFurniMetadataSnapshot(appDataPath()));
+ipcMain.handle("habbpy-v4:lookup-origins-user", (_event, name: string) => lookupOriginsUser(String(name ?? "")));
+ipcMain.handle("habbpy-v4:send-room-relay-action", (_event, action: RoomRelayAction, clientId?: number) =>
+  sendRoomRelayAction(action, clientId),
+);
+ipcMain.handle("habbpy-v4:send-fishing-relay-action", (_event, action: FishingRelayAction, clientId?: number) =>
+  sendFishingRelayAction(action, clientId),
+);
+ipcMain.handle("habbpy-v4:send-gardening-relay-action", (_event, action: GardeningRelayAction, clientId?: number) =>
+  sendGardeningRelayAction(action, clientId),
+);
+ipcMain.handle("habbpy-v4:send-user-relay-action", (_event, action: UserRelayAction, clientId?: number) =>
+  sendUserRelayAction(action, clientId),
+);
+ipcMain.handle("habbpy-v4:send-social-relay-action", (_event, action: SocialRelayAction, clientId?: number) =>
+  sendSocialRelayAction(action, clientId),
+);
+ipcMain.handle("habbpy-v4:send-wall-mover-relay-action", (_event, action: WallMoverRelayAction, clientId?: number) =>
+  sendWallMoverRelayAction(action, clientId),
+);
+ipcMain.handle("habbpy-v4:send-furni-relay-action", (_event, action: FurniRelayAction, clientId?: number) =>
+  sendFurniRelayAction(action, clientId),
+);
+ipcMain.handle("habbpy-v4:send-plugin-packet", (_event, packet: PluginPacketInput, clientId?: number) => sendPluginPacket(packet, clientId));
+
+app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  void runAutomationIfRequested();
+});
+
+app.on("window-all-closed", () => {
+  isQuitting = true;
+  disposeAppResources();
+  if (process.platform !== "darwin") {
+    scheduleForcedExit();
+    app.quit();
+  }
+});
+
+app.on("before-quit", () => {
+  isQuitting = true;
+  disposeAppResources();
+  scheduleForcedExit();
+});
+
+app.on("will-quit", () => {
+  disposeAppResources();
+  scheduleForcedExit();
+});
+
+app.on("quit", () => {
+  clearForcedExitTimer();
+});
+
+app.on("activate", () => {
+  if (!isQuitting && BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
+});
+
+function disposeAppResources(): void {
+  stopActiveProfileImports();
+  multiSessionManager?.dispose();
+  stopActiveEmbeddedRelays();
+  multiSessionManager = null;
+}
+
+function scheduleForcedExit(): void {
+  if (forcedExitTimer) return;
+  forcedExitTimer = setTimeout(() => {
+    disposeAppResources();
+    app.exit(0);
+  }, 2500);
+  forcedExitTimer.unref?.();
+}
+
+function clearForcedExitTimer(): void {
+  if (!forcedExitTimer) return;
+  clearTimeout(forcedExitTimer);
+  forcedExitTimer = null;
+}
+
+function library(): ClientLibraryStore {
+  clientLibrary ??= new ClientLibraryStore(appDataPath());
+  return clientLibrary;
+}
+
+function sessionManager(): MultiSessionManager {
+  multiSessionManager ??= new MultiSessionManager({
+    appDataPath: appDataPath(),
+    library: library(),
+    hardwareAccelerationActive: launchHardwareAccelerationEnabled,
+    relayPolicyProvider: () => pluginManager().relayPolicy(),
+  });
+  return multiSessionManager;
+}
+
+function pluginManager(): PluginManager {
+  pluginManagerInstance ??= new PluginManager(appDataPath());
+  return pluginManagerInstance;
+}
+
+function relayLogClients(): readonly { readonly id: number; readonly label: string }[] {
+  return sessionManager().sessions().sessions.map((session) => ({ id: session.id, label: session.label }));
+}
+
+function appDataPath(): string {
+  const override = process.env.HABBPY_V4_APP_DATA_PATH?.trim();
+  return override || app.getPath("appData");
+}
+
+function appVersion(): string {
+  for (const packagePath of [path.join(__dirname, "../../../package.json"), path.join(process.cwd(), "package.json")]) {
+    if (!existsSync(packagePath)) continue;
+    try {
+      const parsed = JSON.parse(readFileSync(packagePath, "utf8")) as { readonly version?: unknown };
+      if (typeof parsed.version === "string" && parsed.version.trim()) return parsed.version.trim();
+    } catch {
+      // Fall back to Electron's packaged app version below.
+    }
+  }
+  return app.getVersion();
+}
+
+function sendProfileImportProgress(contents: WebContents, progress: ProfileImportProgress): void {
+  if (contents.isDestroyed()) return;
+  contents.send("habbpy-v4:profile-import-progress", progress);
+}
+
+function appendVersionCheckRepairMessage(
+  message: string,
+  repair: { readonly build: number | null; readonly updated: boolean; readonly tried: readonly number[]; readonly error?: string },
+): string {
+  const detail = versionCheckRepairDetail(repair);
+  return detail ? `${message} ${detail}` : message;
+}
+
+function versionCheckRepairDetail(repair: {
+  readonly build: number | null;
+  readonly updated: boolean;
+  readonly tried: readonly number[];
+  readonly error?: string;
+}): string {
+  if (repair.error) {
+    const tried = repair.tried.length > 0 ? ` tried ${repair.tried.join(",")}` : "";
+    return `VERSIONCHECK repair warning: ${repair.error}${tried}`;
+  }
+  if (!repair.build) return "VERSIONCHECK auto-detect did not return an accepted build.";
+  const tried = repair.tried.length > 0 ? ` after trying ${repair.tried.join(",")}` : "";
+  return repair.updated
+    ? `VERSIONCHECK accepted build ${repair.build} saved${tried}.`
+    : `VERSIONCHECK accepted build ${repair.build} already active${tried}.`;
+}
+
+function sendGardeningRelayAction(action: GardeningRelayAction, clientId?: number): Promise<GardeningRelayResult> {
+  if (!isAllowedGardeningAction(action)) return Promise.resolve({ ok: false, message: "Invalid Gardening relay action." });
+  return sendRelayControl({ scope: "gardening", ...action }, clientId);
+}
+
+function sendRoomRelayAction(action: RoomRelayAction, clientId?: number): Promise<GardeningRelayResult> {
+  if (!isAllowedRoomAction(action)) return Promise.resolve({ ok: false, message: "Invalid Room relay action." });
+  return sendRelayControl({ scope: "room", ...action }, clientId);
+}
+
+function sendFishingRelayAction(action: FishingRelayAction, clientId?: number): Promise<GardeningRelayResult> {
+  if (!isAllowedFishingAction(action)) return Promise.resolve({ ok: false, message: "Invalid Fishing relay action." });
+  return sendRelayControl({ scope: "fishing", ...action }, clientId);
+}
+
+function sendUserRelayAction(action: UserRelayAction, clientId?: number): Promise<GardeningRelayResult> {
+  if (!isAllowedUserAction(action)) return Promise.resolve({ ok: false, message: "Invalid User relay action." });
+  return sendRelayControl({ scope: "user", ...action }, clientId);
+}
+
+function sendSocialRelayAction(action: SocialRelayAction, clientId?: number): Promise<GardeningRelayResult> {
+  if (!isAllowedSocialAction(action)) return Promise.resolve({ ok: false, message: "Invalid Social relay action." });
+  return sendRelayControl({ scope: "social", ...action }, clientId);
+}
+
+function sendWallMoverRelayAction(action: WallMoverRelayAction, clientId?: number): Promise<GardeningRelayResult> {
+  if (!isAllowedWallMoverAction(action)) return Promise.resolve({ ok: false, message: "Invalid Wall Mover relay action." });
+  return sendRelayControl({ scope: "wallMover", ...action }, clientId);
+}
+
+function sendFurniRelayAction(action: FurniRelayAction, clientId?: number): Promise<GardeningRelayResult> {
+  if (!isAllowedFurniAction(action)) return Promise.resolve({ ok: false, message: "Invalid Furni relay action." });
+  return sendRelayControl({ scope: "furni", ...action }, clientId);
+}
+
+function sendPluginPacket(packet: PluginPacketInput, clientId?: number): Promise<GardeningRelayResult> {
+  const payload = pluginPacketRelayControlPayload(packet);
+  if (!payload.ok) return Promise.resolve({ ok: false, message: payload.message });
+  return sendRelayControl(payload.payload, clientId);
+}
+
+function sendRelayControl(action: Record<string, unknown>, clientId?: number): Promise<GardeningRelayResult> {
+  const resolvedClientId = normalizedClientId(clientId) ?? sessionManager().sessions().selectedClientId;
+  const controlPort = sessionManager().relayControlPortForClient(resolvedClientId);
+  if (!controlPort) {
+    return Promise.resolve({ ok: false, message: `Client ${resolvedClientId} relay control is not running.` });
+  }
+  return new Promise((resolveAction) => {
+    const socket = net.connect({ host: RELAY_CONTROL_HOST, port: controlPort });
+    let buffer = "";
+    const finish = (result: GardeningRelayResult): void => {
+      socket.destroy();
+      resolveAction(result);
+    };
+    socket.setEncoding("utf8");
+    socket.setTimeout(3000);
+    socket.on("connect", () => {
+      socket.write(`${JSON.stringify(action)}\n`);
+    });
+    socket.on("data", (chunk: string) => {
+      buffer += chunk;
+      const newline = buffer.indexOf("\n");
+      if (newline < 0) return;
+      try {
+        const parsed = JSON.parse(buffer.slice(0, newline)) as GardeningRelayResult;
+        finish({ ok: Boolean(parsed.ok), message: String(parsed.message ?? ""), sessionId: parsed.sessionId });
+      } catch {
+        finish({ ok: false, message: "Relay control returned invalid JSON." });
+      }
+    });
+    socket.on("timeout", () => finish({ ok: false, message: "Relay control timed out." }));
+    socket.on("error", (error: Error) => finish({ ok: false, message: `Client ${resolvedClientId} relay control unavailable: ${error.message}` }));
+  });
+}
+
+function normalizedClientId(value: unknown): number | null {
+  const parsed = typeof value === "number" ? value : typeof value === "string" ? Number.parseInt(value, 10) : NaN;
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function isAllowedGardeningAction(action: GardeningRelayAction): boolean {
+  return Boolean(action && typeof action === "object" && isAllowedGardeningRelayAction(action));
+}
+
+function isAllowedRoomAction(action: RoomRelayAction): boolean {
+  return Boolean(action && typeof action === "object" && isAllowedRoomRelayAction(action));
+}
+
+function isAllowedFishingAction(action: FishingRelayAction): boolean {
+  return Boolean(action && typeof action === "object" && isAllowedFishingRelayAction(action));
+}
+
+function isAllowedUserAction(action: UserRelayAction): boolean {
+  return Boolean(action && typeof action === "object" && isAllowedUserRelayAction(action));
+}
+
+function isAllowedSocialAction(action: SocialRelayAction): boolean {
+  return Boolean(action && typeof action === "object" && isAllowedSocialRelayAction(action));
+}
+
+function isAllowedWallMoverAction(action: WallMoverRelayAction): boolean {
+  return Boolean(action && typeof action === "object" && isAllowedWallMoverRelayAction(action));
+}
+
+function isAllowedFurniAction(action: FurniRelayAction): boolean {
+  return Boolean(action && typeof action === "object" && isAllowedFurniRelayAction(action));
+}
+
+async function runAutomationIfRequested(): Promise<void> {
+  const automationPath = process.env.HABBPY_V4_AUTOMATION_FILE?.trim();
+  if (!automationPath) return;
+  const result = await runAutomationFile(automationPath).catch((error) => ({
+    ok: false,
+    message: errorMessage(error),
+    commands: [],
+    sessions: null,
+    snapshots: null,
+    relay: null,
+    screenshots: null,
+  }));
+  const reportPath = process.env.HABBPY_V4_AUTOMATION_REPORT?.trim() || automationReportPath();
+  mkdirSync(path.dirname(reportPath), { recursive: true });
+  writeFileSync(reportPath, `${JSON.stringify(result, null, 2)}\n`, "utf8");
+  console.log(`[habbpy-v4 automation] report ${reportPath}`);
+  disposeAppResources();
+  app.exit(result.ok ? 0 : 1);
+}
+
+async function runAutomationFile(filePath: string): Promise<{
+  readonly ok: boolean;
+  readonly message: string;
+  readonly commands: readonly unknown[];
+  readonly sessions: unknown;
+  readonly snapshots: unknown;
+  readonly relay: unknown;
+  readonly screenshots: unknown;
+}> {
+  const parsed = JSON.parse(readFileSync(filePath, "utf8")) as {
+    readonly commands?: readonly string[];
+    readonly waitMs?: number;
+    readonly relaySnapshot?: boolean;
+  };
+  const commands = Array.isArray(parsed.commands) ? parsed.commands : [];
+  const commandResults = [];
+  for (const command of commands) {
+    const startedAt = new Date().toISOString();
+    const result = await sessionManager().runConsoleCommand(String(command));
+    commandResults.push({
+      command: maskAutomationCommand(command),
+      startedAt,
+      ok: result.ok,
+      handled: result.handled,
+      level: result.level,
+      lines: result.lines.map(maskAutomationText),
+      targetClientIds: result.targetClientIds ?? [],
+    });
+  }
+  const waitMs = Number.isFinite(parsed.waitMs) ? Math.max(0, Math.min(120000, Number(parsed.waitMs))) : 0;
+  if (waitMs > 0) await new Promise((resolveWait) => setTimeout(resolveWait, waitMs));
+  const sessions = sessionManager().sessions();
+  const snapshots = await sessionManager().clientSnapshots();
+  const relay = parsed.relaySnapshot ? compactRelaySnapshot(readRelayLogSnapshot(appDataPath(), relayLogClients())) : null;
+  const screenshots = await sessionManager().captureAutomationScreenshots("real-session-proof");
+  const ok = commandResults.every((entry) => entry.ok);
+  return {
+    ok,
+    message: ok ? "Automation commands completed." : "One or more automation commands failed.",
+    commands: commandResults,
+    sessions,
+    snapshots,
+    relay,
+    screenshots,
+  };
+}
+
+function automationReportPath(): string {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  return path.join(process.cwd(), "logs", "automation", `automation-${stamp}.json`);
+}
+
+function maskAutomationCommand(command: string): string {
+  return String(command).replace(/(login\s+)\S+:\S+/i, "$1[credentials]");
+}
+
+function maskAutomationText(text: string): string {
+  return String(text)
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[email]")
+    .replace(/(password|token|webhook|secret)=\S+/gi, "$1=[redacted]");
+}
+
+function compactRelaySnapshot(snapshot: ReturnType<typeof readRelayLogSnapshot>): unknown {
+  const recentEntries = snapshot.entries.slice(-80).map((entry) => ({
+    lineNumber: entry.lineNumber,
+    clientId: entry.clientId,
+    clientLabel: entry.clientLabel,
+    sessionId: entry.sessionId,
+    direction: entry.direction,
+    header: entry.header,
+    packetName: entry.packetName,
+    payloadBytes: entry.payloadBytes,
+    bodyStatus: entry.bodyStatus,
+    decodedFields: entry.decodedFields.slice(0, 24),
+  }));
+  return {
+    logPath: snapshot.logPath,
+    exists: snapshot.exists,
+    fileSize: snapshot.fileSize,
+    updatedAt: snapshot.updatedAt,
+    totalLines: snapshot.totalLines,
+    packetCount: snapshot.packetCount,
+    clientCount: snapshot.clientCount,
+    serverCount: snapshot.serverCount,
+    message: snapshot.message,
+    recentEntries,
+  };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

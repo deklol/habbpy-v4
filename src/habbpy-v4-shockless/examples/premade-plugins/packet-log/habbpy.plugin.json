@@ -1,0 +1,35 @@
+{
+  "id": "premade-packet-log",
+  "name": "Packet Log Premade Module",
+  "version": "1.0.0",
+  "author": "Habbpy v4",
+  "description": "Readable user-plugin source reference for the built-in Packet Log module.",
+  "entry": "plugin.js",
+  "icon": "list",
+  "category": "developer",
+  "permissions": [
+    "ui.panel",
+    "ui.status",
+    "packet.read",
+    "events.packet",
+    "storage"
+  ],
+  "surfaces": [
+    {
+      "id": "panel",
+      "kind": "panel",
+      "label": "Packet Log Panel",
+      "enabledByDefault": false,
+      "summary": "Packet/action log filters and detail view."
+    },
+    {
+      "id": "status",
+      "kind": "status",
+      "label": "Packet Log Traffic Status",
+      "enabledByDefault": false,
+      "summary": "Compact traffic/error count readout."
+    }
+  ],
+  "commands": [],
+  "hotkeys": []
+}

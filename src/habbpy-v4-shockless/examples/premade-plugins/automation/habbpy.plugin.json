@@ -1,0 +1,47 @@
+{
+  "id": "premade-automation",
+  "name": "Automation Premade Module",
+  "version": "1.0.0",
+  "author": "Habbpy v4",
+  "description": "Readable user-plugin source reference for the built-in Automation module.",
+  "entry": "plugin.js",
+  "icon": "bot",
+  "category": "automation",
+  "permissions": [
+    "ui.panel",
+    "ui.status",
+    "console.commands",
+    "events.room",
+    "engine.snapshot",
+    "actions.avatar",
+    "actions.fishing",
+    "actions.furni",
+    "actions.plants",
+    "storage"
+  ],
+  "surfaces": [
+    {
+      "id": "panel",
+      "kind": "panel",
+      "label": "Automation Panel",
+      "enabledByDefault": false,
+      "summary": "Fishing, gardening, wall mover, and helper settings."
+    },
+    {
+      "id": "status",
+      "kind": "status",
+      "label": "Automation Status",
+      "enabledByDefault": false,
+      "summary": "Compact active automation readout."
+    },
+    {
+      "id": "commands",
+      "kind": "commands",
+      "label": "Automation Commands",
+      "enabledByDefault": false,
+      "summary": "Automation start/stop and mode commands."
+    }
+  ],
+  "commands": [],
+  "hotkeys": []
+}

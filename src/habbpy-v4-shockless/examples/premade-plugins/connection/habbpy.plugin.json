@@ -1,0 +1,43 @@
+{
+  "id": "premade-connection",
+  "name": "Connection Premade Module",
+  "version": "1.0.0",
+  "author": "Habbpy v4",
+  "description": "Readable user-plugin source reference for the built-in Connection module.",
+  "entry": "plugin.js",
+  "icon": "plug",
+  "category": "session",
+  "permissions": [
+    "ui.panel",
+    "ui.status",
+    "console.commands",
+    "events.session",
+    "engine.snapshot",
+    "storage"
+  ],
+  "surfaces": [
+    {
+      "id": "panel",
+      "kind": "panel",
+      "label": "Connection Panel",
+      "enabledByDefault": true,
+      "summary": "Session, profile, and lifecycle controls in the dock."
+    },
+    {
+      "id": "status",
+      "kind": "status",
+      "label": "Connection Status",
+      "enabledByDefault": true,
+      "summary": "Connection state shown in the bottom strip."
+    },
+    {
+      "id": "commands",
+      "kind": "commands",
+      "label": "Connection Lifecycle Commands",
+      "enabledByDefault": true,
+      "summary": "Launch and stop controls once embed plumbing is available."
+    }
+  ],
+  "commands": [],
+  "hotkeys": []
+}

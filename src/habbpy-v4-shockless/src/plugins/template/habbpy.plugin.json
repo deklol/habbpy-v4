@@ -1,0 +1,22 @@
+{
+  "id": "sample-plugin",
+  "name": "Sample Plugin",
+  "version": "1.0.0",
+  "author": "local",
+  "description": "A local Habbpy v4 plugin template.",
+  "entry": "plugin.js",
+  "icon": "terminal",
+  "category": "developer",
+  "permissions": ["ui.panel", "packet.read"],
+  "surfaces": [
+    {
+      "id": "panel",
+      "kind": "panel",
+      "label": "Sample Panel",
+      "enabledByDefault": true,
+      "summary": "Starter panel for a local plugin."
+    }
+  ],
+  "commands": [],
+  "hotkeys": []
+}

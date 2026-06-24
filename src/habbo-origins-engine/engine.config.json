@@ -1,0 +1,7 @@
+{
+  "comment": "Local machine paths. The only file allowed to contain absolute paths.",
+  "originsSourceRoot": "F:/slopwave-shockwave-runtime/extracted/projectorrays/release306",
+  "originsClientRoot": "F:/slopwave-shockwave-runtime/compiled/306",
+  "runtimeDataRoot": "F:/slopwave-shockwave-runtime/generated/runtime-data",
+  "decodedAssetsRoot": "F:/slopwave-shockwave-runtime/generated/assets"
+}
