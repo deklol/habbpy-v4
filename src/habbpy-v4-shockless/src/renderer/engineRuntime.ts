@@ -16,6 +16,7 @@ export interface RuntimeRoomReady {
 }
 
 export interface RuntimePerformanceStats {
+  readonly currentFps?: number;
   readonly rafPerSecond?: number;
   readonly rafRate?: number;
   readonly directorTicksPerSecond?: number;

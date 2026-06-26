@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const portableRoot = resolve(process.argv[2] ?? join(workspace, "dist", "portable", "HabbpyV4"));
-const textExtensions = new Set([".cjs", ".css", ".html", ".js", ".json", ".mjs", ".txt"]);
+const textExtensions = new Set([".cjs", ".css", ".html", ".js", ".json", ".md", ".mjs", ".txt"]);
 const premadeModuleIds = readPremadeModuleIds(join(portableRoot, "plugins", "_premade-modules"));
 const requiredFiles = [
   "Habbpy v4.exe",
@@ -15,15 +15,15 @@ const requiredFiles = [
   "resources/app/dist/main/main/shocklessEmbed.js",
   "resources/app/dist/plugins/template/habbpy.plugin.json",
   "resources/app/dist/plugins/template/plugin.js",
-  "resources/app/dist/plugins/template/README.txt",
+  "resources/app/dist/plugins/template/README.md",
   "plugins/welcome-message/habbpy.plugin.json",
   "plugins/welcome-message/plugin.js",
-  "plugins/welcome-message/README.txt",
-  "plugins/_premade-modules/README.txt",
+  "plugins/welcome-message/README.md",
+  "plugins/_premade-modules/README.md",
   ...premadeModuleIds.flatMap((id) => [
     `plugins/_premade-modules/${id}/habbpy.plugin.json`,
     `plugins/_premade-modules/${id}/plugin.js`,
-    `plugins/_premade-modules/${id}/README.txt`,
+    `plugins/_premade-modules/${id}/README.md`,
   ]),
   "resources/engine/dist/index.html",
   "resources/engine/standalone/package.json",

@@ -899,6 +899,36 @@ img {
   bottom: 14px;
 }
 
+/* Draggable overlays must receive pointer events (the base .room-overlay sets none so it
+   doesn't block the game). The area is small, so the rest of the stage stays clickable. */
+.room-overlay-draggable {
+  pointer-events: auto;
+  cursor: move;
+  user-select: none;
+  padding-right: 18px;
+}
+
+.room-overlay-close {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.room-overlay-close:hover {
+  color: #fff;
+}
+
 /* ====================================== PLUGIN DOCK (window + icon rail) */
 .plugin-dock {
   position: relative;

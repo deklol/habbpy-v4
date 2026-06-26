@@ -29,7 +29,9 @@ export const initialAppState: AppState = {
     wallItems: 0,
   },
   ui: {
-    dockCollapsed: false,
+    // Start with the plugin dock CLOSED — no panel opens on launch. Clicking an icon
+    // opens it; clicking the open icon closes it (see onSelectPlugin in App.tsx).
+    dockCollapsed: true,
   },
   plugins: {
     enabledById: createInitialPluginEnabledState(),

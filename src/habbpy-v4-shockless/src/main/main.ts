@@ -34,6 +34,7 @@ import type {
   WallMoverRelayAction,
 } from "../shared/window-api.js";
 import type { PluginCreateRequest } from "../shared/plugin.js";
+import { errorMessage } from "../shared/errors.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -76,6 +77,9 @@ function createWindow(): void {
       preload: path.join(__dirname, "../preload/preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
+      // sandbox:false is required for webviewTag support and for Electron
+      // APIs used by the embedded Shockless engine runtime. Mitigated by
+      // contextIsolation:true and nodeIntegration:false.
       sandbox: false,
       webviewTag: true,
       backgroundThrottling: false,
@@ -169,7 +173,11 @@ ipcMain.handle("habbpy-v4:get-console-command-state", () => sessionManager().con
 ipcMain.handle("habbpy-v4:get-mimic-state", () => sessionManager().mimicStateSnapshot());
 
 ipcMain.handle("habbpy-v4:import-client-reference", async (event) => {
+  // Set jobId before the async dialog so a second IPC call cannot start
+  // a concurrent import while the first dialog is still open.
   if (activeImportJobId) return library().state("An import/build job is already running. Watch the GameHost importer progress.");
+  const jobId = `profile-import-${Date.now().toString(36)}`;
+  activeImportJobId = jobId;
   const dialogOptions: Electron.OpenDialogOptions = {
     title: "Import Compiled Client Or Shockless Profile",
     properties: ["openDirectory"],
@@ -178,10 +186,11 @@ ipcMain.handle("habbpy-v4:import-client-reference", async (event) => {
   const result = focusedWindow
     ? await dialog.showOpenDialog(focusedWindow, dialogOptions)
     : await dialog.showOpenDialog(dialogOptions);
-  if (result.canceled || !result.filePaths[0]) return library().state("Import cancelled.");
+  if (result.canceled || !result.filePaths[0]) {
+    activeImportJobId = null;
+    return library().state("Import cancelled.");
+  }
   const sourcePath = result.filePaths[0];
-  const jobId = `profile-import-${Date.now().toString(36)}`;
-  activeImportJobId = jobId;
   sendProfileImportProgress(event.sender, {
     jobId,
     sourceName: path.basename(sourcePath),
@@ -436,39 +445,45 @@ function versionCheckRepairDetail(repair: {
     : `VERSIONCHECK accepted build ${repair.build} already active${tried}.`;
 }
 
+function sendScopedRelayAction(
+  scope: string,
+  label: string,
+  action: Record<string, unknown>,
+  validator: (action: Record<string, unknown>) => boolean,
+  clientId?: number,
+): Promise<GardeningRelayResult> {
+  if (!(action && typeof action === "object" && validator(action))) {
+    return Promise.resolve({ ok: false, message: `Invalid ${label} relay action.` });
+  }
+  return sendRelayControl({ scope, ...action }, clientId);
+}
+
 function sendGardeningRelayAction(action: GardeningRelayAction, clientId?: number): Promise<GardeningRelayResult> {
-  if (!isAllowedGardeningAction(action)) return Promise.resolve({ ok: false, message: "Invalid Gardening relay action." });
-  return sendRelayControl({ scope: "gardening", ...action }, clientId);
+  return sendScopedRelayAction("gardening", "Gardening", action as Record<string, unknown>, isAllowedGardeningRelayAction as (a: Record<string, unknown>) => boolean, clientId);
 }
 
 function sendRoomRelayAction(action: RoomRelayAction, clientId?: number): Promise<GardeningRelayResult> {
-  if (!isAllowedRoomAction(action)) return Promise.resolve({ ok: false, message: "Invalid Room relay action." });
-  return sendRelayControl({ scope: "room", ...action }, clientId);
+  return sendScopedRelayAction("room", "Room", action as Record<string, unknown>, isAllowedRoomRelayAction as (a: Record<string, unknown>) => boolean, clientId);
 }
 
 function sendFishingRelayAction(action: FishingRelayAction, clientId?: number): Promise<GardeningRelayResult> {
-  if (!isAllowedFishingAction(action)) return Promise.resolve({ ok: false, message: "Invalid Fishing relay action." });
-  return sendRelayControl({ scope: "fishing", ...action }, clientId);
+  return sendScopedRelayAction("fishing", "Fishing", action as Record<string, unknown>, isAllowedFishingRelayAction as (a: Record<string, unknown>) => boolean, clientId);
 }
 
 function sendUserRelayAction(action: UserRelayAction, clientId?: number): Promise<GardeningRelayResult> {
-  if (!isAllowedUserAction(action)) return Promise.resolve({ ok: false, message: "Invalid User relay action." });
-  return sendRelayControl({ scope: "user", ...action }, clientId);
+  return sendScopedRelayAction("user", "User", action as Record<string, unknown>, isAllowedUserRelayAction as (a: Record<string, unknown>) => boolean, clientId);
 }
 
 function sendSocialRelayAction(action: SocialRelayAction, clientId?: number): Promise<GardeningRelayResult> {
-  if (!isAllowedSocialAction(action)) return Promise.resolve({ ok: false, message: "Invalid Social relay action." });
-  return sendRelayControl({ scope: "social", ...action }, clientId);
+  return sendScopedRelayAction("social", "Social", action as Record<string, unknown>, isAllowedSocialRelayAction as (a: Record<string, unknown>) => boolean, clientId);
 }
 
 function sendWallMoverRelayAction(action: WallMoverRelayAction, clientId?: number): Promise<GardeningRelayResult> {
-  if (!isAllowedWallMoverAction(action)) return Promise.resolve({ ok: false, message: "Invalid Wall Mover relay action." });
-  return sendRelayControl({ scope: "wallMover", ...action }, clientId);
+  return sendScopedRelayAction("wallMover", "Wall Mover", action as Record<string, unknown>, isAllowedWallMoverRelayAction as (a: Record<string, unknown>) => boolean, clientId);
 }
 
 function sendFurniRelayAction(action: FurniRelayAction, clientId?: number): Promise<GardeningRelayResult> {
-  if (!isAllowedFurniAction(action)) return Promise.resolve({ ok: false, message: "Invalid Furni relay action." });
-  return sendRelayControl({ scope: "furni", ...action }, clientId);
+  return sendScopedRelayAction("furni", "Furni", action as Record<string, unknown>, isAllowedFurniRelayAction as (a: Record<string, unknown>) => boolean, clientId);
 }
 
 function sendPluginPacket(packet: PluginPacketInput, clientId?: number): Promise<GardeningRelayResult> {
@@ -514,34 +529,6 @@ function sendRelayControl(action: Record<string, unknown>, clientId?: number): P
 function normalizedClientId(value: unknown): number | null {
   const parsed = typeof value === "number" ? value : typeof value === "string" ? Number.parseInt(value, 10) : NaN;
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-}
-
-function isAllowedGardeningAction(action: GardeningRelayAction): boolean {
-  return Boolean(action && typeof action === "object" && isAllowedGardeningRelayAction(action));
-}
-
-function isAllowedRoomAction(action: RoomRelayAction): boolean {
-  return Boolean(action && typeof action === "object" && isAllowedRoomRelayAction(action));
-}
-
-function isAllowedFishingAction(action: FishingRelayAction): boolean {
-  return Boolean(action && typeof action === "object" && isAllowedFishingRelayAction(action));
-}
-
-function isAllowedUserAction(action: UserRelayAction): boolean {
-  return Boolean(action && typeof action === "object" && isAllowedUserRelayAction(action));
-}
-
-function isAllowedSocialAction(action: SocialRelayAction): boolean {
-  return Boolean(action && typeof action === "object" && isAllowedSocialRelayAction(action));
-}
-
-function isAllowedWallMoverAction(action: WallMoverRelayAction): boolean {
-  return Boolean(action && typeof action === "object" && isAllowedWallMoverRelayAction(action));
-}
-
-function isAllowedFurniAction(action: FurniRelayAction): boolean {
-  return Boolean(action && typeof action === "object" && isAllowedFurniRelayAction(action));
 }
 
 async function runAutomationIfRequested(): Promise<void> {
@@ -653,6 +640,3 @@ function compactRelaySnapshot(snapshot: ReturnType<typeof readRelayLogSnapshot>)
   };
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}

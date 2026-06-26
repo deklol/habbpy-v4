@@ -16,7 +16,7 @@
         src: url("/fonts/volter/volter-bold-goldfish.woff2") format("woff2");
         font-weight: 700;
       }
-      body { margin: 0; background: #1a1a1a; color: #ddd; font: 12px/1.5 Consolas, monospace; }
+      body { margin: 0; background: #000; color: #ddd; font: 12px/1.5 Consolas, monospace; }
       #page { display: flex; align-items: flex-start; gap: 8px; padding: 8px; min-width: 1092px; box-sizing: border-box; }
       #quick-login-panel {
         display: none;
@@ -53,6 +53,29 @@
       #stage-wrap { display: flex; justify-content: center; padding: 0; }
       #stage-wrap canvas { box-shadow: 0 0 24px #000; }
       #status { padding: 4px 16px; color: #8fd; }
+      /* Branded boot splash: full-viewport, perfectly centered, holds ~2s then fades.
+         Independent of #status (which main.ts repurposes for the live frame readout). */
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        background: #000;
+        color: #fff;
+        font-family: "Volter Goldfish", Consolas, monospace;
+        font-size: 9px;
+        z-index: 99999;
+        animation: boot-splash-fade 2.3s ease forwards;
+      }
+      /* margin (not literal spaces) so the gaps survive HTML whitespace minification,
+         which strips the spaces next to these inline <b> tags. */
+      #boot-splash b { font-weight: 700; margin-left: 0.45em; }
+      @keyframes boot-splash-fade {
+        0%, 87% { opacity: 1; visibility: visible; }
+        100% { opacity: 0; visibility: hidden; }
+      }
       #log { padding: 0 16px 16px; max-height: 240px; overflow-y: auto; }
       #log .put { color: #cca; }
       #log .error { color: #f88; }
@@ -104,7 +127,8 @@
       </aside>
       <div id="stage-wrap"></div>
     </div>
-    <div id="status">booting...</div>
+    <div id="status"></div>
+    <div id="boot-splash">Initializing Shockless Engine by <b>@dekl0l</b> <b>(@dekHabbo)</b></div>
     <div id="log"></div>
     <script type="module" src="/src/app/main.ts"></script>
   </body>

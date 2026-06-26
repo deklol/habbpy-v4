@@ -94,6 +94,15 @@ const SYSTEM_WIN_DIR4 = DIRECTOR_SYSTEM_WIN_DIR4;
 const SYSTEM_WIN_D5 = buildSystemWinD5Palette();
 const DIRECTOR_1BIT = [0xffffff, 0x000000];
 const DIRECTOR_2BIT_GRAYSCALE = [0xffffff, 0xa3a3a3, 0x656565, 0x000000];
+// Director's 4-bit (16-level) grayscale ramp: index 0 = white .. index 15 = black, the
+// standard Mac 16-gray CLUT. Without this, depth-4 grayscale bitmaps fell through to the
+// 256-entry grayscale table whose first 16 entries are all near-white (255..240), so a
+// 4-bit grayscale image collapsed to flat near-white and its dark indices (e.g. the
+// window clouds' black outline at index 15) never reached black.
+const DIRECTOR_4BIT_GRAYSCALE = [
+  0xffffff, 0xeeeeee, 0xdddddd, 0xcccccc, 0xbbbbbb, 0xaaaaaa, 0x999999, 0x888888,
+  0x777777, 0x666666, 0x555555, 0x444444, 0x333333, 0x222222, 0x111111, 0x000000,
+];
 
 export function paletteTable(paletteName: string): readonly number[] {
   const normalized = paletteName.toLowerCase();
@@ -107,6 +116,7 @@ export function paletteTableForBitmapDepth(paletteName: string, bitDepth: number
   const depth = Math.trunc(Number(bitDepth) || 0);
   if (depth <= 1 && depth > 0) return DIRECTOR_1BIT;
   if (depth === 2) return DIRECTOR_2BIT_GRAYSCALE;
+  if (depth === 4 && paletteName.toLowerCase() === "grayscale") return DIRECTOR_4BIT_GRAYSCALE;
   return paletteTable(paletteName);
 }
 

@@ -15,6 +15,7 @@ import type {
   PluginUiSurface,
 } from "../shared/plugin.js";
 import { defaultSensitiveClientHeaders, type PluginRelayPolicy } from "../shared/pluginRelayHooks.js";
+import { errorMessage } from "../shared/errors.js";
 
 const STORE_DIR = "HabbpyV4";
 const PLUGIN_DIR = "plugins";
@@ -49,7 +50,9 @@ const allowedPermissions = new Set<PluginPermission>([
   "packet.intercept.sensitive",
 ]);
 const MAX_PLUGIN_ENTRY_BYTES = 512 * 1024;
-const obviousPrivateFilePattern = /(^goal\.md$|multiclient-accounts|password|credential|secret|token|webhook)/i;
+// Matches filenames that almost certainly contain local credentials or secrets.
+// Deliberately narrow — false positives would block legitimate plugin installs.
+const obviousPrivateFilePattern = /(multiclient-accounts|password|credential|secret|token|webhook)/i;
 
 interface StoredPluginSettings {
   readonly version: number;
@@ -546,6 +549,3 @@ function titleFromPluginId(id: string): string {
     .join(" ");
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}

@@ -1,8 +1,8 @@
 {
   "name": "shockless-engine",
   "version": "0.1.0",
-  "private": false,
-  "license": "AGPL-3.0-only",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "dev:webhook": "node tools/dev/send-discord-webhook.mjs",
     "visual:assets:306": "node tools/build-visual-bitmap-assets.mjs --version release306",
     "external:assets:306": "node tools/materialize-external-bitmaps.mjs --version release306",
     "lingo:verify": "tsx tools/lingo-verify.ts",

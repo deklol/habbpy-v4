@@ -169,13 +169,13 @@ describe("OriginsResizeEngine", () => {
     const snapshot = engine.apply("same-viewport-wrapper-refresh");
 
     expect(snapshot.anchors).toEqual(expect.arrayContaining([expect.objectContaining({ id: "wrapper:floor", action: "wrapper-follow" })]));
-    expect(snapshot.anchors.some((anchor) => anchor.id === "wrapper:wall" && anchor.action === "wrapper-follow")).toBe(false);
+    expect(snapshot.anchors.some((anchor) => anchor.id === "wrapper:wall" && anchor.action === "wrapper-source-owned-corrected")).toBe(true);
     expect(roomVisualizer.props.get("plocx")).toBe(270);
     expect(roomVisualizer.props.get("plocy")).toBe(110);
     expect(floorSprite.locH).toBe(302);
     expect(floorSprite.locV).toBe(110);
-    expect(wallSprite.locH).toBe(32);
-    expect(wallSprite.locV).toBe(0);
+    expect(wallSprite.locH).toBe(302);
+    expect(wallSprite.locV).toBe(110);
   });
 
   it("resets the room presentation baseline when source rebuilds a visualizer in the same viewport", () => {
@@ -327,19 +327,19 @@ describe("OriginsResizeEngine", () => {
 
     expect(sameViewport.anchors.some((anchor) => anchor.id === "Room_stage" && anchor.x === 270)).toBe(false);
     expect(sameViewport.anchors).toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: "wrapper:roomShadow", action: "wrapper-late-source-baseline" })]),
+      expect.arrayContaining([expect.objectContaining({ id: "wrapper:roomShadow", action: "wrapper-follow" })]),
     );
     expect(roomVisualizer.props.get("plocx")).toBe(270);
     expect(roomVisualizer.props.get("plocy")).toBe(110);
-    expect(shadowSprite.locH).toBe(0);
-    expect(shadowSprite.locV).toBe(0);
+    expect(shadowSprite.locH).toBe(270);
+    expect(shadowSprite.locV).toBe(110);
 
     engine.setViewport(1600, 760);
 
     expect(roomVisualizer.props.get("plocx")).toBe(320);
     expect(roomVisualizer.props.get("plocy")).toBe(110);
-    expect(shadowSprite.locH).toBe(50);
-    expect(shadowSprite.locV).toBe(0);
+    expect(shadowSprite.locH).toBe(320);
+    expect(shadowSprite.locV).toBe(110);
   });
 
   it("reanchors the source action-button window when source room selection snaps it back", () => {
@@ -893,3 +893,214 @@ function propName(value: LingoValue): string {
   if (value instanceof LingoSymbol) return value.name.toLowerCase();
   return String(value).replace(/^#/, "").toLowerCase();
 }
+
+it("keeps wall and floor wrappers locked to room position across multiple frames", () => {
+  // Models real game: moveroomby does NOT move wrapper parts (matching real Lingo at
+  // ParentScript_3_-_Room_Interface_Class.ts:2834). Source resets wrapper sprites to
+  // pOffsets each frame (Visualizer Part Wrapper Class.updateSprite:432).
+  const movie = createMovie();
+  const objectList = installObjectManager(movie);
+
+  const floorSprite = new SpriteChannel(10);
+  const wallSprite = new SpriteChannel(11);
+  floorSprite.locH = 32;
+  floorSprite.locV = 0;
+  wallSprite.locH = 32;
+  wallSprite.locV = 0;
+
+  const visualizer = new ScriptInstance(
+    moduleFor("Visualizer Instance Class", ["pLocX", "pLocY", "pSpriteList", "pWrappedParts"]),
+  );
+  visualizer.props.set("plocx", 0);
+  visualizer.props.set("plocy", 0);
+  visualizer.props.set("pspritelist", new LingoList([floorSprite, wallSprite]));
+
+  const floorWrapper = wrapper("floor", floorSprite, 32, 0);
+  const wallWrapper = wrapper("wallleft", wallSprite, 32, 0, [{ locH: 120, locV: 80 }]);
+  visualizer.props.set(
+    "pwrappedparts",
+    LingoPropList.fromPairs([["floor", floorWrapper], ["wall", wallWrapper]]),
+  );
+
+  const roomInterface = new ScriptInstance(
+    moduleFor("Room Interface Class", ["pWideScreenOffset"], {
+      moveroomby(ctx, me, args) {
+        const dx = Number(args[1] ?? 0);
+        const dy = Number(args[2] ?? 0);
+        const viz = objectList.getaProp("Room_visualizer", (a, b) => a === b);
+        if (viz instanceof ScriptInstance) {
+          viz.props.set("plocx", Number(viz.props.get("plocx") ?? 0) + dx);
+          viz.props.set("plocy", Number(viz.props.get("plocy") ?? 0) + dy);
+          for (const v of (viz.props.get("pspritelist") as LingoList).items) {
+            if (v instanceof SpriteChannel) { v.locH += dx; v.locV += dy; }
+          }
+          // Real Lingo does NOT call moveWrapperParts — wrapper parts stay at original
+        }
+        return LINGO_VOID;
+      },
+    }),
+  );
+  roomInterface.props.set("pwidescreenoffset", 32);
+  objectList.setaProp(symbol("room_interface"), roomInterface, lingoKeyEquals);
+  objectList.setaProp("Room_visualizer", visualizer, lingoKeyEquals);
+
+  const engine = new OriginsResizeEngine(movie);
+  engine.setViewport(2560, 1440);
+  const offsetX = Math.round((2560 - 960) / 2); // 800
+
+  // After resize: visualizer moved, wrappers corrected
+  expect(visualizer.props.get("plocx")).toBe(800);
+  expect(floorSprite.locH).toBe(832); // 32 + 800
+  expect(wallSprite.locH).toBe(832); // wall also corrected
+
+  // Simulate 10 frames: source resets sprites each frame, engine re-corrects
+  for (let frame = 0; frame < 10; frame++) {
+    floorSprite.locH = 32; // source updateSprite resets to pOffsets
+    floorSprite.locV = 0;
+    wallSprite.locH = 32;
+    wallSprite.locV = 0;
+    engine.apply(`frame-${frame}`);
+  }
+
+  // After 10 frames, wrappers must still be at the correct offset position
+  expect(floorSprite.locH).toBe(832);
+  expect(wallSprite.locH).toBe(832);
+
+  // Change viewport and verify wrappers follow
+  engine.setViewport(1920, 1080);
+  const offset2 = Math.round((1920 - 960) / 2); // 480
+  expect(floorSprite.locH).toBe(512); // 32 + 480
+  expect(wallSprite.locH).toBe(512); // wall follows floor
+
+  // 10 more frames
+  for (let frame = 0; frame < 10; frame++) {
+    floorSprite.locH = 32;
+    wallSprite.locH = 32;
+    engine.apply(`frame2-${frame}`);
+  }
+  expect(floorSprite.locH).toBe(512);
+  expect(wallSprite.locH).toBe(512);
+});
+
+it("does not accumulate wrapper position drift across resize and room rejoin cycles", () => {
+  const movie = createMovie();
+  const objectList = installObjectManager(movie);
+
+  // Room at 2560x1440 viewport (2K monitor) with two walls and a floor
+  function buildRoom(): { visualizer: ScriptInstance; interface: ScriptInstance; walls: SpriteChannel[]; floor: SpriteChannel } {
+    const visualizer = new ScriptInstance(
+      moduleFor("Visualizer Instance Class", ["pLocX", "pLocY", "pLayout", "pSpriteList", "pWrappedParts"]),
+    );
+    visualizer.props.set("plocx", 0);
+    visualizer.props.set("plocy", 0);
+    visualizer.props.set("playout", "model_a.room");
+
+    const wallLeftSprite = new SpriteChannel(10);
+    wallLeftSprite.locH = 32;
+    wallLeftSprite.locV = 0;
+    const wallRightSprite = new SpriteChannel(11);
+    wallRightSprite.locH = 480;
+    wallRightSprite.locV = 0;
+    const floorSprite = new SpriteChannel(12);
+    floorSprite.locH = 0;
+    floorSprite.locV = 160;
+    visualizer.props.set("pspritelist", new LingoList([wallLeftSprite, wallRightSprite, floorSprite]));
+
+    const wallLeftWrapper = wrapper("wallleft", wallLeftSprite, 32, 0, [
+      { locH: 120, locV: 80 },
+      { locH: 180, locV: 80 },
+    ]);
+    const wallRightWrapper = wrapper("wallright", wallRightSprite, 480, 0, [
+      { locH: 600, locV: 80 },
+      { locH: 660, locV: 80 },
+    ]);
+    const floorWrapper = wrapper("floor", floorSprite, 0, 160);
+    visualizer.props.set(
+      "pwrappedparts",
+      LingoPropList.fromPairs([
+        ["wallleft", wallLeftWrapper],
+        ["wallright", wallRightWrapper],
+        ["floor", floorWrapper],
+      ]),
+    );
+
+    const roomInterface = new ScriptInstance(
+      moduleFor("Room Interface Class", ["pWideScreenOffset"], {
+        moveroomby(ctx, me, args) {
+          const dx = Number(args[1] ?? 0);
+          const dy = Number(args[2] ?? 0);
+          const viz = objectList.getaProp("Room_visualizer", (left: LingoValue, right: LingoValue) => left === right);
+          if (viz instanceof ScriptInstance) {
+            viz.props.set("plocx", Number(viz.props.get("plocx") ?? 0) + dx);
+            viz.props.set("plocy", Number(viz.props.get("plocy") ?? 0) + dy);
+            for (const v of (viz.props.get("pspritelist") as LingoList).items) {
+              if (v instanceof SpriteChannel) { v.locH += dx; v.locV += dy; }
+            }
+            moveWrapperParts(viz, dx, dy);
+          }
+          return LINGO_VOID;
+        },
+      }),
+    );
+    roomInterface.props.set("pwidescreenoffset", 32);
+    return { visualizer, interface: roomInterface, walls: [wallLeftSprite, wallRightSprite], floor: floorSprite };
+  }
+
+  // First room
+  let { visualizer, interface: iface, walls: walls1, floor: floor1 } = buildRoom();
+  objectList.setaProp(symbol("room_interface"), iface, lingoKeyEquals);
+  objectList.setaProp("Room_visualizer", visualizer, lingoKeyEquals);
+
+  const engine = new OriginsResizeEngine(movie);
+
+  // Resize to 2K monitor
+  engine.setViewport(2560, 1440);
+  const offset = Math.round((2560 - 960) / 2); // 800
+  const offsetY = Math.round((1440 - 540) / 2); // 450
+
+  // After resize: room centered, wrappers corrected
+  expect(visualizer.props.get("plocx")).toBe(800);
+  expect(walls1[0]!.locH).toBe(832); // 32 + 800
+  expect(walls1[1]!.locH).toBe(1280); // 480 + 800
+  expect(floor1.locH).toBe(800); // 0 + 800
+
+  // Simulate room rejoin: source rebuilds visualizer at original positions
+  objectList.deleteProp(symbol("room_interface"), (a: LingoValue, b: LingoValue) => a === b);
+  objectList.deleteProp("Room_visualizer", (a: LingoValue, b: LingoValue) => a === b);
+  const { visualizer: viz2, interface: iface2, walls: walls2, floor: floor2 } = buildRoom();
+  objectList.setaProp(symbol("room_interface"), iface2, lingoKeyEquals);
+  objectList.setaProp("Room_visualizer", viz2, lingoKeyEquals);
+
+  // Source resets wrapper sprites (simulating updateSprite)
+  const wl = walls2[0]!;
+  const wr = walls2[1]!;
+  wl.locH = 32;
+  wr.locH = 480;
+  floor2.locH = 0;
+
+  // Apply should re-correct wrappers based on current viewport
+  engine.apply("post-rejoin-refresh");
+
+  // Wrappers should be at the CORRECT positions for 2560x1440
+  expect(wl.locH).toBe(832); // 32 + 800 — left wall
+  expect(wr.locH).toBe(1280); // 480 + 800 — right wall
+  expect(floor2.locH).toBe(800); // 0 + 800 — floor
+
+  // Resize to a different size
+  engine.setViewport(1920, 1080);
+  const offset2 = Math.round((1920 - 960) / 2); // 480
+  const offsetY2 = Math.round((1080 - 540) / 2); // 270
+
+  // Source resets again
+  const wl2 = walls2[0]!;
+  const wr2 = walls2[1]!;
+  wl2.locH = 32;
+  wr2.locH = 480;
+  floor2.locH = 0;
+  engine.apply("second-resize-refresh");
+
+  // Should be at new positions
+  expect(wl2.locH).toBe(512); // 32 + 480
+  expect(wr2.locH).toBe(960); // 480 + 480
+  expect(floor2.locH).toBe(480); // 0 + 480
+});

@@ -81,11 +81,14 @@ export function shellReducer(state: AppState, action: ShellAction): AppState {
           },
         },
       };
-    case "appendTimeline":
+    case "appendTimeline": {
+      const maxTimelineEntries = 500;
+      const nextTimeline = [...state.commandTimeline, action.entry];
       return {
         ...state,
-        commandTimeline: [...state.commandTimeline, action.entry],
+        commandTimeline: nextTimeline.length > maxTimelineEntries ? nextTimeline.slice(-maxTimelineEntries) : nextTimeline,
       };
+    }
     case "mergeEngineStatus":
       return {
         ...state,

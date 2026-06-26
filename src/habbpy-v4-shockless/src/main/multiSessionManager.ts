@@ -36,6 +36,7 @@ import { readRelayLogDeltaSnapshot, readRelayLogSnapshot } from "./relayLog.js";
 import { readShocklessSettings, ShocklessEmbedController, writeShocklessSettings } from "./shocklessEmbed.js";
 import { detectAcceptedVersionCheckBuild } from "./versionCheckBuild.js";
 import type { PluginRelayPolicy } from "../shared/pluginRelayHooks.js";
+import { errorMessage } from "../shared/errors.js";
 
 const MAIN_CLIENT_ID = 1;
 const RELAY_CONTROL_HOST = "127.0.0.1";
@@ -1576,6 +1577,9 @@ export class MultiSessionManager {
         webPreferences: {
           contextIsolation: true,
           nodeIntegration: false,
+          // sandbox:false is required to call executeJavaScript() on the
+          // hidden webContents for runtime snapshots and GPU diagnostics.
+          // Mitigated by contextIsolation:true and nodeIntegration:false.
           sandbox: false,
           backgroundThrottling: false,
         },
@@ -3053,9 +3057,6 @@ function noClientState(): EngineLaunchState {
   };
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 function commandStatePath(appDataPath: string): string {
   return join(appDataPath, "HabbpyV4", COMMAND_STATE_FILE);

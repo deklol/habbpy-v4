@@ -1,8 +1,8 @@
 {
   "name": "habbpy-v4-shockless",
-  "version": "0.0.1",
-  "private": false,
-  "description": "Desktop companion shell for the Shockless engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RuneLite-style Habbpy v4 shell for Shockless Engine",
   "type": "module",
   "main": "dist/main/main/main.js",
   "scripts": {
@@ -11,12 +11,19 @@
     "build:main": "tsc -p tsconfig.main.json",
     "build:renderer": "vite build",
     "build": "npm run typecheck && npm run build:main && npm run build:renderer",
-    "package:portable": "npm run build && node scripts/package-portable.mjs && node scripts/verify-portable-package.mjs",
+    "generate:premade-plugins": "node --import tsx scripts/generate-premade-plugin-sources.mjs",
+    "package:portable": "npm run build && npm run generate:premade-plugins && node scripts/package-portable.mjs && node scripts/verify-portable-package.mjs",
     "verify:portable": "node scripts/verify-portable-package.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
     "screenshot:shell": "node scripts/screenshot-shell.mjs",
-    "screenshot:renderer": "node scripts/screenshot-renderer-headless.mjs"
+    "screenshot:renderer": "node scripts/screenshot-renderer-headless.mjs",
+    "automation:electron": "node scripts/run-electron-automation.mjs",
+    "automation:visible": "node scripts/run-visible-electron-smoke.mjs",
+    "automation:gardening": "node scripts/run-gardening-electron-smoke.mjs",
+    "automation:chooser-rights": "node scripts/run-chooser-rights-live-proof.mjs",
+    "automation:plugins": "node scripts/run-plugin-live-matrix.mjs",
+    "webhook": "node scripts/send-webhook.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
@@ -33,6 +40,5 @@
     "tsx": "^4.19.2",
     "typescript": "^5.8.3",
     "vite": "^6.0.3"
-  },
-  "license": "AGPL-3.0-only"
+  }
 }

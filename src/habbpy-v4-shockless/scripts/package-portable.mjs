@@ -85,7 +85,7 @@ await assertPathExists(join(pluginTemplateRoot, "habbpy.plugin.json"), "Plugin t
 await assertPathExists(join(pluginTemplateRoot, "plugin.js"), "Plugin template entry");
 await assertPathExists(join(bundledPluginsRoot, "welcome-message", "habbpy.plugin.json"), "Bundled Welcome Message plugin manifest");
 await assertPathExists(join(bundledPluginsRoot, "welcome-message", "plugin.js"), "Bundled Welcome Message plugin entry");
-await assertPathExists(join(premadePluginsRoot, "README.txt"), "Premade plugin source README");
+await assertPathExists(join(premadePluginsRoot, "README.md"), "Premade plugin source README");
 await assertPathExists(join(premadePluginsRoot, "room", "habbpy.plugin.json"), "Premade Room plugin manifest");
 await assertPathExists(join(premadePluginsRoot, "packet-log", "plugin.js"), "Premade Packet Log plugin entry");
 await assertPathExists(join(shocklessEngineRoot, "dist", "index.html"), "Shockless engine renderer build", "run npm --prefix ../habbo-origins-engine run build first");

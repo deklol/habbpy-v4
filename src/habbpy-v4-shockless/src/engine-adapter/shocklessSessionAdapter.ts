@@ -51,7 +51,12 @@ export function runtimeRoomProp(snapshot: EngineRuntimeSnapshot | null, key: str
 }
 
 export function runtimeFps(snapshot: EngineRuntimeSnapshot | null): number | null {
-  return numberOrNull(snapshot?.performanceStats?.rafPerSecond ?? snapshot?.performanceStats?.rafRate);
+  // Prefer the recent (lag-reflecting) frame rate; fall back to the older lifetime metrics.
+  return numberOrNull(
+    snapshot?.performanceStats?.currentFps ??
+      snapshot?.performanceStats?.rafPerSecond ??
+      snapshot?.performanceStats?.rafRate,
+  );
 }
 
 export function runtimeTickRate(snapshot: EngineRuntimeSnapshot | null): number | null {

@@ -21,6 +21,7 @@ import {
   type PluginRelayDirection,
   type PluginRelayPolicy,
 } from "../../shared/pluginRelayHooks.js";
+import { errorMessage } from "../../shared/errors.js";
 
 type BodyLoggingMode = "off" | "safe";
 
@@ -770,9 +771,6 @@ function resolveRelayResourceDir(): string {
   return resolve(resourceDir);
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const settings = normalizeRelayOptions();

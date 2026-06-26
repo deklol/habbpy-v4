@@ -1033,6 +1033,10 @@ async function boot(): Promise<void> {
       event.preventDefault();
       return;
     }
+    // Keep Director's `the shiftDown` accurate for Shift+click handlers (e.g. the
+    // navigator "Who's in here?" on a public room). Shift is a modifier, not a
+    // mapped key, so keyDown never sets it; refresh it from the mouse event here.
+    movie.shiftDown = event.shiftKey ? 1 : 0;
     movie.pointerMove(sourcePoint.x, sourcePoint.y);
     movie.pointerDown();
     renderDirty = true;
@@ -1053,6 +1057,7 @@ async function boot(): Promise<void> {
       event.preventDefault();
       return;
     }
+    movie.shiftDown = event.shiftKey ? 1 : 0;
     movie.pointerMove(sourcePoint.x, sourcePoint.y);
     movie.pointerUp();
     renderDirty = true;
@@ -2219,6 +2224,19 @@ async function boot(): Promise<void> {
           if (wrapper instanceof ScriptInstance) addRoomStageSprite(instancePropValue(wrapper, "psprite"), channels);
         }
       }
+      // The window landscape (sky) is a separately-reserved managed sprite that lives in
+      // neither pSpriteList/pActSprList nor the wrappers, so the room zoom skipped it and
+      // the sky stayed at 1x. Include it so it scales in lockstep with the walls/windows.
+      if (movie.runtime.hasHandler(visualizer, "getsprbyid")) {
+        addRoomStageSprite(movie.runtime.callMethod(visualizer, "getsprbyid", ["landscape"]), channels);
+      }
+    }
+
+    // The cloud animation (Landscape Animation Manager) owns its own reserved sprite —
+    // include it too so the clouds zoom with the sky instead of staying small.
+    const landscapeAnim = objectById("landscape_animation_manager");
+    if (landscapeAnim instanceof ScriptInstance) {
+      addRoomStageSprite(instancePropValue(landscapeAnim, "psprite"), channels);
     }
 
     const roomComponent = objectById("#room_component");
@@ -2602,6 +2620,87 @@ async function boot(): Promise<void> {
       errors,
     };
   };
+  // --- Private-room entry watchdog: auto-retry a stalled join instead of hanging ---
+  // A private-room open (Navigator Component.prepareRoomEntry -> TRYFLAT/GOTOFLAT/
+  // room_directory -> ROOM_READY) normally reaches "ready" within a couple of seconds.
+  // If the server never returns the room data the source just waits on the loader bar
+  // forever (classic Habbo has no retry). Watch for a load that has made NO progress for
+  // a while (route, sprite count, cast-loaded and active flag all frozen) while a flat is
+  // still targeted and unready, then clear the room-connection guard
+  // (pRoomConnectionRequested, which otherwise blocks a re-send) and re-fire
+  // prepareRoomEntry — an instant retry rather than an indefinite hang.
+  const ROOM_ENTRY_STALL_MS = 1800;
+  const ROOM_ENTRY_MAX_RETRIES = 8;
+  let roomEntryWatch: { flatId: string; fingerprint: string; sinceMs: number; retries: number } | null = null;
+  const roomComponentInstance = (): ScriptInstance | null => {
+    const objectList = objectManagerList(movie.runtime.getGlobal("gcore"));
+    const rc = objectList ? propListLookup(objectList, "#room_component") : LINGO_VOID;
+    return rc instanceof ScriptInstance ? rc : null;
+  };
+  const retryRoomEntry = (flatId: string): void => {
+    const rc = roomComponentInstance();
+    if (rc) {
+      // Clear the connection guard so the open can be re-sent on the re-drive.
+      try {
+        movie.runtime.setInstanceProp(rc, "proomconnectionrequested", 0);
+      } catch {
+        /* best effort */
+      }
+    }
+    const navigatorComponent = navigatorComponentFromObjects();
+    if (navigatorComponent instanceof ScriptInstance && movie.runtime.hasHandler(navigatorComponent, "prepareroomentry")) {
+      try {
+        movie.runtime.callMethod(navigatorComponent, "prepareroomentry", [flatId, LingoSymbol.for("private"), 1]);
+      } catch (error) {
+        appendLog("error", `room-entry retry failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  };
+  const roomEntryWatchdogSnapshot = (): Record<string, unknown> => ({
+    watching: roomEntryWatch
+      ? { ...roomEntryWatch, stalledMs: Math.round(performance.now() - roomEntryWatch.sinceMs) }
+      : null,
+    stallMs: ROOM_ENTRY_STALL_MS,
+    maxRetries: ROOM_ENTRY_MAX_RETRIES,
+  });
+  const roomEntryWatchdogTick = (): void => {
+    const flatId = currentPrivateRoomFlatId();
+    const summary = roomReadySummary();
+    if (!flatId || summary.ready) {
+      roomEntryWatch = null;
+      return;
+    }
+    const rc = roomComponentInstance();
+    // Progress fingerprint: anything moving here means the load is still advancing.
+    const fingerprint = [
+      summary.route,
+      summary.roomLikeSpriteCount,
+      rc ? debugValue(instancePropValue(rc, "pcastloaded")) : "-",
+      rc ? debugValue(instancePropValue(rc, "pactiveflag")) : "-",
+    ].join("|");
+    const now = performance.now();
+    if (!roomEntryWatch || roomEntryWatch.flatId !== flatId) {
+      roomEntryWatch = { flatId, fingerprint, sinceMs: now, retries: 0 };
+      return;
+    }
+    if (roomEntryWatch.fingerprint !== fingerprint) {
+      // Still progressing — reset the stall clock, keep the retry budget for this flat.
+      roomEntryWatch.fingerprint = fingerprint;
+      roomEntryWatch.sinceMs = now;
+      return;
+    }
+    if (now - roomEntryWatch.sinceMs >= ROOM_ENTRY_STALL_MS && roomEntryWatch.retries < ROOM_ENTRY_MAX_RETRIES) {
+      appendLog(
+        "info",
+        `private room ${flatId} stalled at "${summary.route}" for ${Math.round(now - roomEntryWatch.sinceMs)}ms with no progress; auto-retrying entry (attempt ${roomEntryWatch.retries + 1}/${ROOM_ENTRY_MAX_RETRIES})`,
+      );
+      retryRoomEntry(flatId);
+      roomEntryWatch.sinceMs = now;
+      roomEntryWatch.retries += 1;
+    }
+  };
+  const roomEntryWatchdogTimer = setInterval(roomEntryWatchdogTick, 1000);
+  void roomEntryWatchdogTimer;
   const sessionObjectFromObjects = (): ScriptInstance | null => {
     const objectList = objectManagerList(movie.runtime.getGlobal("gcore"));
     if (!objectList) return null;
@@ -2773,6 +2872,10 @@ async function boot(): Promise<void> {
       rafPerSecond: Math.round((rafCount / elapsedMs) * 100000) / 100,
       averageRafDeltaMs: Math.round(averageRafDeltaMs * 100) / 100,
       worstRafDeltaMs: Math.round(worstRafDeltaMs * 100) / 100,
+      // Live frame rate from the RECENT frame-delta average (not the lifetime rafPerSecond),
+      // so a stall shows up immediately: main-thread lag delays RAF, the recent deltas grow,
+      // and this number drops — the way a normal game-engine FPS readout behaves.
+      currentFps: averageRafDeltaMs > 0 ? Math.round(1000 / averageRafDeltaMs) : 0,
       frameTempo: movie.frameTempo,
       directorTickCount: tick.tickCount,
       directorTicksPerSecond: Math.round((tick.tickCount / elapsedMs) * 100000) / 100,
@@ -2967,6 +3070,7 @@ async function boot(): Promise<void> {
       roomReady: roomReadySummary,
       waitForRoomReady,
       roomEntryState,
+      roomEntryWatchdog: roomEntryWatchdogSnapshot,
       performanceStats,
       setUserNameLabels,
       userNameLabels: () => ({ enabled: userNameLabelsEnabled, labels: userNameLabels() }),

@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { ClientLibraryStore, type ClientLibraryProfile } from "./clientLibrary.js";
 import type { PluginRelayPolicy } from "../shared/pluginRelayHooks.js";
 import type { EngineLaunchState } from "../shared/window-api.js";
+import { errorMessage } from "../shared/errors.js";
 
 const HABBPY_CACHE_DIR = "HabbpyV4";
 const RELAY_HOST = "127.0.0.1";
@@ -816,6 +817,3 @@ function normalizeSettingsVersionCheckBuild(value: unknown): number | null {
   return parsed !== null && !STALE_VERSION_CHECK_BUILDS.has(parsed) ? parsed : null;
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}

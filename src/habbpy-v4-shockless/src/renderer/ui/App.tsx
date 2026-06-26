@@ -60,6 +60,316 @@ import { RendererUserPluginHost, type UserPluginHostRequest } from "../userPlugi
 import { getPluginById, plugins } from "../../plugins/registry";
 import type { PluginDefinition, PluginPermission, PluginRegistryState } from "../../shared/plugin";
 import { parseConsoleCommand, redactConsoleCommandInput, type ConsoleRendererAction } from "../../shared/consoleCommand";
+import {
+  PluginIcon,
+  labelCase,
+  statusLabel,
+  permissionLabel,
+  originLabel,
+  profileLine,
+  clientSessionTitle,
+  gameWebviewPartitionForClient,
+  finiteNumber,
+  chatEntryKey,
+  chatEntryLabel,
+  chatEntryKind,
+  compactValue,
+  commandArg,
+  mimicCategoryOptions,
+  withVisibleConsoleContext,
+  uniqueUsefulNames,
+  firstUsefulName,
+  isTextEntryTarget,
+  bindingKeyFromKeyboardEvent,
+  normalizeShortcutKey,
+  objectTitle,
+  normalizeFurniClassName,
+  furniInfoForClass,
+  furniInfoForObject,
+  furniDisplayName,
+  isRelayBackedConsoleCommand,
+  commandRefreshesEngineLaunch,
+  objectMeta,
+  wallObjectMeta,
+  objectSearchText,
+  isPlantLikeObject,
+  isFishingAreaObject,
+  isPresentCatcherHammerObject,
+  isPresentCatcherPresentObject,
+  isPresentCatcherGiftItem,
+  presentCatcherPacketHeaders,
+  objectNumericId,
+  signedPair,
+  wallOrientation,
+  wallMoverLocation,
+  itemRowTile,
+  userTile,
+  gardeningFacingTilePriority,
+  gardeningFallbackTilePriority,
+  tileKey,
+  objectIdText,
+  occupiedGardeningTiles,
+  workingTileNearSelf,
+  findCurrentPlantRow,
+  adjacentTileForItem,
+  latin1ByteArray,
+  shockwaveVl64ByteArray,
+  shockwaveOutgoingStringByteArray,
+  decodeShockwaveVl64Text,
+  injectionActionOptions,
+  defaultInjectionDraft,
+  injectionSnippetStorageKey,
+  injectionHistoryStorageKey,
+  userStoredLookStorageKey,
+  automationPrefsStorageKey,
+  injectionCommandLabel,
+  cloneInjectionDraft,
+  normalizeInjectionSnippet,
+  normalizeInjectionSnippets,
+  normalizeStoredUserLooks,
+  loadStoredUserLooks,
+  loadAutomationPrefs,
+  writeClipboardText,
+  injectionDraftToRuntimeAction,
+  injectionDraftToUserRelayAction,
+  clampRepeatCount,
+  clampRepeatInterval,
+  clampMultiAccountCount,
+  clampMultiAccountConcurrency,
+  delay,
+  objectListSignature,
+  userListSignature,
+  inventorySignature,
+  navigatorSignature,
+  roomObjectsSignature,
+  userStateSignature,
+  chatHistorySignature,
+  activeSpritesSignature,
+  runtimeProbeScopesForPlugin,
+  reuseStableRuntimeDetails,
+  itemRowTitle,
+  itemRowMeta,
+  itemRowSearchText,
+  userDisplayName,
+  userPosition,
+  userRowMeta,
+  packetFieldMap,
+  packetUsersFromEntries,
+  packetProfileUserCache,
+  packetUsersFromRelayLog,
+  packetInfoStateFromEntries,
+  packetInfoStateCache,
+  packetInfoStateFromRelayLog,
+  addPacketFriendsFromPrefix,
+  addPacketPrivateMessagesFromPrefix,
+  addPacketFriendRequestsFromPrefix,
+  packetFriendFromPrefix,
+  packetPrivateMessageFromPrefix,
+  packetFriendRequestFromPrefix,
+  packetFriendKey,
+  packetPrivateMessageKey,
+  packetFriendRequestKey,
+  parsedCount,
+  packetFriendSearchText,
+  packetFriendMeta,
+  packetFriendTitle,
+  lookupTokenMatches,
+  runtimeUserMatchesLookup,
+  packetUserMatchesLookup,
+  packetFriendMatchesLookup,
+  packetFriendRequestMatchesLookup,
+  parsePositiveSocialAccountId,
+  packetFriendActionId,
+  packetFriendRequestActionId,
+  findPacketFriendForAction,
+  findPacketFriendRequestForAction,
+  runtimeLookupLine,
+  packetProfileLookupLine,
+  friendRequestLookupLine,
+  originsLookupLine,
+  packetChatEntriesFromEntries,
+  packetChatEntriesCache,
+  packetChatEntriesFromRelayLog,
+  packetFishingStateFromEntries,
+  packetFishopediaEntryFromPrefix,
+  packetChatRuntimeEntry,
+  packetChatUserName,
+  packetWallItemStateFromEntries,
+  packetWallItemStateCache,
+  packetWallItemStateFromRelayLog,
+  packetWallItemFromPrefix,
+  packetWallItemRow,
+  packetInventoryStateFromEntries,
+  packetInventoryStateCache,
+  packetInventoryStateFromRelayLog,
+  packetInventoryItemFromPrefix,
+  packetInventoryKey,
+  packetInventorySearchText,
+  packetInventoryTitle,
+  packetInventoryMeta,
+  runtimeInventoryDisplayRow,
+  packetInventoryDisplayRow,
+  packetProfileIndexFromUsers,
+  selectPacketProfileUser,
+  packetProfileForRuntimeUser,
+  latestPacketVisitorUsers,
+  profileValue,
+  isVisitorUser,
+  visitorKeyFor,
+  visitorEntryFor,
+  visitorEntryForPacketUser,
+  visitorSearchText,
+  visitorMeta,
+  inventoryKindLabel,
+  relayEntryLabel,
+  relayEntryV3Line,
+  relayEntryDisplayName,
+  relayEntrySearchText,
+  relayPacketSummary,
+  PACKET_ROW_HEIGHT,
+  PACKET_OVERSCAN_ROWS,
+  virtualPacketRange,
+  PACKET_CONSOLE_ROW_HEIGHT,
+  PACKET_CONSOLE_RENDER_ROWS,
+  PACKET_CONSOLE_OVERSCAN_ROWS,
+  mergeRelayLogSnapshot,
+  relayLogSnapshotForClient,
+  clientPluginSnapshotForClient,
+  clientPluginSnapshotMapFromSources,
+  mergeClientSummaryIntoList,
+  pluginHasPermission,
+  requirePluginPermission,
+  isDisabledPluginCleanupRequest,
+  assertDisabledPluginCleanupRequest,
+  pluginRoomKey,
+  pluginRoomPayload,
+  pluginRuntimeUserKey,
+  pluginRuntimeUserPayload,
+  pluginRuntimeUserKind,
+  pluginRuntimeItemSignature,
+  pluginRuntimeItemPayload,
+  pluginRoomObjectRecords,
+  pluginRoomObjectsPayload,
+  dispatchPluginRoomItemEvent,
+  pluginRoomOccupantsPayload,
+  pluginRoomUsersPayload,
+  pluginRelayPacketPayload,
+  pluginChatPayload,
+  pluginStorageKey,
+  requestedPluginClientId,
+  cleanPluginRightsList,
+  pluginManagedClientRights,
+  disabledManagedClientRights,
+  matchingClientRights,
+  clientRightsPayloadRights,
+  cleanInteger,
+  cleanPositiveInt,
+  pluginWalkTargetFromSnapshot,
+  pluginWalkTargetFromRow,
+  pluginFindItemRows,
+  pluginSelectorIsEmpty,
+  pluginItemRowMatchesSelector,
+  pluginResolveFloorItem,
+  pluginResolveWallItem,
+  pluginSelectorNumericId,
+  pluginSelectorTile,
+  pluginSelectorKind,
+  pluginSelectorWallLocation,
+  pluginWallMoveLocation,
+  pluginFishingAreaRows,
+  pluginFishingAreaTarget,
+  pluginFishingAreaPayload,
+  pluginFishingAreaTarget as pluginFishingTarget,
+  pluginFishingAreaPayload as pluginFishingPayload,
+  PROFILE_IMPORT_STAGES,
+  PROFILE_IMPORT_STAGE_LABELS,
+  profileImportStageEntry,
+  profileImportStatusLabel,
+  formatImportElapsed,
+  type GameWebviewMount,
+  type ItemRow,
+  type WallMoverLocation,
+  type GardeningPhase,
+  type GardeningJobState,
+  type InjectionActionKind,
+  type InjectionCommandDraft,
+  type InjectionSnippet,
+  type InjectionHistoryEntry,
+  type PacketConsoleEntry,
+  type PluginClientRightsOwners,
+  type PacketProfileUser,
+  type PacketProfileIndex,
+  type PacketInfoFriend,
+  type PacketInfoEffect,
+  type PacketMessengerMessage,
+  type PacketFriendRequest,
+  type PacketInfoState,
+  type PacketInventoryItem,
+  type PacketInventoryState,
+  type PacketWallItem,
+  type PacketWallItemState,
+  type PacketChatEntry,
+  type PacketFishingCatch,
+  type PacketFishopediaEntry,
+  type PacketFishingState,
+  type ClientPluginSnapshot,
+  type InventoryDisplayRow,
+  type VisitorEntry,
+  type VisitorTrackerState,
+  type RelayDerivedState,
+  type UserPluginRoomUserCache,
+  type UserPluginRoomObjectRecord,
+  type UserPluginRoomObjectCache,
+  type UserPluginChatCache,
+  type ProfileImportUiState,
+  emptyPacketProfileIndex,
+  emptyPacketInfoState,
+  emptyPacketInventoryState,
+  emptyPacketWallItemState,
+  emptyPacketFishingState,
+  emptyVisitorState,
+  emptyRelayDerivedState,
+  emptyProfileImportUiState,
+  pendingProfileImportUiState,
+  profileImportUiWithProgress,
+  profileImportUiFinished,
+  relayModeSummary,
+  packetClientMatches,
+  normalizePacketClientFilter,
+  relayEntryPlain,
+  relayEncryptionSummary,
+  relayDerivedStateFromSnapshot,
+  relayBodyLoggingSummary,
+  updateClientRightOwners,
+  removeClientRightOwners,
+} from "./helpers";
+import { AboutPanel } from "../../plugins/about/Panel";
+import { DevToolsPanel } from "../../plugins/dev-tools/Panel";
+import { AutomationPanel } from "../../plugins/automation/Panel";
+import { InventoryPanel } from "../../plugins/inventory/Panel";
+import { VisitorsPanel } from "../../plugins/visitors/Panel";
+import { ChatPanel } from "../../plugins/chat/Panel";
+import { WallMoverPanel } from "../../plugins/wall-mover/Panel";
+import { RoomPanel } from "../../plugins/room/Panel";
+import { ItemsPanel } from "../../plugins/items/Panel";
+import { InfoPanel } from "../../plugins/info/Panel";
+import { SocialPanel } from "../../plugins/social/Panel";
+import { FishingPanel } from "../../plugins/fishing/Panel";
+import { GardeningPanel } from "../../plugins/gardening/Panel";
+import { ConnectionPanel } from "../../plugins/connection/Panel";
+import { PluginManagerPanel } from "../../plugins/plugin-manager/Panel";
+import { SettingsPanel } from "../../plugins/settings/Panel";
+import { UserPanel } from "../../plugins/user/Panel";
+import { MultiAccountPanel } from "../../plugins/multi-account/Panel";
+import { PresentCatcherPanel } from "../../plugins/present-catcher/Panel";
+import { InjectionPanel } from "../../plugins/injection/Panel";
+import { PacketLogPanel } from "../../plugins/packet-log/Panel";
+import { UserPluginPanel } from "./UserPluginPanel";
+import { TopBar } from "./TopBar";
+import { BootSplash } from "./BootSplash";
+import { IconRail } from "./IconRail";
+import { RoomOverlays } from "./RoomOverlays";
+import { ImporterWorkspace } from "./ImporterWorkspace";
 import { encodeShockwaveBase64Int, formatShockwavePacketParts } from "../../shared/shockwavePacketText";
 import type {
   AppPreferencesPatch,
@@ -91,4034 +401,60 @@ import type {
   UserRelayAction,
   WallMoverRelayAction,
 } from "../../shared/window-api";
+// Re-export types that panels import from App.tsx (now defined in helpers.tsx)
+export type {
+  GameWebviewMount,
+  WallMoverLocation,
+  GardeningPhase,
+  GardeningJobState,
+  InjectionActionKind,
+  InjectionCommandDraft,
+  InjectionSnippet,
+  InjectionHistoryEntry,
+  PacketConsoleEntry,
+  PluginClientRightsOwners,
+  PacketProfileUser,
+  PacketProfileIndex,
+  PacketInfoFriend,
+  PacketInfoEffect,
+  PacketMessengerMessage,
+  PacketFriendRequest,
+  PacketInfoState,
+  PacketInventoryItem,
+  PacketInventoryState,
+  PacketWallItem,
+  PacketWallItemState,
+  PacketChatEntry,
+  PacketFishingCatch,
+  PacketFishopediaEntry,
+  PacketFishingState,
+  ClientPluginSnapshot,
+  InventoryDisplayRow,
+  VisitorEntry,
+  VisitorTrackerState,
+  RelayDerivedState,
+  UserPluginRoomUserCache,
+  UserPluginRoomObjectRecord,
+  UserPluginRoomObjectCache,
+  UserPluginChatCache,
+  ProfileImportUiState,
+} from "./helpers";
+export {
+  emptyPacketProfileIndex,
+  emptyPacketInfoState,
+  emptyPacketInventoryState,
+  emptyPacketWallItemState,
+  emptyPacketFishingState,
+  emptyVisitorState,
+  emptyRelayDerivedState,
+  emptyProfileImportUiState,
+  pendingProfileImportUiState,
+  profileImportUiWithProgress,
+  profileImportUiFinished,
+  PROFILE_IMPORT_STAGES,
+  PROFILE_IMPORT_STAGE_LABELS,
+} from "./helpers";
 
-const iconMap = {
-  activity: Activity,
-  bot: Bot,
-  command: Command,
-  list: List,
-  map: Map,
-  messages: MessageSquare,
-  package: Package,
-  plug: Plug,
-  sofa: Sofa,
-  terminal: Terminal,
-  user: User,
-  wrench: Wrench,
-  hammer: Hammer,
-  info: Info,
-};
-
-function PluginIcon({ plugin }: { readonly plugin: PluginDefinition }) {
-  const Icon = iconMap[plugin.icon as keyof typeof iconMap] ?? CircleAlert;
-  return <Icon aria-hidden="true" size={17} strokeWidth={2.1} />;
-}
-
-function labelCase(value: unknown): string {
-  const text = String(value ?? "").trim();
-  if (!text) return "-";
-  return text
-    .split(/[-_\s.]+/)
-    .filter(Boolean)
-    .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function statusLabel(value: unknown): string {
-  const label = labelCase(value);
-  return label === "Done" ? "Complete" : label;
-}
-
-function permissionLabel(value: unknown): string {
-  return String(value ?? "")
-    .split(".")
-    .filter(Boolean)
-    .map((part) => (part.toLowerCase() === "ui" ? "UI" : labelCase(part)))
-    .join(" ") || "-";
-}
-
-function originLabel(value: unknown): string {
-  return String(value ?? "") === "built-in" ? "Built-In" : labelCase(value);
-}
-
-function profileLine(profile: ClientProfileSummary | null | undefined): string {
-  if (!profile) return "No profile selected";
-  const build = profile.buildNumber ? `build ${profile.buildNumber}` : profile.versionId;
-  return `${profile.label} / ${build}`;
-}
-
-function clientSessionTitle(session: ClientSessionSummary): string {
-  const mode = session.headless ? "Headless" : session.visible ? "Visible" : "Hidden";
-  const markers = [session.selected ? "Selected" : "", session.main ? "Main" : "", mode, statusLabel(session.status)].filter(Boolean).join(", ");
-  return `client${session.id} ${session.label} (${markers})\n${session.profileLabel}`;
-}
-
-interface GameWebviewMount {
-  readonly id: number;
-  readonly label: string;
-  readonly url: string;
-  readonly partition: string;
-}
-
-function gameWebviewPartitionForClient(clientId: number): string {
-  return clientId === 1 ? "persist:habbpy-v4-shockless" : `persist:habbpy-v4-shockless-client-${clientId}`;
-}
-
-function finiteNumber(value: unknown): number | null {
-  const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function chatEntryKey(entry: RuntimeChatEntry, index: number): string {
-  return `${entry.index ?? index}-${entry.timestamp ?? ""}-${entry.userName ?? ""}`;
-}
-
-function chatEntryLabel(entry: RuntimeChatEntry): string {
-  const mode = String(entry.chatMode ?? "talk").toUpperCase();
-  const user = entry.userName || "system";
-  return `[${mode}] ${user}`;
-}
-
-function chatEntryKind(entry: RuntimeChatEntry): "talk" | "whisper" | "shout" | "system" {
-  const mode = String(entry.chatMode ?? "talk").toLowerCase();
-  if (mode.includes("whisper")) return "whisper";
-  if (mode.includes("shout")) return "shout";
-  if (mode.includes("system")) return "system";
-  return "talk";
-}
-
-function compactValue(value: unknown): string {
-  return compactRuntimeValue(value);
-}
-
-function commandArg(value: string): string {
-  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-}
-
-const mimicCategoryOptions: readonly { readonly id: MimicCategory; readonly label: string; readonly detail: string }[] = [
-  { id: "movement", label: "Movement", detail: "walk and look packets" },
-  { id: "speech", label: "Speech", detail: "chat, shout, whisper, typing" },
-  { id: "actions", label: "Actions", detail: "wave, dance, carry, sign" },
-  { id: "rooms", label: "Rooms", detail: "private room joins" },
-];
-
-function withVisibleConsoleContext(input: string, snapshot: EngineRuntimeSnapshot | null, activeNames: readonly string[] = []): string {
-  const parsed = parseConsoleCommand(input);
-  if (!parsed.ok) return input;
-  const needsSummonContext =
-    parsed.command.command === "summon" ||
-    parsed.command.flags.some((flag) => flag.name === "summon");
-  const needsVisibleAccountContext =
-    needsSummonContext ||
-    parsed.command.command === "login" ||
-    parsed.command.command === "load" ||
-    parsed.command.command === "load-store" ||
-    parsed.command.command === "accounts";
-  if (!needsVisibleAccountContext) return input;
-  const existingFlags = new Set(parsed.command.flags.map((flag) => flag.name));
-  const additions: string[] = [];
-  const mainName = firstUsefulName([snapshot?.userState?.sessionUserName, ...activeNames]);
-  if (mainName && !existingFlags.has("main-name")) additions.push(`--main-name ${commandArg(mainName)}`);
-  if (!existingFlags.has("active-name")) {
-    for (const name of uniqueUsefulNames([snapshot?.userState?.sessionUserName, ...activeNames])) {
-      additions.push(`--active-name ${commandArg(name)}`);
-    }
-  }
-  if (!needsSummonContext) return additions.length > 0 ? `${input} ${additions.join(" ")}` : input;
-  const roomId = runtimeRoomId(snapshot);
-  const privateRoom = runtimeRoomType(snapshot) === "private";
-  if (privateRoom && roomId && roomId !== "-" && !existingFlags.has("main-room-id")) additions.push(`--main-room-id ${commandArg(roomId)}`);
-  const roomName = runtimeRoomName(snapshot);
-  if (privateRoom && roomName && roomName !== "-" && !existingFlags.has("main-room-name")) additions.push(`--main-room-name ${commandArg(roomName)}`);
-  return additions.length > 0 ? `${input} ${additions.join(" ")}` : input;
-}
-
-function uniqueUsefulNames(values: readonly unknown[]): readonly string[] {
-  const seen = new Set<string>();
-  const names: string[] = [];
-  for (const value of values) {
-    const name = String(value ?? "").trim();
-    const key = name.toLowerCase();
-    if (!name || name === "-" || seen.has(key)) continue;
-    seen.add(key);
-    names.push(name);
-  }
-  return names;
-}
-
-function firstUsefulName(values: readonly unknown[]): string {
-  return uniqueUsefulNames(values)[0] ?? "";
-}
-
-function isTextEntryTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  const tagName = target.tagName.toLowerCase();
-  return (
-    tagName === "input" ||
-    tagName === "textarea" ||
-    tagName === "select" ||
-    tagName === "webview" ||
-    target.isContentEditable ||
-    Boolean(target.closest("[contenteditable='true']"))
-  );
-}
-
-function bindingKeyFromKeyboardEvent(event: { readonly key: string; readonly code?: string; readonly ctrlKey: boolean; readonly altKey: boolean; readonly shiftKey: boolean; readonly metaKey: boolean }): string {
-  const key = normalizeShortcutKey(event.key, "code" in event ? event.code : "");
-  if (!key) return "";
-  const parts = [
-    event.ctrlKey ? "Ctrl" : "",
-    event.altKey ? "Alt" : "",
-    event.shiftKey ? "Shift" : "",
-    event.metaKey ? "Meta" : "",
-    key,
-  ].filter(Boolean);
-  return parts.join("+");
-}
-
-function normalizeShortcutKey(keyValue: string, codeValue = ""): string {
-  if (codeValue === "Backquote" || keyValue === "`") return "Backquote";
-  const key = String(keyValue ?? "").trim();
-  if (!key) return "";
-  if (/^F(?:[1-9]|1\d|2[0-4])$/i.test(key)) return key.toUpperCase();
-  if (key.length === 1) return key.toUpperCase();
-  if (key === " ") return "Space";
-  if (key === "Esc") return "Escape";
-  return key;
-}
-
-function objectTitle(entry: { readonly id?: unknown; readonly objectId?: unknown; readonly className?: unknown; readonly name?: unknown }): string {
-  return compactValue(entry.name ?? entry.className ?? entry.objectId ?? entry.id);
-}
-
-function normalizeFurniClassName(value: unknown): string {
-  return String(value ?? "").replace(/^ZaC/i, "").trim().toLowerCase();
-}
-
-function furniInfoForClass(metadata: FurniMetadataSnapshot | null, className: unknown): FurniMetadataEntry | null {
-  const key = normalizeFurniClassName(className);
-  return key ? metadata?.entriesByClass[key] ?? null : null;
-}
-
-function furniInfoForObject(metadata: FurniMetadataSnapshot | null, entry: RuntimeObjectSummary | RuntimeInventoryItemSummary | null | undefined): FurniMetadataEntry | null {
-  if (!entry) return null;
-  const record = entry as Record<string, unknown>;
-  return furniInfoForClass(metadata, record.className ?? record.name);
-}
-
-function furniDisplayName(metadata: FurniMetadataSnapshot | null, entry: RuntimeObjectSummary | RuntimeInventoryItemSummary | null | undefined): string {
-  if (!entry) return "-";
-  const record = entry as Record<string, unknown>;
-  return compactValue(
-    furniInfoForObject(metadata, entry)?.name ??
-      record.className ??
-      record.name ??
-      record.objectId ??
-      record.itemId ??
-      record.id,
-  );
-}
-
-function isRelayBackedConsoleCommand(command: string): boolean {
-  return [
-    "message",
-    "msg",
-    "pm",
-    "adduser",
-    "friend",
-    "requests",
-    "friendrequests",
-    "refreshrequests",
-    "accept",
-    "acceptfriend",
-    "decline",
-    "declinefriend",
-    "follow",
-    "followfriend",
-    "removefriend",
-    "unfriend",
-  ].includes(command);
-}
-
-function commandRefreshesEngineLaunch(command: string, firstArg = ""): boolean {
-  return [
-    "start",
-    "launch",
-    "newclient",
-    "addclient",
-    "login",
-    "load",
-    "load-store",
-    "close",
-    "stop",
-  ].includes(command) || (command === "accounts" && firstArg.toLowerCase() === "load");
-}
-
-function objectMeta(entry: {
-  readonly id?: unknown;
-  readonly objectId?: unknown;
-  readonly x?: unknown;
-  readonly y?: unknown;
-  readonly direction?: unknown;
-  readonly state?: unknown;
-  readonly type?: unknown;
-}): string {
-  const parts = [
-    entry.objectId ?? entry.id ? `id ${compactValue(entry.objectId ?? entry.id)}` : "",
-    entry.x !== undefined || entry.y !== undefined ? `xy ${compactValue(entry.x)},${compactValue(entry.y)}` : "",
-    entry.direction !== undefined ? `dir ${compactValue(entry.direction)}` : "",
-    entry.state !== undefined && entry.state !== null ? `state ${compactValue(entry.state)}` : "",
-    entry.type !== undefined ? `type ${compactValue(entry.type)}` : "",
-  ].filter(Boolean);
-  return parts.join(" / ") || "-";
-}
-
-function wallObjectMeta(entry: RuntimeObjectSummary): string {
-  const parts = [
-    entry.objectId ?? entry.id ? `id ${compactValue(entry.objectId ?? entry.id)}` : "",
-    entry.wall ? `wall ${entry.wall}` : "",
-    entry.local ? `local ${entry.local}` : "",
-    entry.orientation ? `face ${compactValue(entry.orientation)}` : entry.direction !== undefined ? `dir ${compactValue(entry.direction)}` : "",
-    entry.state !== undefined && entry.state !== null ? `state ${compactValue(entry.state)}` : "",
-  ].filter(Boolean);
-  return parts.join(" / ") || objectMeta(entry);
-}
-
-function objectSearchText(entry: RuntimeObjectSummary): string {
-  return [
-    entry.id,
-    entry.objectId,
-    entry.className,
-    entry.name,
-    entry.ownerName,
-    entry.type,
-    entry.state,
-    entry.wall,
-    entry.local,
-    entry.orientation,
-    entry.rawLocation,
-  ]
-    .map(compactValue)
-    .join(" ")
-    .toLowerCase();
-}
-
-function isPlantLikeObject(entry: RuntimeObjectSummary): boolean {
-  const text = objectSearchText(entry);
-  return ["farm", "garden", "plant", "flower", "blossom", "pumpkin", "seed", "compost", "harvest", "water"].some((token) =>
-    text.includes(token),
-  );
-}
-
-function isFishingAreaObject(entry: RuntimeObjectSummary): boolean {
-  const className = compactValue(entry.className ?? entry.name).trim().toLowerCase();
-  return className.endsWith("fish_area");
-}
-
-function isPresentCatcherHammerObject(entry: RuntimeObjectSummary): boolean {
-  return compactValue(entry.className ?? entry.name).trim().toLowerCase() === "toby_hammer";
-}
-
-function isPresentCatcherPresentObject(entry: RuntimeObjectSummary): boolean {
-  return compactValue(entry.className ?? entry.name).trim().toLowerCase().startsWith("anniv_present_gen");
-}
-
-function isPresentCatcherGiftItem(entry: RuntimeInventoryItemSummary, classFilter: string): boolean {
-  const filter = classFilter.trim().toLowerCase();
-  if (!filter) return false;
-  const text = [entry.className, entry.itemId, entry.objectId, entry.slotId, entry.inventoryKind].map(compactValue).join(" ").toLowerCase();
-  return text.includes(filter);
-}
-
-const presentCatcherPacketHeaders = new Set([65, 74, 78, 90, 93, 94, 1240, 1241, 3400, 3401, 3402, 3403, 3404, 3600, 3601, 3602, 3603, 3604]);
-
-type ItemRow = RuntimeItemRow;
-
-interface WallMoverLocation {
-  readonly wallX: number;
-  readonly wallY: number;
-  readonly localX: number;
-  readonly localY: number;
-  readonly orientation: "l" | "r";
-}
-
-function objectNumericId(entry: RuntimeObjectSummary | null | undefined): number | null {
-  const parsed = finiteNumber(entry?.objectId ?? entry?.id);
-  return parsed === null ? null : Math.trunc(parsed);
-}
-
-function signedPair(value: unknown): { readonly x: number; readonly y: number } | null {
-  const match = compactValue(value).match(/(-?\d+)\s*,\s*(-?\d+)/);
-  if (!match) return null;
-  return { x: Number.parseInt(match[1]!, 10), y: Number.parseInt(match[2]!, 10) };
-}
-
-function wallOrientation(value: unknown): "l" | "r" | null {
-  const normalized = compactValue(value).trim().toLowerCase();
-  if (normalized === "l" || normalized === "left") return "l";
-  if (normalized === "r" || normalized === "right") return "r";
-  return null;
-}
-
-function wallMoverLocation(entry: RuntimeObjectSummary | null | undefined): WallMoverLocation | null {
-  const raw = compactValue(entry?.rawLocation);
-  const rawMatch = raw.match(/:w=(-?\d+)\s*,\s*(-?\d+)\s+l=(-?\d+)\s*,\s*(-?\d+)\s+([lr])/i);
-  if (rawMatch) {
-    return {
-      wallX: Number.parseInt(rawMatch[1]!, 10),
-      wallY: Number.parseInt(rawMatch[2]!, 10),
-      localX: Number.parseInt(rawMatch[3]!, 10),
-      localY: Number.parseInt(rawMatch[4]!, 10),
-      orientation: rawMatch[5]!.toLowerCase() as "l" | "r",
-    };
-  }
-  const wall = signedPair(entry?.wall);
-  const local = signedPair(entry?.local);
-  const orientation = wallOrientation(entry?.orientation ?? entry?.direction);
-  if (!wall || !local || !orientation) return null;
-  return { wallX: wall.x, wallY: wall.y, localX: local.x, localY: local.y, orientation };
-}
-
-function itemRowTile(row: ItemRow | null | undefined): { readonly x: number; readonly y: number; readonly direction: number } | null {
-  const x = finiteNumber(row?.item.x);
-  const y = finiteNumber(row?.item.y);
-  const direction = finiteNumber(row?.item.direction) ?? 0;
-  if (x === null || y === null) return null;
-  return { x: Math.trunc(x), y: Math.trunc(y), direction: Math.trunc(direction) };
-}
-
-function userTile(user: RuntimeUserSummary | null | undefined): { readonly x: number; readonly y: number } | null {
-  const directX = finiteNumber(user?.x);
-  const directY = finiteNumber(user?.y);
-  if (directX !== null && directY !== null) return { x: Math.trunc(directX), y: Math.trunc(directY) };
-  const match = String(user?.position ?? "").match(/(-?\d+)\s*,\s*(-?\d+)/);
-  if (!match) return null;
-  return { x: Number.parseInt(match[1]!, 10), y: Number.parseInt(match[2]!, 10) };
-}
-
-const gardeningFacingTilePriority: Readonly<Record<number, readonly (readonly [number, number])[]>> = {
-  0: [[0, -1], [-1, 0], [1, 0]],
-  1: [[1, 0], [0, -1], [-1, 0]],
-  2: [[1, 0], [0, -1], [0, 1]],
-  3: [[1, 0], [0, 1], [0, -1]],
-  4: [[0, 1], [1, 0], [-1, 0]],
-  5: [[-1, 0], [0, 1], [1, 0]],
-  6: [[-1, 0], [0, 1], [0, -1]],
-  7: [[-1, 0], [0, -1], [1, 0]],
-};
-
-const gardeningFallbackTilePriority: readonly (readonly [number, number])[] = [
-  [0, 1],
-  [1, 0],
-  [-1, 0],
-  [0, -1],
-];
-
-function tileKey(x: number, y: number): string {
-  return `${x},${y}`;
-}
-
-function objectIdText(entry: RuntimeObjectSummary | null | undefined): string {
-  return compactValue(entry?.objectId ?? entry?.id);
-}
-
-function occupiedGardeningTiles(
-  itemRows: readonly ItemRow[],
-  users: readonly RuntimeUserSummary[],
-  self: RuntimeUserSummary | null | undefined,
-  ignoredObjectId: string,
-): Set<string> {
-  const occupied = new Set<string>();
-  for (const row of itemRows) {
-    if (objectIdText(row.item) === ignoredObjectId) continue;
-    const tile = itemRowTile(row);
-    if (tile) occupied.add(tileKey(tile.x, tile.y));
-  }
-  for (const user of users) {
-    if (self && user.rowId === self.rowId) continue;
-    const tile = userTile(user);
-    if (tile) occupied.add(tileKey(tile.x, tile.y));
-  }
-  return occupied;
-}
-
-function workingTileNearSelf(
-  self: RuntimeUserSummary | null | undefined,
-  fallback: ItemRow | null | undefined,
-  itemRows: readonly ItemRow[] = [],
-  users: readonly RuntimeUserSummary[] = [],
-): { readonly x: number; readonly y: number } | null {
-  const tile = userTile(self);
-  if (tile) {
-    const direction = finiteNumber(self?.direction);
-    const offsets = direction === null ? gardeningFallbackTilePriority : gardeningFacingTilePriority[Math.trunc(direction) & 7] ?? gardeningFallbackTilePriority;
-    const ignoredObjectId = objectIdText(fallback?.item);
-    const occupied = occupiedGardeningTiles(itemRows, users, self, ignoredObjectId);
-    const candidates = offsets.map(([dx, dy]) => ({ x: tile.x + dx, y: tile.y + dy }));
-    return candidates.find((candidate) => !occupied.has(tileKey(candidate.x, candidate.y))) ?? candidates[0] ?? null;
-  }
-  const plant = itemRowTile(fallback);
-  return plant ? { x: plant.x, y: plant.y } : null;
-}
-
-function findCurrentPlantRow(rows: readonly ItemRow[], objectId: number): ItemRow | null {
-  return rows.find((row) => objectNumericId(row.item) === objectId) ?? null;
-}
-
-function adjacentTileForItem(
-  row: ItemRow | null | undefined,
-  itemRows: readonly ItemRow[],
-  users: readonly RuntimeUserSummary[],
-  self: RuntimeUserSummary | null | undefined,
-): { readonly x: number; readonly y: number } | null {
-  const tile = itemRowTile(row);
-  if (!tile) return null;
-  const occupied = occupiedGardeningTiles(itemRows, users, self, objectIdText(row?.item));
-  const selfTile = userTile(self);
-  const candidates = [
-    { x: tile.x, y: tile.y + 1 },
-    { x: tile.x + 1, y: tile.y },
-    { x: tile.x - 1, y: tile.y },
-    { x: tile.x, y: tile.y - 1 },
-  ].filter((candidate) => !occupied.has(tileKey(candidate.x, candidate.y)));
-  const pool = candidates.length > 0 ? candidates : [{ x: tile.x, y: tile.y + 1 }];
-  if (!selfTile) return pool[0] ?? null;
-  return [...pool].sort((left, right) => Math.abs(left.x - selfTile.x) + Math.abs(left.y - selfTile.y) - (Math.abs(right.x - selfTile.x) + Math.abs(right.y - selfTile.y)))[0] ?? null;
-}
-
-function latin1ByteArray(text: string): readonly number[] {
-  const bytes: number[] = [];
-  for (let index = 0; index < text.length; index += 1) {
-    const value = text.charCodeAt(index);
-    if (value > 0xff) throw new Error("Text cannot be encoded as Latin-1.");
-    bytes.push(value);
-  }
-  return bytes;
-}
-
-function shockwaveVl64ByteArray(value: number): readonly number[] {
-  if (!Number.isInteger(value)) throw new Error(`VL64 value must be an integer: ${value}`);
-  const negative = value < 0;
-  let remaining = Math.abs(value);
-  const bytes: number[] = [64 + (remaining & 0x03)];
-  remaining = Math.floor(remaining / 4);
-  while (remaining > 0) {
-    bytes.push(64 + (remaining & 0x3f));
-    remaining = Math.floor(remaining / 64);
-  }
-  if (bytes.length > 6) throw new Error(`VL64 value uses ${bytes.length} bytes; max supported is 6`);
-  bytes[0] = bytes[0]! | (bytes.length << 3) | (negative ? 0x04 : 0);
-  return bytes;
-}
-
-function shockwaveOutgoingStringByteArray(value: string): readonly number[] {
-  return [...encodeShockwaveBase64Int(value.length, 2), ...latin1ByteArray(value)];
-}
-
-function decodeShockwaveVl64Text(value: string): number | null {
-  if (!value) return null;
-  const bytes = latin1ByteArray(value);
-  const first = bytes[0];
-  if (first === undefined || first < 64) return null;
-  const length = (first >> 3) & 0x07;
-  if (length <= 0 || bytes.length < length) return null;
-  let result = first & 0x03;
-  let shift = 2;
-  for (let index = 1; index < length; index += 1) {
-    result += (bytes[index]! & 0x3f) << shift;
-    shift += 6;
-  }
-  return (first & 0x04) !== 0 ? -result : result;
-}
-
-type GardeningPhase = "idle" | "move_out" | "compost" | "water" | "harvest" | "return" | "complete" | "failed";
-
-interface GardeningJobState {
-  readonly plantKey: string;
-  readonly objectId: number;
-  readonly originalX: number;
-  readonly originalY: number;
-  readonly originalDirection: number;
-  readonly workingX: number;
-  readonly workingY: number;
-  readonly phase: GardeningPhase;
-  readonly mode: "cycle" | "compost";
-  readonly queue: readonly string[];
-  readonly sentAt: number;
-  readonly moveAttempts: number;
-  readonly actionAttempts: number;
-  readonly completed: number;
-  readonly note: string;
-  readonly baselineState: string;
-}
-
-type InjectionActionKind =
-  | "sendChat"
-  | "stageClick"
-  | "clickWindowElement"
-  | "openNavigator"
-  | "enterPrivateRoom"
-  | "enterPublicRoom"
-  | "requestInventory"
-  | "userWave"
-  | "userDance"
-  | "userStopDance"
-  | "userHcDance"
-  | "userCarryDrink"
-  | "showHotelView"
-  | "rawPacketBlocked";
-
-interface InjectionCommandDraft {
-  readonly actionKind: InjectionActionKind;
-  readonly chatMessage: string;
-  readonly stageX: string;
-  readonly stageY: string;
-  readonly windowId: string;
-  readonly elementId: string;
-  readonly navigatorView: string;
-  readonly flatId: string;
-  readonly publicRoomQuery: string;
-  readonly rawDirection: "SERVER" | "CLIENT";
-  readonly rawText: string;
-}
-
-interface InjectionSnippet {
-  readonly id: string;
-  readonly label: string;
-  readonly command: InjectionCommandDraft;
-  readonly createdAt: string;
-}
-
-interface InjectionHistoryEntry {
-  readonly id: string;
-  readonly label: string;
-  readonly status: "success" | "blocked" | "warning" | "error";
-  readonly message: string;
-  readonly time: string;
-}
-
-interface PacketConsoleEntry {
-  readonly id: string;
-  readonly time: string;
-  readonly kind: "command" | "success" | "warning" | "error" | "info";
-  readonly text: string;
-}
-
-type PluginClientRightsOwners = Map<number, Map<string, Set<string>>>;
-
-const injectionActionOptions: readonly { readonly kind: InjectionActionKind; readonly label: string }[] = [
-  { kind: "sendChat", label: "Send chat" },
-  { kind: "stageClick", label: "Stage click" },
-  { kind: "clickWindowElement", label: "Click window element" },
-  { kind: "openNavigator", label: "Navigator view" },
-  { kind: "enterPrivateRoom", label: "Enter private room" },
-  { kind: "enterPublicRoom", label: "Enter public room" },
-  { kind: "requestInventory", label: "Request hand inventory" },
-  { kind: "userWave", label: "Wave" },
-  { kind: "userDance", label: "Dance" },
-  { kind: "userStopDance", label: "Stop dance" },
-  { kind: "userHcDance", label: "HC Dance" },
-  { kind: "userCarryDrink", label: "Carry drink" },
-  { kind: "showHotelView", label: "Show hotel view" },
-];
-
-const defaultInjectionDraft: InjectionCommandDraft = {
-  actionKind: "sendChat",
-  chatMessage: "",
-  stageX: "480",
-  stageY: "270",
-  windowId: "Room_bar",
-  elementId: "int_hand_image",
-  navigatorView: "nav_pr",
-  flatId: "",
-  publicRoomQuery: "",
-  rawDirection: "SERVER",
-  rawText: "",
-};
-
-const injectionSnippetStorageKey = "habbpy-v4:injection-snippets";
-const injectionHistoryStorageKey = "habbpy-v4:injection-history";
-const userStoredLookStorageKey = "habbpy-v4:user-stored-looks";
-const automationPrefsStorageKey = "habbpy-v4:automation-prefs";
-
-function injectionCommandLabel(command: InjectionCommandDraft): string {
-  switch (command.actionKind) {
-    case "sendChat":
-      return `sendChat ${command.chatMessage.trim().slice(0, 38) || "(empty)"}`;
-    case "stageClick":
-      return `stageClick ${command.stageX.trim() || "?"},${command.stageY.trim() || "?"}`;
-    case "clickWindowElement":
-      return `clickWindowElement ${command.windowId.trim() || "?"}:${command.elementId.trim() || "?"}`;
-    case "openNavigator":
-      return `navigatorView ${command.navigatorView.trim() || "nav_pr"}`;
-    case "enterPrivateRoom":
-      return `enterPrivateRoom ${command.flatId.trim() || "current"}`;
-    case "enterPublicRoom":
-      return `enterPublicRoom ${command.publicRoomQuery.trim() || "first public room"}`;
-    case "requestInventory":
-      return "requestInventory";
-    case "userWave":
-      return "userWave";
-    case "userDance":
-      return "userDance";
-    case "userStopDance":
-      return "userStopDance";
-    case "userHcDance":
-      return "userHcDance";
-    case "userCarryDrink":
-      return "userCarryDrink";
-    case "showHotelView":
-      return "showHotelView";
-    case "rawPacketBlocked":
-      return `[${command.rawDirection}] ${command.rawText.trim().slice(0, 38) || "(empty)"}`;
-  }
-}
-
-function cloneInjectionDraft(command: InjectionCommandDraft): InjectionCommandDraft {
-  return {
-    ...defaultInjectionDraft,
-    ...command,
-    rawDirection: command.rawDirection === "CLIENT" ? "CLIENT" : "SERVER",
-  };
-}
-
-function normalizeInjectionSnippet(value: unknown, index: number): InjectionSnippet | null {
-  if (!value || typeof value !== "object") return null;
-  const record = value as Record<string, unknown>;
-  const commandRecord = record.command && typeof record.command === "object" ? (record.command as Record<string, unknown>) : record;
-  const rawKind = String(commandRecord.actionKind ?? "").trim();
-  const actionKind = injectionActionOptions.some((option) => option.kind === rawKind) ? (rawKind as InjectionActionKind) : "";
-  const isV3RawSnippet = typeof record.text === "string" || typeof commandRecord.rawText === "string";
-  const command = cloneInjectionDraft({
-    ...defaultInjectionDraft,
-    actionKind: actionKind || (isV3RawSnippet ? "rawPacketBlocked" : "sendChat"),
-    chatMessage: String(commandRecord.chatMessage ?? ""),
-    stageX: String(commandRecord.stageX ?? defaultInjectionDraft.stageX),
-    stageY: String(commandRecord.stageY ?? defaultInjectionDraft.stageY),
-    windowId: String(commandRecord.windowId ?? defaultInjectionDraft.windowId),
-    elementId: String(commandRecord.elementId ?? defaultInjectionDraft.elementId),
-    navigatorView: String(commandRecord.navigatorView ?? defaultInjectionDraft.navigatorView),
-    flatId: String(commandRecord.flatId ?? ""),
-    publicRoomQuery: String(commandRecord.publicRoomQuery ?? commandRecord.publicRoom ?? ""),
-    rawDirection: String(commandRecord.rawDirection ?? record.direction ?? "SERVER").toUpperCase() === "CLIENT" ? "CLIENT" : "SERVER",
-    rawText: String(commandRecord.rawText ?? record.text ?? ""),
-  });
-  return {
-    id: String(record.id ?? `loaded-${Date.now()}-${index}`),
-    label: String(record.label ?? injectionCommandLabel(command)),
-    command,
-    createdAt: String(record.createdAt ?? new Date().toISOString()),
-  };
-}
-
-function normalizeInjectionSnippets(value: unknown): InjectionSnippet[] {
-  const rows = Array.isArray(value) ? value : [];
-  return rows.map(normalizeInjectionSnippet).filter((entry): entry is InjectionSnippet => Boolean(entry)).slice(0, 50);
-}
-
-function normalizeStoredUserLooks(value: unknown): string[] {
-  const rows = Array.isArray(value) ? value : [];
-  return [...new Set(rows.map((entry) => String(entry ?? "").trim()).filter(Boolean))].slice(0, 20);
-}
-
-function loadStoredUserLooks(): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    return normalizeStoredUserLooks(JSON.parse(window.localStorage.getItem(userStoredLookStorageKey) || "[]"));
-  } catch {
-    return [];
-  }
-}
-
-function loadAutomationPrefs(): { readonly autoHideBulletin: boolean } {
-  if (typeof window === "undefined") return { autoHideBulletin: true };
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(automationPrefsStorageKey) || "{}") as { readonly autoHideBulletin?: unknown };
-    return { autoHideBulletin: parsed.autoHideBulletin !== false };
-  } catch {
-    return { autoHideBulletin: true };
-  }
-}
-
-async function writeClipboardText(text: string): Promise<boolean> {
-  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch {
-      // Fall back to a temporary textarea below.
-    }
-  }
-  if (typeof document === "undefined" || !document.body) return false;
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.left = "-1000px";
-  textarea.style.top = "-1000px";
-  document.body.appendChild(textarea);
-  textarea.select();
-  try {
-    return document.execCommand("copy");
-  } finally {
-    textarea.remove();
-  }
-}
-
-function injectionDraftToRuntimeAction(command: InjectionCommandDraft): { readonly action?: EngineRuntimeAction; readonly blocked?: string } {
-  switch (command.actionKind) {
-    case "sendChat": {
-      const message = command.chatMessage.trim();
-      return message ? { action: { kind: "sendChat", message } } : { blocked: "Enter a chat message first." };
-    }
-    case "stageClick": {
-      const x = Number(command.stageX);
-      const y = Number(command.stageY);
-      return Number.isFinite(x) && Number.isFinite(y)
-        ? { action: { kind: "stageClick", x, y } }
-        : { blocked: "Stage click needs numeric x/y coordinates." };
-    }
-    case "clickWindowElement": {
-      const windowId = command.windowId.trim();
-      const elementId = command.elementId.trim();
-      return windowId && elementId
-        ? { action: { kind: "clickWindowElement", windowId, elementId } }
-        : { blocked: "Window element click needs window id and element id." };
-    }
-    case "openNavigator":
-      return { action: { kind: "openNavigator", view: command.navigatorView.trim() || "nav_pr" } };
-    case "enterPrivateRoom":
-      return { action: { kind: "enterPrivateRoom", flatId: command.flatId.trim() || undefined } };
-    case "enterPublicRoom":
-      return { action: { kind: "enterPublicRoom", query: command.publicRoomQuery.trim() || undefined } };
-    case "requestInventory":
-      return { action: { kind: "requestInventory" } };
-    case "userWave":
-    case "userDance":
-    case "userStopDance":
-    case "userHcDance":
-    case "userCarryDrink":
-      return { blocked: "User relay actions are handled by the packet relay bridge." };
-    case "showHotelView":
-      return { action: { kind: "showHotelView" } };
-    case "rawPacketBlocked":
-      return { blocked: "Arbitrary raw packet sending is blocked until a Shockless-approved boundary exists." };
-  }
-}
-
-function injectionDraftToUserRelayAction(command: InjectionCommandDraft): UserRelayAction | null {
-  switch (command.actionKind) {
-    case "userWave":
-      return { action: "wave" };
-    case "userDance":
-      return { action: "dance", number: 1 };
-    case "userStopDance":
-      return { action: "stopDance" };
-    case "userHcDance":
-      return { action: "hcdance", number: 2 };
-    case "userCarryDrink":
-      return { action: "carryDrink" };
-    default:
-      return null;
-  }
-}
-
-function clampRepeatCount(value: string): number {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed)) return 1;
-  return Math.max(1, Math.min(25, parsed));
-}
-
-function clampRepeatInterval(value: string): number {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed)) return 1000;
-  return Math.max(50, Math.min(60000, parsed));
-}
-
-function clampMultiAccountCount(value: string): number {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed)) return 1;
-  return Math.max(1, Math.min(50, parsed));
-}
-
-function clampMultiAccountConcurrency(value: string): number {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed)) return 2;
-  return Math.max(1, Math.min(8, parsed));
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
-function objectListSignature(items: readonly RuntimeObjectSummary[] | undefined): string {
-  if (!items || items.length === 0) return "0";
-  return items
-    .map((item) =>
-      [
-        item.objectId ?? item.id ?? "-",
-        item.className ?? "-",
-        item.x ?? "-",
-        item.y ?? "-",
-        item.z ?? "-",
-        item.direction ?? "-",
-        item.state ?? "-",
-      ].join(":"),
-    )
-    .join("|");
-}
-
-function userListSignature(users: readonly RuntimeUserSummary[] | undefined): string {
-  if (!users || users.length === 0) return "0";
-  return users
-    .map((user) =>
-      [
-        user.rowId,
-        user.accountId ?? "-",
-        user.roomIndex ?? "-",
-        user.position ?? "-",
-        user.activity ?? "-",
-        user.typing ?? "-",
-        user.lastAction ?? "-",
-        user.lastSaid ?? "-",
-      ].join(":"),
-    )
-    .join("|");
-}
-
-function inventorySignature(inventory: EngineRuntimeSnapshot["inventory"]): string {
-  if (!inventory) return "none";
-  return [
-    inventory.openState ?? "-",
-    inventory.totalCount,
-    inventory.itemCount,
-    inventory.floorCount,
-    inventory.wallCount,
-    inventory.items.map((item) => [item.rowId, item.itemId, item.objectId ?? "-", item.slotId ?? "-"].join(":")).join("|"),
-  ].join(";");
-}
-
-function navigatorSignature(navigator: EngineRuntimeSnapshot["navigator"]): string {
-  if (!navigator) return "none";
-  return [
-    navigator.total,
-    navigator.categories,
-    navigator.publicRooms,
-    navigator.privateRooms,
-    navigator.publicRoomNodes.map((node) => [node.id ?? "-", node.name ?? "-", node.users ?? "-"].join(":")).join("|"),
-  ].join(";");
-}
-
-function roomObjectsSignature(roomObjects: EngineRuntimeSnapshot["roomObjects"]): string {
-  if (!roomObjects) return "none";
-  return [
-    JSON.stringify(roomObjects.counts),
-    userListSignature(roomObjects.users),
-    objectListSignature(roomObjects.activeObjects),
-    objectListSignature(roomObjects.passiveObjects),
-    objectListSignature(roomObjects.wallItems),
-  ].join(";");
-}
-
-function userStateSignature(userState: EngineRuntimeSnapshot["userState"]): string {
-  if (!userState) return "none";
-  return [
-    userState.sessionUserName ?? "-",
-    userState.roomName ?? "-",
-    userState.roomOwner ?? "-",
-    userState.roomId ?? "-",
-    userState.roomType ?? "-",
-    userState.rights.join("|"),
-    userListSignature(userState.users),
-  ].join(";");
-}
-
-function chatHistorySignature(chatHistory: EngineRuntimeSnapshot["chatHistory"]): string {
-  const last = chatHistory[chatHistory.length - 1];
-  return `${chatHistory.length}:${last?.timestamp ?? ""}:${last?.userName ?? ""}:${last?.text ?? ""}`;
-}
-
-function activeSpritesSignature(activeSprites: EngineRuntimeSnapshot["activeSprites"]): string {
-  return activeSprites.map((sprite) => [sprite.n ?? "-", sprite.member ?? "-", sprite.loc?.join(",") ?? ""].join(":")).join("|");
-}
-
-function runtimeProbeScopesForPlugin(pluginId: string): readonly EngineRuntimeSnapshotScope[] {
-  switch (pluginId) {
-    case "dev-tools":
-      return ["full"];
-    case "info":
-      return ["core", "room", "inventory", "navigator"];
-    case "room":
-    case "user":
-    case "items":
-    case "fishing":
-    case "gardening":
-    case "wall-mover":
-    case "chat":
-    case "visitors":
-      return ["core", "room"];
-    case "present-catcher":
-      return ["core", "room", "inventory"];
-    case "inventory":
-      return ["core", "inventory"];
-    default:
-      return ["core"];
-  }
-}
-
-function reuseStableRuntimeDetails(
-  previous: EngineRuntimeSnapshot | null,
-  next: EngineRuntimeSnapshot,
-): EngineRuntimeSnapshot {
-  if (!previous) return next;
-  const scopes = new Set(next.dataScopes ?? ["full"]);
-  const hasScope = (scope: string): boolean => scopes.has("full") || scopes.has(scope);
-  return {
-    ...next,
-    roomObjects:
-      !hasScope("room") && previous.roomObjects
-        ? previous.roomObjects
-        :
-      roomObjectsSignature(previous.roomObjects) === roomObjectsSignature(next.roomObjects)
-        ? previous.roomObjects
-        : next.roomObjects,
-    userState:
-      !hasScope("room") && previous.userState
-        ? previous.userState
-        :
-      userStateSignature(previous.userState) === userStateSignature(next.userState)
-        ? previous.userState
-        : next.userState,
-    inventory:
-      !hasScope("inventory") && previous.inventory
-        ? previous.inventory
-        :
-      inventorySignature(previous.inventory) === inventorySignature(next.inventory)
-        ? previous.inventory
-        : next.inventory,
-    navigator:
-      !hasScope("navigator") && previous.navigator
-        ? previous.navigator
-        :
-      navigatorSignature(previous.navigator) === navigatorSignature(next.navigator)
-        ? previous.navigator
-        : next.navigator,
-    chatHistory:
-      !hasScope("room") && previous.chatHistory.length > 0
-        ? previous.chatHistory
-        :
-      chatHistorySignature(previous.chatHistory) === chatHistorySignature(next.chatHistory)
-        ? previous.chatHistory
-        : next.chatHistory,
-    activeSprites:
-      !hasScope("sprites") && previous.activeSprites.length > 0
-        ? previous.activeSprites
-        :
-      activeSpritesSignature(previous.activeSprites) === activeSpritesSignature(next.activeSprites)
-        ? previous.activeSprites
-        : next.activeSprites,
-    windowIds:
-      previous.windowIds.join("|") === next.windowIds.join("|")
-        ? previous.windowIds
-        : next.windowIds,
-  };
-}
-
-function itemRowTitle(row: ItemRow, metadata: FurniMetadataSnapshot | null = null): string {
-  return furniDisplayName(metadata, row.item);
-}
-
-function itemRowMeta(row: ItemRow, metadata: FurniMetadataSnapshot | null = null): string {
-  const info = furniInfoForObject(metadata, row.item);
-  const className = compactValue(row.item.className ?? row.item.name);
-  const meta = objectMeta(row.item);
-  return info && className !== "-" ? `class ${className} / ${meta}` : meta;
-}
-
-function itemRowSearchText(row: ItemRow, metadata: FurniMetadataSnapshot | null = null): string {
-  const info = furniInfoForObject(metadata, row.item);
-  return [
-    row.label,
-    row.source,
-    row.key,
-    objectTitle(row.item),
-    objectMeta(row.item),
-    row.item.className,
-    row.item.name,
-    info?.id,
-    info?.name,
-    info?.description,
-    info?.category,
-  ]
-    .join(" ")
-    .toLowerCase();
-}
-
-function userDisplayName(user: RuntimeUserSummary | null, sessionName?: string | null): string {
-  if (!user) return "-";
-  return compactValue(user.name ?? (user.rowId === "0" ? sessionName : null) ?? user.objectClass ?? user.className ?? user.rowId);
-}
-
-function userPosition(user: RuntimeUserSummary | null): string {
-  if (!user) return "-";
-  return compactValue(user.position ?? (user.x !== undefined || user.y !== undefined ? `${compactValue(user.x)}, ${compactValue(user.y)}, ${compactValue(user.z)}` : null));
-}
-
-function userRowMeta(user: RuntimeUserSummary, sessionName?: string | null): string {
-  const parts = [
-    user.rowId === "0" && sessionName ? "you" : "",
-    userPosition(user) !== "-" ? `loc ${userPosition(user)}` : "",
-    user.direction !== undefined ? `dir ${compactValue(user.direction)}` : "",
-    user.spriteCount !== undefined ? `${compactValue(user.spriteCount)} sprites` : "",
-  ].filter(Boolean);
-  return parts.join(" / ") || "-";
-}
-
-interface PacketProfileUser {
-  readonly name: string;
-  readonly accountId: string;
-  readonly index: string;
-  readonly gender: string;
-  readonly motto: string;
-  readonly figure: string;
-  readonly poolFigure: string;
-  readonly badgeCode: string;
-  readonly userType: string;
-  readonly position: string;
-  readonly sourceLine: number;
-}
-
-interface PacketProfileIndex {
-  readonly users: readonly PacketProfileUser[];
-  readonly byAccountId: ReadonlyMap<string, PacketProfileUser>;
-  readonly byName: ReadonlyMap<string, PacketProfileUser>;
-  readonly byIndex: ReadonlyMap<string, PacketProfileUser>;
-}
-
-interface PacketInfoFriend {
-  readonly accountId: string;
-  readonly name: string;
-  readonly gender: string;
-  readonly motto: string;
-  readonly online: boolean;
-  readonly canFollow: boolean;
-  readonly location: string;
-  readonly lastAccess: string;
-  readonly figure: string;
-  readonly categoryId: string;
-  readonly sourceLine: number;
-}
-
-interface PacketInfoEffect {
-  readonly name: string;
-  readonly value: string;
-  readonly sourceLine: number;
-}
-
-interface PacketMessengerMessage {
-  readonly key: string;
-  readonly id: string;
-  readonly senderAccountId: string;
-  readonly sentAt: string;
-  readonly text: string;
-  readonly sourceLine: number;
-}
-
-interface PacketFriendRequest {
-  readonly key: string;
-  readonly accountId: string;
-  readonly name: string;
-  readonly requestId: string;
-  readonly sourceLine: number;
-}
-
-interface PacketInfoState {
-  readonly friends: readonly PacketInfoFriend[];
-  readonly badges: readonly string[];
-  readonly activeBadgeSlot: string;
-  readonly activeBadgeCode: string;
-  readonly preferences: readonly string[];
-  readonly statusEffects: readonly PacketInfoEffect[];
-  readonly privateMessages: readonly PacketMessengerMessage[];
-  readonly friendRequests: readonly PacketFriendRequest[];
-  readonly messengerMessage: string;
-  readonly messengerUserLimit: string;
-  readonly messengerRequestCount: string;
-  readonly messengerRequestPendingCount: string;
-  readonly messengerMessageCount: string;
-  readonly messengerUnreadMessageCount: string;
-}
-
-interface PacketInventoryItem {
-  readonly key: string;
-  readonly itemId: string;
-  readonly rawId: string;
-  readonly itemIdValue: string;
-  readonly slotId: string;
-  readonly objectId: string;
-  readonly itemType: string;
-  readonly inventoryKind: string;
-  readonly className: string;
-  readonly size: string;
-  readonly colors: string;
-  readonly data: string;
-  readonly head: string;
-  readonly body: string;
-  readonly meta: string;
-  readonly headTokens: string;
-  readonly bodyTokens: string;
-  readonly metaTokens: string;
-  readonly sourceLine: number;
-}
-
-interface PacketInventoryState {
-  readonly items: readonly PacketInventoryItem[];
-  readonly totalCount: number;
-  readonly floorCount: number;
-  readonly wallCount: number;
-  readonly lastSourceLine: number | null;
-}
-
-interface PacketWallItem {
-  readonly key: string;
-  readonly itemId: string;
-  readonly className: string;
-  readonly ownerName: string;
-  readonly wall: string;
-  readonly local: string;
-  readonly orientation: string;
-  readonly rawLocation: string;
-  readonly data: string;
-  readonly state: string;
-  readonly sourceLine: number;
-}
-
-interface PacketWallItemState {
-  readonly items: readonly PacketWallItem[];
-  readonly itemCount: number;
-  readonly lastSourceLine: number | null;
-}
-
-interface PacketChatEntry {
-  readonly index: string;
-  readonly text: string;
-  readonly chatMode: string;
-  readonly activity: string;
-  readonly sourceLine: number;
-}
-
-interface PacketFishingCatch {
-  readonly key: string;
-  readonly fishName: string;
-  readonly message: string;
-  readonly xp: number;
-  readonly golden: boolean;
-  readonly sourceLine: number;
-}
-
-interface PacketFishopediaEntry {
-  readonly key: string;
-  readonly fishName: string;
-  readonly xp: string;
-  readonly catches: string;
-  readonly completion: string;
-  readonly location: string;
-  readonly sourceLine: number;
-}
-
-interface PacketFishingState {
-  readonly status: string;
-  readonly note: string;
-  readonly tokens: string;
-  readonly level: string;
-  readonly minigameActive: boolean;
-  readonly minigamePin: string;
-  readonly minigameValues: string;
-  readonly catches: number;
-  readonly golden: number;
-  readonly xp: number;
-  readonly frenzies: number;
-  readonly fishopedia: readonly PacketFishopediaEntry[];
-  readonly catchLog: readonly PacketFishingCatch[];
-  readonly lastCatch: PacketFishingCatch | null;
-  readonly lastClientAction: string;
-  readonly lastSourceLine: number | null;
-}
-
-interface ClientPluginSnapshot {
-  readonly clientId: number;
-  readonly label: string;
-  readonly relay: RelayLogSnapshot | null;
-  readonly runtime: EngineRuntimeSnapshot | null;
-  readonly runtimeSummary: ClientRuntimeSummary | null;
-  readonly profileUsers: readonly PacketProfileUser[];
-  readonly profileIndex: PacketProfileIndex;
-  readonly packetInfo: PacketInfoState;
-  readonly packetInventory: PacketInventoryState;
-  readonly packetWallItems: PacketWallItemState;
-  readonly packetChatEntries: readonly PacketChatEntry[];
-  readonly packetFishing: PacketFishingState;
-  readonly updatedAt: string | null;
-}
-
-interface InventoryDisplayRow {
-  readonly key: string;
-  readonly kind: string;
-  readonly title: string;
-  readonly meta: string;
-  readonly searchText: string;
-  readonly detailRows: readonly { readonly label: string; readonly value: string }[];
-}
-
-const emptyPacketProfileIndex: PacketProfileIndex = {
-  users: [],
-  byAccountId: new globalThis.Map<string, PacketProfileUser>(),
-  byName: new globalThis.Map<string, PacketProfileUser>(),
-  byIndex: new globalThis.Map<string, PacketProfileUser>(),
-};
-
-const emptyPacketInfoState: PacketInfoState = {
-  friends: [],
-  badges: [],
-  activeBadgeSlot: "-",
-  activeBadgeCode: "-",
-  preferences: [],
-  statusEffects: [],
-  privateMessages: [],
-  friendRequests: [],
-  messengerMessage: "-",
-  messengerUserLimit: "-",
-  messengerRequestCount: "-",
-  messengerRequestPendingCount: "-",
-  messengerMessageCount: "-",
-  messengerUnreadMessageCount: "-",
-};
-
-const emptyPacketInventoryState: PacketInventoryState = {
-  items: [],
-  totalCount: 0,
-  floorCount: 0,
-  wallCount: 0,
-  lastSourceLine: null,
-};
-
-const emptyPacketWallItemState: PacketWallItemState = {
-  items: [],
-  itemCount: 0,
-  lastSourceLine: null,
-};
-
-const emptyPacketFishingState: PacketFishingState = {
-  status: "idle",
-  note: "-",
-  tokens: "-",
-  level: "-",
-  minigameActive: false,
-  minigamePin: "-",
-  minigameValues: "-",
-  catches: 0,
-  golden: 0,
-  xp: 0,
-  frenzies: 0,
-  fishopedia: [],
-  catchLog: [],
-  lastCatch: null,
-  lastClientAction: "-",
-  lastSourceLine: null,
-};
-
-function packetFieldMap(entry: RelayLogEntry): globalThis.Map<string, string> {
-  const map = new globalThis.Map<string, string>();
-  for (const field of entry.decodedFields) {
-    map.set(field.label, field.value);
-  }
-  return map;
-}
-
-function packetUsersFromEntries(entries: readonly RelayLogEntry[], startIndex = 0): readonly PacketProfileUser[] {
-  const users: PacketProfileUser[] = [];
-  for (let entryIndex = Math.max(0, startIndex); entryIndex < entries.length; entryIndex += 1) {
-    const entry = entries[entryIndex]!;
-    if (entry.direction !== "SERVER" || entry.header !== 28) continue;
-    const fields = packetFieldMap(entry);
-    const count = Number(fields.get("userCount") ?? 0);
-    if (!Number.isFinite(count) || count <= 0) continue;
-    for (let row = 1; row <= count; row += 1) {
-      const name = compactValue(fields.get(`user ${row} name`));
-      if (name === "-") continue;
-      users.push({
-        name,
-        accountId: compactValue(fields.get(`user ${row} accountId`)),
-        index: compactValue(fields.get(`user ${row} index`)),
-        gender: compactValue(fields.get(`user ${row} gender`)),
-        motto: compactValue(fields.get(`user ${row} motto`)),
-        figure: compactValue(fields.get(`user ${row} figure`)),
-        poolFigure: compactValue(fields.get(`user ${row} poolFigure`)),
-        badgeCode: compactValue(fields.get(`user ${row} badge`)),
-        userType: compactValue(fields.get(`user ${row} type`)),
-        position: compactValue(fields.get(`user ${row} position`)),
-        sourceLine: entry.lineNumber,
-      });
-    }
-  }
-  return users;
-}
-
-let packetProfileUserCache:
-  | {
-      readonly logPath: string;
-      readonly entryCount: number;
-      readonly totalLines: number;
-      readonly users: readonly PacketProfileUser[];
-    }
-  | null = null;
-
-function packetUsersFromRelayLog(snapshot: RelayLogSnapshot | null): readonly PacketProfileUser[] {
-  if (!snapshot || snapshot.entries.length === 0) {
-    packetProfileUserCache = null;
-    return [];
-  }
-  if (
-    packetProfileUserCache &&
-    packetProfileUserCache.logPath === snapshot.logPath &&
-    packetProfileUserCache.entryCount <= snapshot.entries.length &&
-    packetProfileUserCache.totalLines <= snapshot.totalLines
-  ) {
-    const appendedUsers = packetUsersFromEntries(snapshot.entries, packetProfileUserCache.entryCount);
-    const users = appendedUsers.length > 0 ? [...packetProfileUserCache.users, ...appendedUsers] : packetProfileUserCache.users;
-    packetProfileUserCache = {
-      logPath: snapshot.logPath,
-      entryCount: snapshot.entries.length,
-      totalLines: snapshot.totalLines,
-      users,
-    };
-    return users;
-  }
-  const users = packetUsersFromEntries(snapshot.entries);
-  packetProfileUserCache = {
-    logPath: snapshot.logPath,
-    entryCount: snapshot.entries.length,
-    totalLines: snapshot.totalLines,
-    users,
-  };
-  return users;
-}
-
-function packetInfoStateFromEntries(
-  entries: readonly RelayLogEntry[],
-  startIndex = 0,
-  initialState: PacketInfoState = emptyPacketInfoState,
-): PacketInfoState {
-  const friendsByKey = new globalThis.Map<string, PacketInfoFriend>();
-  for (const friend of initialState.friends) {
-    friendsByKey.set(packetFriendKey(friend), friend);
-  }
-  const privateMessagesByKey = new globalThis.Map<string, PacketMessengerMessage>();
-  for (const message of initialState.privateMessages) {
-    privateMessagesByKey.set(packetPrivateMessageKey(message), message);
-  }
-  const friendRequestsByKey = new globalThis.Map<string, PacketFriendRequest>();
-  for (const request of initialState.friendRequests) {
-    friendRequestsByKey.set(packetFriendRequestKey(request), request);
-  }
-  let badges = [...initialState.badges];
-  let activeBadgeSlot = initialState.activeBadgeSlot;
-  let activeBadgeCode = initialState.activeBadgeCode;
-  let preferences = [...initialState.preferences];
-  let statusEffects = [...initialState.statusEffects];
-  let messengerMessage = initialState.messengerMessage;
-  let messengerUserLimit = initialState.messengerUserLimit;
-  let messengerRequestCount = initialState.messengerRequestCount;
-  let messengerRequestPendingCount = initialState.messengerRequestPendingCount;
-  let messengerMessageCount = initialState.messengerMessageCount;
-  let messengerUnreadMessageCount = initialState.messengerUnreadMessageCount;
-
-  for (let entryIndex = Math.max(0, startIndex); entryIndex < entries.length; entryIndex += 1) {
-    const entry = entries[entryIndex]!;
-    if (entry.direction !== "SERVER") continue;
-    const fields = packetFieldMap(entry);
-    if (entry.header === 12) {
-      const count = parsedCount(fields.get("messengerFriendCount"));
-      if (count !== null) {
-        friendsByKey.clear();
-        addPacketFriendsFromPrefix(friendsByKey, fields, "friend", count, entry.lineNumber);
-      }
-      messengerMessage = compactValue(fields.get("messenger persistentMessage"));
-      messengerUserLimit = compactValue(fields.get("messenger userLimit"));
-      messengerRequestCount = compactValue(fields.get("messenger requestCount"));
-      messengerMessageCount = compactValue(fields.get("messenger messageCount"));
-    } else if (entry.header === 13) {
-      const count = parsedCount(fields.get("friendUpdateCount"));
-      if (count !== null) addPacketFriendsFromPrefix(friendsByKey, fields, "friendUpdate", count, entry.lineNumber);
-    } else if (entry.header === 137) {
-      const friend = packetFriendFromPrefix(fields, "friendAdded", entry.lineNumber);
-      if (friend) friendsByKey.set(packetFriendKey(friend), friend);
-    } else if (entry.header === 132) {
-      const count = parsedCount(fields.get("friendRequestCount"));
-      if (count !== null) {
-        addPacketFriendRequestsFromPrefix(friendRequestsByKey, fields, "friendRequest", count, entry.lineNumber);
-        messengerRequestCount = String(friendRequestsByKey.size);
-        messengerRequestPendingCount = compactValue(fields.get("friendRequestPendingCount"));
-      }
-    } else if (entry.header === 134) {
-      const count = parsedCount(fields.get("privateMessageCount"));
-      if (count !== null) {
-        addPacketPrivateMessagesFromPrefix(privateMessagesByKey, fields, "privateMessage", count, entry.lineNumber);
-        messengerMessageCount = String(privateMessagesByKey.size);
-        messengerUnreadMessageCount = compactValue(fields.get("privateMessageUnreadCount"));
-      }
-    } else if (entry.header === 362) {
-      const count = parsedCount(fields.get("highlightFriendCount"));
-      if (count !== null) addPacketFriendsFromPrefix(friendsByKey, fields, "highlightFriend", count, entry.lineNumber);
-    } else if (entry.header === 229) {
-      const count = parsedCount(fields.get("badgeCount"));
-      if (count !== null) {
-        badges = [];
-        for (let row = 1; row <= count; row += 1) {
-          const badge = compactValue(fields.get(`badge ${row} code`));
-          if (badge !== "-") badges.push(badge);
-        }
-      }
-    } else if (entry.header === 228) {
-      activeBadgeSlot = compactValue(fields.get("activeBadgeSlot"));
-      activeBadgeCode = compactValue(fields.get("activeBadgeCode"));
-    } else if (entry.header === 308) {
-      const count = parsedCount(fields.get("accountPreferenceCount"));
-      if (count !== null) {
-        preferences = [];
-        for (let row = 1; row <= count; row += 1) {
-          const preference = compactValue(fields.get(`accountPreference ${row}`));
-          if (preference !== "-") preferences.push(preference);
-        }
-      }
-    } else if (entry.header === 1242) {
-      const count = parsedCount(fields.get("statusEffectCount"));
-      if (count !== null) {
-        statusEffects = [];
-        for (let row = 1; row <= count; row += 1) {
-          const name = compactValue(fields.get(`statusEffect ${row} name`));
-          if (name === "-") continue;
-          statusEffects.push({
-            name,
-            value: compactValue(fields.get(`statusEffect ${row} value`)),
-            sourceLine: entry.lineNumber,
-          });
-        }
-      }
-    } else if (entry.header === 313) {
-      const count = parsedCount(fields.get("privateMessageCount"));
-      if (count !== null) {
-        privateMessagesByKey.clear();
-        addPacketPrivateMessagesFromPrefix(privateMessagesByKey, fields, "privateMessage", count, entry.lineNumber);
-        messengerMessageCount = String(count);
-        messengerUnreadMessageCount = compactValue(fields.get("privateMessageUnreadCount"));
-      }
-    } else if (entry.header === 314) {
-      const count = parsedCount(fields.get("friendRequestCount"));
-      if (count !== null) {
-        friendRequestsByKey.clear();
-        addPacketFriendRequestsFromPrefix(friendRequestsByKey, fields, "friendRequest", count, entry.lineNumber);
-        messengerRequestCount = String(count);
-        messengerRequestPendingCount = compactValue(fields.get("friendRequestPendingCount"));
-      }
-    }
-  }
-
-  return {
-    friends: [...friendsByKey.values()].sort((left, right) => {
-      if (left.online !== right.online) return left.online ? -1 : 1;
-      return left.name.localeCompare(right.name);
-    }),
-    badges,
-    activeBadgeSlot,
-    activeBadgeCode,
-    preferences,
-    statusEffects,
-    privateMessages: [...privateMessagesByKey.values()],
-    friendRequests: [...friendRequestsByKey.values()],
-    messengerMessage,
-    messengerUserLimit,
-    messengerRequestCount,
-    messengerRequestPendingCount,
-    messengerMessageCount,
-    messengerUnreadMessageCount,
-  };
-}
-
-let packetInfoStateCache:
-  | {
-      readonly logPath: string;
-      readonly entryCount: number;
-      readonly totalLines: number;
-      readonly state: PacketInfoState;
-    }
-  | null = null;
-
-function packetInfoStateFromRelayLog(snapshot: RelayLogSnapshot | null): PacketInfoState {
-  if (!snapshot || snapshot.entries.length === 0) {
-    packetInfoStateCache = null;
-    return emptyPacketInfoState;
-  }
-  if (
-    packetInfoStateCache &&
-    packetInfoStateCache.logPath === snapshot.logPath &&
-    packetInfoStateCache.entryCount <= snapshot.entries.length &&
-    packetInfoStateCache.totalLines <= snapshot.totalLines
-  ) {
-    const state = packetInfoStateFromEntries(snapshot.entries, packetInfoStateCache.entryCount, packetInfoStateCache.state);
-    packetInfoStateCache = {
-      logPath: snapshot.logPath,
-      entryCount: snapshot.entries.length,
-      totalLines: snapshot.totalLines,
-      state,
-    };
-    return state;
-  }
-  const state = packetInfoStateFromEntries(snapshot.entries);
-  packetInfoStateCache = {
-    logPath: snapshot.logPath,
-    entryCount: snapshot.entries.length,
-    totalLines: snapshot.totalLines,
-    state,
-  };
-  return state;
-}
-
-function addPacketFriendsFromPrefix(
-  friendsByKey: globalThis.Map<string, PacketInfoFriend>,
-  fields: ReadonlyMap<string, string>,
-  prefix: string,
-  count: number,
-  sourceLine: number,
-): void {
-  for (let row = 1; row <= count; row += 1) {
-    const friend = packetFriendFromPrefix(fields, `${prefix} ${row}`, sourceLine);
-    if (friend) friendsByKey.set(packetFriendKey(friend), friend);
-  }
-}
-
-function addPacketPrivateMessagesFromPrefix(
-  messagesByKey: globalThis.Map<string, PacketMessengerMessage>,
-  fields: ReadonlyMap<string, string>,
-  prefix: string,
-  count: number,
-  sourceLine: number,
-): void {
-  for (let row = 1; row <= count; row += 1) {
-    const message = packetPrivateMessageFromPrefix(fields, `${prefix} ${row}`, sourceLine);
-    if (message) messagesByKey.set(packetPrivateMessageKey(message), message);
-  }
-}
-
-function addPacketFriendRequestsFromPrefix(
-  requestsByKey: globalThis.Map<string, PacketFriendRequest>,
-  fields: ReadonlyMap<string, string>,
-  prefix: string,
-  count: number,
-  sourceLine: number,
-): void {
-  for (let row = 1; row <= count; row += 1) {
-    const request = packetFriendRequestFromPrefix(fields, `${prefix} ${row}`, sourceLine);
-    if (request) requestsByKey.set(packetFriendRequestKey(request), request);
-  }
-}
-
-function packetFriendFromPrefix(fields: ReadonlyMap<string, string>, prefix: string, sourceLine: number): PacketInfoFriend | null {
-  const accountId = compactValue(fields.get(`${prefix} accountId`));
-  const name = compactValue(fields.get(`${prefix} name`));
-  if (accountId === "-" && name === "-") return null;
-  return {
-    accountId,
-    name,
-    gender: compactValue(fields.get(`${prefix} gender`)),
-    motto: compactValue(fields.get(`${prefix} motto`)),
-    online: fields.get(`${prefix} online`) === "true",
-    canFollow: fields.get(`${prefix} canFollow`) === "true",
-    location: compactValue(fields.get(`${prefix} location`)),
-    lastAccess: compactValue(fields.get(`${prefix} lastAccess`)),
-    figure: compactValue(fields.get(`${prefix} figure`)),
-    categoryId: compactValue(fields.get(`${prefix} categoryId`)),
-    sourceLine,
-  };
-}
-
-function packetPrivateMessageFromPrefix(fields: ReadonlyMap<string, string>, prefix: string, sourceLine: number): PacketMessengerMessage | null {
-  const id = compactValue(fields.get(`${prefix} id`));
-  const text = compactValue(fields.get(`${prefix} text`));
-  if (id === "-" && text === "-") return null;
-  const message: PacketMessengerMessage = {
-    key: "",
-    id,
-    senderAccountId: compactValue(fields.get(`${prefix} senderAccountId`)),
-    sentAt: compactValue(fields.get(`${prefix} sentAt`)),
-    text,
-    sourceLine,
-  };
-  return { ...message, key: packetPrivateMessageKey(message) };
-}
-
-function packetFriendRequestFromPrefix(fields: ReadonlyMap<string, string>, prefix: string, sourceLine: number): PacketFriendRequest | null {
-  const accountId = compactValue(fields.get(`${prefix} accountId`));
-  const name = compactValue(fields.get(`${prefix} name`));
-  if (accountId === "-" && name === "-") return null;
-  const request: PacketFriendRequest = {
-    key: "",
-    accountId,
-    name,
-    requestId: compactValue(fields.get(`${prefix} requestId`)),
-    sourceLine,
-  };
-  return { ...request, key: packetFriendRequestKey(request) };
-}
-
-function packetFriendKey(friend: PacketInfoFriend): string {
-  if (friend.accountId !== "-") return `id:${friend.accountId}`;
-  return `name:${friend.name.trim().toLowerCase()}`;
-}
-
-function packetPrivateMessageKey(message: PacketMessengerMessage): string {
-  if (message.id !== "-") return `id:${message.id}`;
-  return `${message.senderAccountId}:${message.sentAt}:${message.text}`.trim().toLowerCase();
-}
-
-function packetFriendRequestKey(request: PacketFriendRequest): string {
-  if (request.requestId !== "-") return `request:${request.requestId}`;
-  if (request.accountId !== "-") return `account:${request.accountId}`;
-  return `name:${request.name.trim().toLowerCase()}`;
-}
-
-function parsedCount(value: string | undefined): number | null {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
-}
-
-function packetFriendSearchText(friend: PacketInfoFriend): string {
-  return [
-    friend.accountId,
-    friend.name,
-    friend.motto,
-    friend.online ? "online" : "offline",
-    friend.canFollow ? "follow" : "",
-    friend.location,
-    friend.lastAccess,
-    friend.figure,
-    friend.categoryId,
-  ]
-    .join(" ")
-    .toLowerCase();
-}
-
-function packetFriendMeta(friend: PacketInfoFriend): string {
-  const parts = [
-    friend.online ? "online" : "offline",
-    friend.canFollow ? "follow" : "",
-    friend.location !== "-" ? friend.location : "",
-    friend.lastAccess !== "-" ? `last ${friend.lastAccess}` : "",
-  ].filter(Boolean);
-  return parts.join(" / ") || "-";
-}
-
-function packetFriendTitle(friend: PacketInfoFriend): string {
-  const id = friend.accountId !== "-" ? `#${friend.accountId}` : "";
-  return [friend.name, id, friend.motto !== "-" ? friend.motto : ""].filter(Boolean).join(" / ") || "-";
-}
-
-function lookupTokenMatches(values: readonly unknown[], normalizedToken: string, rawToken: string): boolean {
-  return values.some((value) => {
-    const text = compactValue(value).trim();
-    if (!text || text === "-") return false;
-    return text.toLowerCase() === normalizedToken || text === rawToken;
-  });
-}
-
-function runtimeUserMatchesLookup(user: RuntimeUserSummary, normalizedToken: string, rawToken: string, sessionName?: string | null): boolean {
-  return lookupTokenMatches(
-    [userDisplayName(user, sessionName), user.name, user.accountId, user.roomIndex, user.rowId],
-    normalizedToken,
-    rawToken,
-  );
-}
-
-function packetUserMatchesLookup(user: PacketProfileUser, normalizedToken: string, rawToken: string): boolean {
-  return lookupTokenMatches([user.name, user.accountId, user.index], normalizedToken, rawToken);
-}
-
-function packetFriendMatchesLookup(friend: PacketInfoFriend, normalizedToken: string, rawToken: string): boolean {
-  return lookupTokenMatches([friend.name, friend.accountId], normalizedToken, rawToken);
-}
-
-function packetFriendRequestMatchesLookup(request: PacketFriendRequest, normalizedToken: string, rawToken: string): boolean {
-  return lookupTokenMatches([request.name, request.accountId, request.requestId], normalizedToken, rawToken);
-}
-
-function parsePositiveSocialAccountId(value: unknown): number | null {
-  const accountId = Number.parseInt(compactValue(value), 10);
-  return Number.isInteger(accountId) && accountId > 0 ? accountId : null;
-}
-
-function packetFriendActionId(friend: PacketInfoFriend): number | null {
-  return parsePositiveSocialAccountId(friend.accountId);
-}
-
-function packetFriendRequestActionId(request: PacketFriendRequest): number | null {
-  return parsePositiveSocialAccountId(request.accountId) ?? parsePositiveSocialAccountId(request.requestId);
-}
-
-function findPacketFriendForAction(friends: readonly PacketInfoFriend[], target: string): PacketInfoFriend | undefined {
-  const rawToken = target.trim();
-  if (!rawToken) return undefined;
-  const normalizedToken = rawToken.toLowerCase();
-  return friends.find((entry) => packetFriendMatchesLookup(entry, normalizedToken, rawToken));
-}
-
-function findPacketFriendRequestForAction(requests: readonly PacketFriendRequest[], target: string): PacketFriendRequest | undefined {
-  const rawToken = target.trim();
-  if (!rawToken) return requests.length === 1 ? requests[0] : undefined;
-  const normalizedToken = rawToken.toLowerCase();
-  return requests.find((entry) => packetFriendRequestMatchesLookup(entry, normalizedToken, rawToken));
-}
-
-function runtimeLookupLine(user: RuntimeUserSummary, snapshot: EngineRuntimeSnapshot | null): string {
-  return [
-    `in-game: room=${runtimeRoomName(snapshot)}`,
-    `user=${userDisplayName(user, snapshot?.userState?.sessionUserName)}`,
-    `account=${compactValue(user.accountId)}`,
-    `index=${compactValue(user.roomIndex ?? user.rowId)}`,
-    `pos=${userPosition(user)}`,
-    `figure=${compactValue(user.figure)}`,
-    `badge=${compactValue(user.badgeCode)}`,
-  ].join(" ");
-}
-
-function packetProfileLookupLine(user: PacketProfileUser): string {
-  return [
-    "in-game packet USERS:",
-    `name=${compactValue(user.name)}`,
-    `account=${compactValue(user.accountId)}`,
-    `index=${compactValue(user.index)}`,
-    `pos=${compactValue(user.position)}`,
-    `motto=${compactValue(user.motto)}`,
-    `figure=${compactValue(user.figure)}`,
-    `badge=${compactValue(user.badgeCode)}`,
-    `line=${user.sourceLine}`,
-  ].join(" ");
-}
-
-function friendRequestLookupLine(request: PacketFriendRequest): string {
-  return [
-    "friend request:",
-    `name=${compactValue(request.name)}`,
-    `account=${compactValue(request.accountId)}`,
-    `request=${compactValue(request.requestId)}`,
-    `line=${request.sourceLine}`,
-  ].join(" ");
-}
-
-function originsLookupLine(result: OriginsUserLookupResult, fallbackName: string): string {
-  return [
-    "origins:",
-    `name=${compactValue(result.name || fallbackName)}`,
-    `id=${compactValue(result.id)}`,
-    `motto=${compactValue(result.motto)}`,
-    `member=${compactValue(result.memberSince)}`,
-    `visible=${compactValue(result.profileVisible)}`,
-  ].join(" ");
-}
-
-function packetChatEntriesFromEntries(entries: readonly RelayLogEntry[], startIndex = 0): readonly PacketChatEntry[] {
-  const chatEntries: PacketChatEntry[] = [];
-  for (let entryIndex = Math.max(0, startIndex); entryIndex < entries.length; entryIndex += 1) {
-    const entry = entries[entryIndex]!;
-    if (entry.direction !== "SERVER" || (entry.header !== 24 && entry.header !== 25 && entry.header !== 26)) continue;
-    const fields = packetFieldMap(entry);
-    const text = compactValue(fields.get("chatText"));
-    if (text === "-") continue;
-    chatEntries.push({
-      index: compactValue(fields.get("chatIndex")),
-      text,
-      chatMode: compactValue(fields.get("chatType")),
-      activity: compactValue(fields.get("chatActivity")),
-      sourceLine: entry.lineNumber,
-    });
-  }
-  return chatEntries;
-}
-
-let packetChatEntriesCache:
-  | {
-      readonly logPath: string;
-      readonly entryCount: number;
-      readonly totalLines: number;
-      readonly entries: readonly PacketChatEntry[];
-    }
-  | null = null;
-
-function packetChatEntriesFromRelayLog(snapshot: RelayLogSnapshot | null): readonly PacketChatEntry[] {
-  if (!snapshot || snapshot.entries.length === 0) {
-    packetChatEntriesCache = null;
-    return [];
-  }
-  if (
-    packetChatEntriesCache &&
-    packetChatEntriesCache.logPath === snapshot.logPath &&
-    packetChatEntriesCache.entryCount <= snapshot.entries.length &&
-    packetChatEntriesCache.totalLines <= snapshot.totalLines
-  ) {
-    const appendedEntries = packetChatEntriesFromEntries(snapshot.entries, packetChatEntriesCache.entryCount);
-    const entries = appendedEntries.length > 0 ? [...packetChatEntriesCache.entries, ...appendedEntries] : packetChatEntriesCache.entries;
-    packetChatEntriesCache = {
-      logPath: snapshot.logPath,
-      entryCount: snapshot.entries.length,
-      totalLines: snapshot.totalLines,
-      entries,
-    };
-    return entries;
-  }
-  const entries = packetChatEntriesFromEntries(snapshot.entries);
-  packetChatEntriesCache = {
-    logPath: snapshot.logPath,
-    entryCount: snapshot.entries.length,
-    totalLines: snapshot.totalLines,
-    entries,
-  };
-  return entries;
-}
-
-function packetFishingStateFromEntries(
-  entries: readonly RelayLogEntry[],
-  startIndex = 0,
-  initialState: PacketFishingState = emptyPacketFishingState,
-): PacketFishingState {
-  let status = initialState.status;
-  let note = initialState.note;
-  let tokens = initialState.tokens;
-  let level = initialState.level;
-  let minigameActive = initialState.minigameActive;
-  let minigamePin = initialState.minigamePin;
-  let minigameValues = initialState.minigameValues;
-  let catches = initialState.catches;
-  let golden = initialState.golden;
-  let xp = initialState.xp;
-  let frenzies = initialState.frenzies;
-  let lastCatch = initialState.lastCatch;
-  let lastClientAction = initialState.lastClientAction;
-  let lastSourceLine = initialState.lastSourceLine;
-  const catchLog = [...initialState.catchLog];
-  const fishopediaByKey = new globalThis.Map<string, PacketFishopediaEntry>();
-  for (const entry of initialState.fishopedia) fishopediaByKey.set(entry.key, entry);
-
-  for (let entryIndex = Math.max(0, startIndex); entryIndex < entries.length; entryIndex += 1) {
-    const entry = entries[entryIndex]!;
-    if (entry.direction !== "SERVER" && entry.direction !== "CLIENT") continue;
-    const fields = packetFieldMap(entry);
-
-    if (entry.direction === "CLIENT") {
-      const action = compactValue(fields.get("fishingClientAction") ?? fields.get("fishingClientRequest"));
-      if (action !== "-") {
-        const target = compactValue(fields.get("fishingClientTargetId"));
-        const input = compactValue(fields.get("fishingClientInput"));
-        lastClientAction = [action, target !== "-" ? `target ${target}` : "", input !== "-" ? input : ""].filter(Boolean).join(" / ");
-        lastSourceLine = entry.lineNumber;
-      }
-      continue;
-    }
-
-    if (entry.header === 1107) {
-      minigameActive = true;
-      status = "minigame";
-      note = "Minigame started";
-      lastSourceLine = entry.lineNumber;
-    } else if (entry.header === 1108) {
-      minigameActive = true;
-      status = "minigame";
-      minigamePin = compactValue(fields.get("fishingMinigamePin"));
-      minigameValues = compactValue(fields.get("fishingMinigameValues"));
-      note = minigamePin !== "-" ? `Minigame pin ${minigamePin}` : "Minigame update";
-      lastSourceLine = entry.lineNumber;
-    } else if (entry.header === 1109) {
-      minigameActive = false;
-      status = "idle";
-      note = "Minigame ended";
-      lastSourceLine = entry.lineNumber;
-    } else if (entry.header === 1102) {
-      tokens = compactValue(fields.get("fishTokens"));
-      lastSourceLine = entry.lineNumber;
-    } else if (entry.header === 680) {
-      const nextLevel = compactValue(fields.get("fishingLevel"));
-      if (nextLevel !== "-") {
-        level = nextLevel;
-        note = `Fishing level ${nextLevel}`;
-      }
-      if (compactValue(fields.get("fishingFrenzyActive")) === "true") {
-        frenzies += 1;
-        status = "frenzy";
-        note = "Fishing frenzy started";
-      }
-      const derby = compactValue(fields.get("fishingDerbyMessage"));
-      if (derby !== "-") note = derby;
-      lastSourceLine = entry.lineNumber;
-    } else if (entry.header === 1101) {
-      if (compactValue(fields.get("fishingSlipAway")) === "true") {
-        status = "idle";
-        minigameActive = false;
-        note = "Fish slipped away";
-        lastSourceLine = entry.lineNumber;
-      }
-      const fishName = compactValue(fields.get("fishingCatchName"));
-      if (fishName !== "-") {
-        const catchXp = Number.parseInt(compactValue(fields.get("fishingCatchXp")), 10);
-        const goldenCatch = compactValue(fields.get("fishingCatchGolden")) === "true";
-        const caught: PacketFishingCatch = {
-          key: `line:${entry.lineNumber}:${fishName}:${compactValue(fields.get("fishingCatchXp"))}`,
-          fishName,
-          message: compactValue(fields.get("fishingCatchMessage")),
-          xp: Number.isFinite(catchXp) ? catchXp : 0,
-          golden: goldenCatch,
-          sourceLine: entry.lineNumber,
-        };
-        if (!catchLog.some((existing) => existing.key === caught.key)) {
-          catches += 1;
-          xp += caught.xp;
-          if (caught.golden) golden += 1;
-          catchLog.push(caught);
-        }
-        lastCatch = caught;
-        minigameActive = false;
-        status = caught.golden ? "golden-catch" : "catch";
-        note = `${caught.fishName} (+${caught.xp} XP)`;
-        lastSourceLine = entry.lineNumber;
-      }
-    } else if (entry.header === 1115) {
-      const count = parsedCount(fields.get("fishopediaCount"));
-      if (count !== null) {
-        fishopediaByKey.clear();
-        for (let row = 1; row <= count; row += 1) {
-          const fish = packetFishopediaEntryFromPrefix(fields, `fishopedia ${row}`, entry.lineNumber);
-          if (fish) fishopediaByKey.set(fish.key, fish);
-        }
-      }
-      lastSourceLine = entry.lineNumber;
-    } else if (entry.header === 1116) {
-      const fish = packetFishopediaEntryFromPrefix(fields, "fishopediaFish", entry.lineNumber);
-      if (fish) {
-        fishopediaByKey.set(fish.key, fish);
-        note = `Fishopedia updated: ${fish.fishName}`;
-      }
-      lastSourceLine = entry.lineNumber;
-    }
-  }
-
-  return {
-    status,
-    note,
-    tokens,
-    level,
-    minigameActive,
-    minigamePin,
-    minigameValues,
-    catches,
-    golden,
-    xp,
-    frenzies,
-    fishopedia: [...fishopediaByKey.values()].sort((left, right) => left.fishName.localeCompare(right.fishName)),
-    catchLog: catchLog.slice(-100),
-    lastCatch,
-    lastClientAction,
-    lastSourceLine,
-  };
-}
-
-function packetFishopediaEntryFromPrefix(fields: ReadonlyMap<string, string>, prefix: string, sourceLine: number): PacketFishopediaEntry | null {
-  const fishName = compactValue(fields.get(`${prefix} name`));
-  if (fishName === "-") return null;
-  return {
-    key: fishName.trim().toLowerCase(),
-    fishName,
-    xp: compactValue(fields.get(`${prefix} xp`)),
-    catches: compactValue(fields.get(`${prefix} catches`)),
-    completion: compactValue(fields.get(`${prefix} completion`)),
-    location: compactValue(fields.get(`${prefix} location`)),
-    sourceLine,
-  };
-}
-
-function packetChatRuntimeEntry(
-  entry: PacketChatEntry,
-  packetIndex: PacketProfileIndex,
-  runtimeUsers: readonly RuntimeUserSummary[],
-  sessionName?: string | null,
-): RuntimeChatEntry {
-  const numericIndex = Number(entry.index);
-  const resolvedUser = packetChatUserName(entry.index, packetIndex, runtimeUsers, sessionName);
-  return {
-    index: Number.isFinite(numericIndex) ? numericIndex : undefined,
-    timestamp: `line ${entry.sourceLine}`,
-    userName: resolvedUser,
-    chatMode: entry.chatMode === "-" ? "talk" : entry.chatMode,
-    text: entry.text,
-  };
-}
-
-function packetChatUserName(
-  index: string,
-  packetIndex: PacketProfileIndex,
-  runtimeUsers: readonly RuntimeUserSummary[],
-  sessionName?: string | null,
-): string {
-  const cleanIndex = compactValue(index);
-  if (cleanIndex === "0") return "System";
-  const packetUser = cleanIndex !== "-" ? packetIndex.byIndex.get(cleanIndex) : null;
-  if (packetUser) return packetUser.name;
-  const runtimeUser = runtimeUsers.find((user) => compactValue(user.roomIndex ?? user.rowId) === cleanIndex);
-  if (runtimeUser) return userDisplayName(runtimeUser, sessionName);
-  return cleanIndex === "-" ? "System" : `#${cleanIndex}`;
-}
-
-function packetWallItemStateFromEntries(
-  entries: readonly RelayLogEntry[],
-  startIndex = 0,
-  initialState: PacketWallItemState = emptyPacketWallItemState,
-): PacketWallItemState {
-  const itemsByKey = new globalThis.Map<string, PacketWallItem>();
-  for (const item of initialState.items) {
-    itemsByKey.set(item.key, item);
-  }
-  let lastSourceLine = initialState.lastSourceLine;
-
-  for (let entryIndex = Math.max(0, startIndex); entryIndex < entries.length; entryIndex += 1) {
-    const entry = entries[entryIndex]!;
-    if (entry.direction !== "SERVER") continue;
-    const fields = packetFieldMap(entry);
-    if (entry.header === 45) {
-      const count = parsedCount(fields.get("wallItemCount"));
-      if (count === null) continue;
-      itemsByKey.clear();
-      for (let row = 1; row <= count; row += 1) {
-        const item = packetWallItemFromPrefix(fields, `wallItem ${row}`, entry.lineNumber);
-        if (item) itemsByKey.set(item.key, item);
-      }
-      lastSourceLine = entry.lineNumber;
-    } else if (entry.header === 85) {
-      const item = packetWallItemFromPrefix(fields, "wallItemUpdate", entry.lineNumber);
-      if (item) itemsByKey.set(item.key, item);
-      lastSourceLine = entry.lineNumber;
-    } else if (entry.header === 84) {
-      const itemId = compactValue(fields.get("wallItemRemove id"));
-      if (itemId !== "-") itemsByKey.delete(`wall:${itemId}`);
-      lastSourceLine = entry.lineNumber;
-    }
-  }
-
-  const items = [...itemsByKey.values()].sort((left, right) => Number(left.itemId) - Number(right.itemId));
-  return { items, itemCount: items.length, lastSourceLine };
-}
-
-let packetWallItemStateCache:
-  | {
-      readonly logPath: string;
-      readonly entryCount: number;
-      readonly totalLines: number;
-      readonly state: PacketWallItemState;
-    }
-  | null = null;
-
-function packetWallItemStateFromRelayLog(snapshot: RelayLogSnapshot | null): PacketWallItemState {
-  if (!snapshot || snapshot.entries.length === 0) {
-    packetWallItemStateCache = null;
-    return emptyPacketWallItemState;
-  }
-  if (
-    packetWallItemStateCache &&
-    packetWallItemStateCache.logPath === snapshot.logPath &&
-    packetWallItemStateCache.entryCount <= snapshot.entries.length &&
-    packetWallItemStateCache.totalLines <= snapshot.totalLines
-  ) {
-    const state = packetWallItemStateFromEntries(snapshot.entries, packetWallItemStateCache.entryCount, packetWallItemStateCache.state);
-    packetWallItemStateCache = {
-      logPath: snapshot.logPath,
-      entryCount: snapshot.entries.length,
-      totalLines: snapshot.totalLines,
-      state,
-    };
-    return state;
-  }
-  const state = packetWallItemStateFromEntries(snapshot.entries);
-  packetWallItemStateCache = {
-    logPath: snapshot.logPath,
-    entryCount: snapshot.entries.length,
-    totalLines: snapshot.totalLines,
-    state,
-  };
-  return state;
-}
-
-function packetWallItemFromPrefix(fields: ReadonlyMap<string, string>, prefix: string, sourceLine: number): PacketWallItem | null {
-  const itemId = compactValue(fields.get(`${prefix} id`));
-  if (itemId === "-") return null;
-  return {
-    key: `wall:${itemId}`,
-    itemId,
-    className: compactValue(fields.get(`${prefix} class`)),
-    ownerName: compactValue(fields.get(`${prefix} owner`)),
-    wall: compactValue(fields.get(`${prefix} wall`)),
-    local: compactValue(fields.get(`${prefix} local`)),
-    orientation: compactValue(fields.get(`${prefix} orientation`)),
-    rawLocation: compactValue(fields.get(`${prefix} rawLocation`)),
-    data: compactValue(fields.get(`${prefix} data`)),
-    state: compactValue(fields.get(`${prefix} state`)),
-    sourceLine,
-  };
-}
-
-function packetWallItemRow(item: PacketWallItem): ItemRow {
-  const object: RuntimeObjectSummary = {
-    id: item.itemId,
-    objectId: item.itemId,
-    className: item.className,
-    name: item.className,
-    ownerName: item.ownerName,
-    wall: item.wall,
-    local: item.local,
-    orientation: item.orientation,
-    rawLocation: item.rawLocation,
-    state: item.state !== "-" ? item.state : item.data,
-    type: "wall",
-  };
-  return {
-    key: `packet-wall:${item.itemId}`,
-    kind: "wall",
-    label: "Wall",
-    source: `relay.ITEMS.line.${item.sourceLine}`,
-    item: object,
-  };
-}
-
-function packetInventoryStateFromEntries(
-  entries: readonly RelayLogEntry[],
-  startIndex = 0,
-  initialState: PacketInventoryState = emptyPacketInventoryState,
-): PacketInventoryState {
-  const itemsByKey = new globalThis.Map<string, PacketInventoryItem>();
-  for (const item of initialState.items) {
-    itemsByKey.set(item.key, item);
-  }
-  let lastSourceLine = initialState.lastSourceLine;
-
-  for (let entryIndex = Math.max(0, startIndex); entryIndex < entries.length; entryIndex += 1) {
-    const entry = entries[entryIndex]!;
-    if (entry.direction !== "SERVER") continue;
-    const fields = packetFieldMap(entry);
-    if (entry.header === 140) {
-      const count = parsedCount(fields.get("inventoryItemCount"));
-      if (count === null) continue;
-      for (let row = 1; row <= count; row += 1) {
-        const item = packetInventoryItemFromPrefix(fields, `inventoryItem ${row}`, entry.lineNumber);
-        if (item) itemsByKey.set(item.key, item);
-      }
-      lastSourceLine = entry.lineNumber;
-    } else if (entry.header === 99) {
-      const key = packetInventoryKey(fields.get("inventoryRemove raw") ?? "", fields.get("inventoryRemove id") ?? "");
-      if (key) itemsByKey.delete(key);
-      lastSourceLine = entry.lineNumber;
-    }
-  }
-
-  const items = [...itemsByKey.values()].sort((left, right) => {
-    if (left.inventoryKind !== right.inventoryKind) return left.inventoryKind.localeCompare(right.inventoryKind);
-    return left.className.localeCompare(right.className);
-  });
-  return {
-    items,
-    totalCount: items.length,
-    floorCount: items.filter((item) => item.inventoryKind === "floor").length,
-    wallCount: items.filter((item) => item.inventoryKind === "wall").length,
-    lastSourceLine,
-  };
-}
-
-let packetInventoryStateCache:
-  | {
-      readonly logPath: string;
-      readonly entryCount: number;
-      readonly totalLines: number;
-      readonly state: PacketInventoryState;
-    }
-  | null = null;
-
-function packetInventoryStateFromRelayLog(snapshot: RelayLogSnapshot | null): PacketInventoryState {
-  if (!snapshot || snapshot.entries.length === 0) {
-    packetInventoryStateCache = null;
-    return emptyPacketInventoryState;
-  }
-  if (
-    packetInventoryStateCache &&
-    packetInventoryStateCache.logPath === snapshot.logPath &&
-    packetInventoryStateCache.entryCount <= snapshot.entries.length &&
-    packetInventoryStateCache.totalLines <= snapshot.totalLines
-  ) {
-    const state = packetInventoryStateFromEntries(snapshot.entries, packetInventoryStateCache.entryCount, packetInventoryStateCache.state);
-    packetInventoryStateCache = {
-      logPath: snapshot.logPath,
-      entryCount: snapshot.entries.length,
-      totalLines: snapshot.totalLines,
-      state,
-    };
-    return state;
-  }
-  const state = packetInventoryStateFromEntries(snapshot.entries);
-  packetInventoryStateCache = {
-    logPath: snapshot.logPath,
-    entryCount: snapshot.entries.length,
-    totalLines: snapshot.totalLines,
-    state,
-  };
-  return state;
-}
-
-function packetInventoryItemFromPrefix(fields: ReadonlyMap<string, string>, prefix: string, sourceLine: number): PacketInventoryItem | null {
-  const itemId = compactValue(fields.get(`${prefix} id`));
-  const rawId = fields.get(`${prefix} rawId`) ?? "";
-  const itemIdValue = compactValue(fields.get(`${prefix} idValue`));
-  const key = packetInventoryKey(rawId, itemId);
-  if (!key && itemIdValue === "-") return null;
-  return {
-    key: key || `value:${itemIdValue}`,
-    itemId,
-    rawId,
-    itemIdValue,
-    slotId: compactValue(fields.get(`${prefix} slotId`)),
-    objectId: compactValue(fields.get(`${prefix} objectId`)),
-    itemType: compactValue(fields.get(`${prefix} type`)),
-    inventoryKind: compactValue(fields.get(`${prefix} kind`)),
-    className: compactValue(fields.get(`${prefix} class`)),
-    size: compactValue(fields.get(`${prefix} size`)),
-    colors: compactValue(fields.get(`${prefix} colors`)),
-    data: compactValue(fields.get(`${prefix} data`)),
-    head: compactValue(fields.get(`${prefix} head`)),
-    body: compactValue(fields.get(`${prefix} body`)),
-    meta: compactValue(fields.get(`${prefix} meta`)),
-    headTokens: compactValue(fields.get(`${prefix} headTokens`)),
-    bodyTokens: compactValue(fields.get(`${prefix} bodyTokens`)),
-    metaTokens: compactValue(fields.get(`${prefix} metaTokens`)),
-    sourceLine,
-  };
-}
-
-function packetInventoryKey(rawId: string, displayId: string): string {
-  if (rawId.length > 0) return `raw:${rawId}`;
-  const cleanDisplayId = compactValue(displayId);
-  return cleanDisplayId === "-" ? "" : `id:${cleanDisplayId}`;
-}
-
-function packetInventorySearchText(item: PacketInventoryItem): string {
-  return [
-    item.itemId,
-    item.itemIdValue,
-    item.slotId,
-    item.objectId,
-    item.itemType,
-    item.inventoryKind,
-    item.className,
-    item.size,
-    item.colors,
-    item.data,
-    item.headTokens,
-    item.bodyTokens,
-    item.metaTokens,
-  ]
-    .join(" ")
-    .toLowerCase();
-}
-
-function packetInventoryTitle(item: PacketInventoryItem, metadata: FurniMetadataSnapshot | null): string {
-  return compactValue(furniInfoForClass(metadata, item.className)?.name ?? item.className);
-}
-
-function packetInventoryMeta(item: PacketInventoryItem): string {
-  const parts = [
-    `inv ${item.itemId !== "-" ? item.itemId : item.itemIdValue}`,
-    item.objectId !== "-" ? `obj ${item.objectId}` : "",
-    item.slotId !== "-" ? `slot ${item.slotId}` : "",
-    item.size !== "-" ? `size ${item.size}` : "",
-    item.colors !== "-" ? `colors ${item.colors}` : "",
-  ].filter(Boolean);
-  return parts.join(" / ");
-}
-
-function runtimeInventoryDisplayRow(item: RuntimeInventoryItemSummary, metadata: FurniMetadataSnapshot | null): InventoryDisplayRow {
-  const title = inventoryItemTitle(item, metadata);
-  const meta = inventoryItemMeta(item);
-  const detailRows = [
-    { label: "Kind", value: inventoryKindLabel(item.inventoryKind) },
-    { label: "Inv ID", value: compactValue(item.itemId) },
-    { label: "Object ID", value: compactValue(item.objectId) },
-    { label: "Slot", value: compactValue(item.slotId) },
-    { label: "Class", value: compactValue(item.className) },
-    { label: "Name", value: title },
-    { label: "Size", value: compactValue(item.size) },
-    { label: "Colors", value: compactValue(item.colors) },
-    { label: "Data", value: compactValue(item.data) },
-  ];
-  return {
-    key: `runtime:${item.rowId}`,
-    kind: inventoryKindLabel(item.inventoryKind),
-    title,
-    meta,
-    detailRows,
-    searchText: [title, meta, item.inventoryKind, item.itemId, item.objectId, item.slotId, item.className, item.colors, item.data].join(" ").toLowerCase(),
-  };
-}
-
-function packetInventoryDisplayRow(item: PacketInventoryItem, metadata: FurniMetadataSnapshot | null): InventoryDisplayRow {
-  const title = packetInventoryTitle(item, metadata);
-  const meta = packetInventoryMeta(item);
-  const detailRows = [
-    { label: "Kind", value: inventoryKindLabel(item.inventoryKind) },
-    { label: "Inv ID", value: item.itemId },
-    { label: "ID Value", value: item.itemIdValue },
-    { label: "Slot", value: item.slotId },
-    { label: "Object ID", value: item.objectId },
-    { label: "Class", value: item.className },
-    { label: "Name", value: title },
-    { label: "Size", value: item.size },
-    { label: "Colors", value: item.colors },
-    { label: "Data", value: item.data },
-    { label: "Head Tokens", value: item.headTokens },
-    { label: "Body Tokens", value: item.bodyTokens },
-    { label: "Meta Tokens", value: item.metaTokens },
-    { label: "Packet Line", value: String(item.sourceLine) },
-  ];
-  return {
-    key: `packet:${item.key}`,
-    kind: inventoryKindLabel(item.inventoryKind),
-    title,
-    meta,
-    detailRows,
-    searchText: [title, meta, packetInventorySearchText(item)].join(" ").toLowerCase(),
-  };
-}
-
-function packetProfileIndexFromUsers(users: readonly PacketProfileUser[]): PacketProfileIndex {
-  if (users.length === 0) return emptyPacketProfileIndex;
-  const byAccountId = new globalThis.Map<string, PacketProfileUser>();
-  const byName = new globalThis.Map<string, PacketProfileUser>();
-  const byIndex = new globalThis.Map<string, PacketProfileUser>();
-  for (const user of users) {
-    const accountId = compactValue(user.accountId);
-    if (accountId !== "-") byAccountId.set(accountId, user);
-    const name = user.name.trim().toLowerCase();
-    if (name && name !== "-") byName.set(name, user);
-    const index = compactValue(user.index);
-    if (index !== "-") byIndex.set(index, user);
-  }
-  return { users, byAccountId, byName, byIndex };
-}
-
-function selectPacketProfileUser(
-  packetIndex: PacketProfileIndex,
-  selectedName: string,
-  selectedUser: RuntimeUserSummary | null,
-): PacketProfileUser | null {
-  if (packetIndex.users.length === 0) return null;
-  const normalizedName = selectedName.trim().toLowerCase();
-  const selectedAccountId = compactValue(selectedUser?.accountId);
-  const selectedIndex = compactValue(selectedUser?.roomIndex ?? selectedUser?.rowId);
-  if (selectedAccountId !== "-") {
-    const match = packetIndex.byAccountId.get(selectedAccountId);
-    if (match) return match;
-  }
-  if (normalizedName && normalizedName !== "-") {
-    const match = packetIndex.byName.get(normalizedName);
-    if (match) return match;
-  }
-  if (selectedIndex !== "-") {
-    const match = packetIndex.byIndex.get(selectedIndex);
-    if (match) return match;
-  }
-  return packetIndex.users[packetIndex.users.length - 1] ?? null;
-}
-
-function packetProfileForRuntimeUser(packetIndex: PacketProfileIndex, user: RuntimeUserSummary, sessionName?: string | null): PacketProfileUser | null {
-  const name = userDisplayName(user, sessionName).trim().toLowerCase();
-  const accountId = compactValue(user.accountId);
-  const index = compactValue(user.roomIndex ?? user.rowId);
-  if (accountId !== "-") {
-    const match = packetIndex.byAccountId.get(accountId);
-    if (match) return match;
-  }
-  if (name && name !== "-") {
-    const match = packetIndex.byName.get(name);
-    if (match) return match;
-  }
-  if (index !== "-") {
-    const match = packetIndex.byIndex.get(index);
-    if (match) return match;
-  }
-  return null;
-}
-
-function latestPacketVisitorUsers(packetUsers: readonly PacketProfileUser[]): readonly PacketProfileUser[] {
-  const byKey = new globalThis.Map<string, PacketProfileUser>();
-  for (const user of packetUsers) {
-    if (compactValue(user.userType) !== "1") continue;
-    const accountId = compactValue(user.accountId);
-    const key = accountId !== "-" ? `id:${accountId}` : `name:${user.name.trim().toLowerCase()}`;
-    byKey.set(key, user);
-  }
-  return [...byKey.values()].sort((left, right) => left.name.localeCompare(right.name));
-}
-
-function profileValue(primary: unknown, fallback: unknown): string {
-  const value = compactValue(primary);
-  if (value !== "-") return value;
-  return compactValue(fallback);
-}
-
-interface VisitorEntry {
-  readonly key: string;
-  readonly name: string;
-  readonly accountId: string;
-  readonly index: string;
-  readonly rowId: string;
-  readonly visits: number;
-  readonly entered: string;
-  readonly left: string;
-  readonly current: boolean;
-  readonly position: string;
-  readonly userType: string;
-  readonly packetLine: string;
-  readonly sourceKeys: readonly string[];
-}
-
-interface VisitorTrackerState {
-  readonly roomKey: string;
-  readonly activeKeys: readonly string[];
-  readonly entries: Readonly<Record<string, VisitorEntry>>;
-}
-
-const emptyVisitorState: VisitorTrackerState = {
-  roomKey: "",
-  activeKeys: [],
-  entries: {},
-};
-
-function isVisitorUser(user: RuntimeUserSummary): boolean {
-  const sourceText = [user.type, user.userType, user.objectClass, user.className].map(compactValue).join(" ").toLowerCase();
-  if (sourceText.includes("pet") || sourceText.includes("bot")) return false;
-  if (sourceText.includes("human")) return true;
-  return compactValue(user.type ?? user.userType) === "1" || Boolean(user.name || user.rowId);
-}
-
-function visitorKeyFor(user: RuntimeUserSummary, sessionName?: string | null, packetUser?: PacketProfileUser | null): string {
-  const accountId = profileValue(user.accountId, packetUser?.accountId);
-  if (accountId !== "-") return `id:${accountId}`;
-  const name = userDisplayName(user, sessionName).trim().toLowerCase();
-  if (name && name !== "-") return `name:${name}`;
-  return `row:${user.rowId}`;
-}
-
-function visitorEntryFor(
-  user: RuntimeUserSummary,
-  sessionName: string | null | undefined,
-  now: string,
-  previous?: VisitorEntry,
-  packetUser?: PacketProfileUser | null,
-): VisitorEntry {
-  const accountId = profileValue(user.accountId, packetUser?.accountId);
-  const name = profileValue(userDisplayName(user, sessionName), packetUser?.name);
-  const packetLine = packetUser ? String(packetUser.sourceLine) : "-";
-  return {
-    key: visitorKeyFor(user, sessionName, packetUser),
-    name,
-    accountId,
-    index: profileValue(user.roomIndex ?? user.rowId, packetUser?.index),
-    rowId: user.rowId,
-    visits: previous?.visits ?? 1,
-    entered: previous?.entered ?? now,
-    left: "-",
-    current: true,
-    position: profileValue(userPosition(user), packetUser?.position),
-    userType: profileValue(user.userType ?? user.type ?? user.objectClass, packetUser?.userType),
-    packetLine,
-    sourceKeys: packetUser ? [...user.sourceKeys, `relay.USERS.line.${packetUser.sourceLine}`] : user.sourceKeys,
-  };
-}
-
-function visitorEntryForPacketUser(user: PacketProfileUser, now: string, previous?: VisitorEntry): VisitorEntry {
-  const key = compactValue(user.accountId) !== "-" ? `id:${user.accountId}` : `name:${user.name.trim().toLowerCase()}`;
-  return {
-    key,
-    name: user.name,
-    accountId: compactValue(user.accountId),
-    index: compactValue(user.index),
-    rowId: user.index,
-    visits: previous?.visits ?? 1,
-    entered: previous?.entered ?? now,
-    left: "-",
-    current: true,
-    position: compactValue(user.position),
-    userType: compactValue(user.userType),
-    packetLine: String(user.sourceLine),
-    sourceKeys: [`relay.USERS.line.${user.sourceLine}`],
-  };
-}
-
-function visitorSearchText(entry: VisitorEntry): string {
-  return [
-    entry.name,
-    entry.accountId,
-    entry.index,
-    entry.visits,
-    entry.entered,
-    entry.left,
-    entry.position,
-    entry.userType,
-    entry.packetLine,
-    entry.sourceKeys.join(" "),
-  ]
-    .join(" ")
-    .toLowerCase();
-}
-
-function visitorMeta(entry: VisitorEntry): string {
-  const id = entry.accountId === "-" ? "id missing" : `id:${entry.accountId}`;
-  const visits = `${entry.visits} visit${entry.visits === 1 ? "" : "s"}`;
-  return [
-    id,
-    visits,
-    entry.position !== "-" ? `tile ${entry.position}` : "",
-    entry.entered !== "-" ? `entered ${entry.entered}` : "",
-    entry.current ? "in room" : `left ${entry.left}`,
-  ]
-    .filter(Boolean)
-    .join(" / ");
-}
-
-function inventoryKindLabel(kind: string): string {
-  if (kind === "floor") return "Floor";
-  if (kind === "wall") return "Wall";
-  return compactValue(kind);
-}
-
-function inventoryItemTitle(item: RuntimeInventoryItemSummary, metadata: FurniMetadataSnapshot | null = null): string {
-  return furniDisplayName(metadata, item);
-}
-
-function inventoryItemMeta(item: RuntimeInventoryItemSummary): string {
-  const parts = [
-    `inv ${compactValue(item.itemId)}`,
-    item.objectId !== undefined ? `obj ${compactValue(item.objectId)}` : "",
-    item.slotId !== undefined ? `slot ${compactValue(item.slotId)}` : "",
-    item.size ? `size ${item.size}` : "",
-    item.colors ? `colors ${item.colors}` : "",
-  ].filter(Boolean);
-  return parts.join(" / ");
-}
-
-function relayEntryLabel(entry: RelayLogEntry): string {
-  const client = entry.clientId ? `c${entry.clientId} ` : "";
-  if (entry.direction === "RELAY") return `${client}relay #${entry.sessionId ?? "-"}`;
-  return `${client}${entry.direction} h${compactValue(entry.header)} ${compactValue(entry.size)}B`;
-}
-
-function relayEntryDisplayName(entry: RelayLogEntry): string {
-  const name = entry.packetName ?? "UNKNOWN_HEADER";
-  return name === "UNKNOWN_HEADER" ? "[UNKNOWN_HEADER]" : name;
-}
-
-interface RelayDerivedState {
-  readonly entryCount: number;
-  readonly latestClientPacket: RelayLogEntry | null;
-  readonly latestServerPacket: RelayLogEntry | null;
-  readonly latestSessionId: string;
-  readonly clientModes: readonly string[];
-  readonly serverModes: readonly string[];
-  readonly sessionChoices: readonly string[];
-  readonly sampledBodies: number;
-  readonly redactedBodies: number;
-  readonly hasServerCrypto: boolean;
-  readonly hasClientKeySwap: boolean;
-}
-
-const emptyRelayDerivedState: RelayDerivedState = {
-  entryCount: 0,
-  latestClientPacket: null,
-  latestServerPacket: null,
-  latestSessionId: "-",
-  clientModes: [],
-  serverModes: [],
-  sessionChoices: ["All"],
-  sampledBodies: 0,
-  redactedBodies: 0,
-  hasServerCrypto: false,
-  hasClientKeySwap: false,
-};
-
-let relayDerivedCache:
-  | {
-      readonly logPath: string;
-      readonly entryCount: number;
-      readonly totalLines: number;
-      readonly state: RelayDerivedState;
-    }
-  | null = null;
-
-function relayDerivedStateFromSnapshot(snapshot: RelayLogSnapshot | null): RelayDerivedState {
-  if (!snapshot || snapshot.entries.length === 0) {
-    relayDerivedCache = null;
-    return emptyRelayDerivedState;
-  }
-  const cache = relayDerivedCache;
-  const canAppend =
-    cache !== null &&
-    cache.logPath === snapshot.logPath &&
-    cache.entryCount <= snapshot.entries.length &&
-    cache.totalLines <= snapshot.totalLines;
-  const previous = canAppend ? cache.state : emptyRelayDerivedState;
-  const startIndex = canAppend ? cache.entryCount : 0;
-  let latestClientPacket = previous.latestClientPacket;
-  let latestServerPacket = previous.latestServerPacket;
-  let latestSessionId = previous.latestSessionId;
-  const clientModes = new globalThis.Set(previous.clientModes);
-  const serverModes = new globalThis.Set(previous.serverModes);
-  const sessions = new globalThis.Set(previous.sessionChoices.filter((session) => session !== "All"));
-  let sampledBodies = previous.sampledBodies;
-  let redactedBodies = previous.redactedBodies;
-  let hasServerCrypto = previous.hasServerCrypto;
-  let hasClientKeySwap = previous.hasClientKeySwap;
-
-  for (let index = startIndex; index < snapshot.entries.length; index += 1) {
-    const entry = snapshot.entries[index]!;
-    if (entry.sessionId) {
-      latestSessionId = entry.sessionId;
-      sessions.add(entry.sessionId);
-    }
-    if (entry.header !== null) {
-      if (entry.direction === "CLIENT") latestClientPacket = entry;
-      if (entry.direction === "SERVER") latestServerPacket = entry;
-      const mode = compactValue(entry.mode);
-      if (mode !== "-") {
-        if (entry.direction === "CLIENT") clientModes.add(mode);
-        if (entry.direction === "SERVER") serverModes.add(mode);
-      }
-    }
-    if (entry.bodyStatus === "sampled") sampledBodies += 1;
-    if (entry.bodyStatus === "redacted") redactedBodies += 1;
-    if (/SECRET_KEY|BobbaCrypto/i.test(entry.message)) hasServerCrypto = true;
-    if (/GENERATEKEY|public key/i.test(entry.message)) hasClientKeySwap = true;
-  }
-
-  const state: RelayDerivedState = {
-    entryCount: snapshot.entries.length,
-    latestClientPacket,
-    latestServerPacket,
-    latestSessionId,
-    clientModes: [...clientModes],
-    serverModes: [...serverModes],
-    sessionChoices: ["All", ...sessions],
-    sampledBodies,
-    redactedBodies,
-    hasServerCrypto,
-    hasClientKeySwap,
-  };
-  relayDerivedCache = {
-    logPath: snapshot.logPath,
-    entryCount: snapshot.entries.length,
-    totalLines: snapshot.totalLines,
-    state,
-  };
-  return state;
-}
-
-function relayModeSummary(modes: readonly string[]): string {
-  return modes.length > 0 ? modes.join(" / ") : "-";
-}
-
-function relayEncryptionSummary(state: RelayDerivedState): string {
-  if (state.hasServerCrypto && state.hasClientKeySwap) return "BobbaCrypto active / key swap routed";
-  if (state.hasServerCrypto) return "BobbaCrypto active";
-  if (state.hasClientKeySwap) return "key swap routed";
-  return state.entryCount > 0 ? "pending handshake evidence" : "-";
-}
-
-function relayBodyLoggingSummary(state: RelayDerivedState): string {
-  if (state.sampledBodies === 0 && state.redactedBodies === 0) return "-";
-  return `${state.sampledBodies} sampled / ${state.redactedBodies} redacted`;
-}
-
-function relayPacketSummary(entry: RelayLogEntry | null): string {
-  if (!entry) return "-";
-  const client = entry.clientId ? `client${entry.clientId} / ` : "";
-  return `${client}${relayEntryDisplayName(entry)} h${compactValue(entry.header)} #${compactValue(entry.sessionId)}`;
-}
-
-function bytesFromHex(hex: string | null): readonly number[] {
-  if (!hex) return [];
-  return hex
-    .split(/\s+/)
-    .map((part) => Number.parseInt(part, 16))
-    .filter((value) => Number.isFinite(value) && value >= 0 && value <= 255);
-}
-
-function formatHabbpyV3PacketText(entry: RelayLogEntry): string {
-  if (entry.header === null) return entry.message;
-  if (entry.bodyStatus === "redacted") return "<redacted>";
-  if (entry.bodyStatus !== "sampled") return entry.message;
-  return formatShockwavePacketParts(entry.header, bytesFromHex(entry.bodyHex));
-}
-
-function packetLogTimeLabel(updatedAt?: string | null): string {
-  if (!updatedAt) return "--:--:--";
-  const date = new Date(updatedAt);
-  if (Number.isNaN(date.getTime())) return "--:--:--";
-  return date.toLocaleTimeString("en-GB", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
-}
-
-function relayEntryV3Line(entry: RelayLogEntry, updatedAt?: string | null): string {
-  const clientPrefix = entry.clientId ? `[client${entry.clientId}] ` : "";
-  if (entry.header === null) return `${packetLogTimeLabel(updatedAt)}  ${clientPrefix}[RELAY ] ${entry.message}`;
-  const sidPrefix = entry.sessionId ? `[${entry.sessionId.slice(0, 6)}] ` : "";
-  const name = relayEntryDisplayName(entry);
-  const header = compactValue(entry.header);
-  const size = compactValue(entry.size);
-  return `${packetLogTimeLabel(updatedAt)}  ${clientPrefix}${sidPrefix}[${entry.direction.padEnd(6, " ")}] ${name} [${header}] (${size}B)  ${formatHabbpyV3PacketText(entry)}`;
-}
-
-function relayEntryPlain(entry: RelayLogEntry, updatedAt?: string | null): string {
-  return relayEntryV3Line(entry, updatedAt);
-}
-
-function relayEntrySearchText(entry: RelayLogEntry): string {
-  const cached = relayEntrySearchCache.get(entry);
-  if (cached) return cached;
-  const text = [
-    entry.direction,
-    entry.clientId ? `client${entry.clientId}` : "",
-    entry.clientLabel,
-    entry.route,
-    entry.mode,
-    entry.header,
-    entry.packetName,
-    entry.size,
-    entry.payloadBytes,
-    entry.bodyStatus,
-    entry.bodyText,
-    entry.bodyAscii,
-    entry.bodyHex,
-    entry.message,
-    ...entry.decodedFields.flatMap((field) => [field.label, field.value]),
-  ]
-    .map((value) => compactValue(value).toLowerCase())
-    .join(" ");
-  relayEntrySearchCache.set(entry, text);
-  return text;
-}
-
-const relayEntrySearchCache = new WeakMap<RelayLogEntry, string>();
-
-function packetClientMatches(entry: RelayLogEntry, clientFilter: string): boolean {
-  return clientFilter === "All" || String(entry.clientId ?? "") === clientFilter;
-}
-
-function normalizePacketClientFilter(value: string, choices: readonly { readonly value: string; readonly label: string }[]): string {
-  const text = String(value || "All").trim().toLowerCase();
-  if (!text || text === "all" || text === "all-clients") return "All";
-  const numeric = text.replace(/^client/i, "");
-  const match = choices.find((choice) => choice.value.toLowerCase() === numeric || choice.label.toLowerCase() === text || `client${choice.value}`.toLowerCase() === text);
-  return match?.value ?? "All";
-}
-const PACKET_ROW_HEIGHT = 42;
-const PACKET_RENDER_ROWS = 110;
-const PACKET_OVERSCAN_ROWS = 18;
-const PACKET_CONSOLE_ROW_HEIGHT = 18;
-const PACKET_CONSOLE_RENDER_ROWS = 180;
-const PACKET_CONSOLE_OVERSCAN_ROWS = 30;
-
-function virtualPacketRange(
-  totalRows: number,
-  scrollTop: number,
-  rowHeight = PACKET_ROW_HEIGHT,
-  renderRows = PACKET_RENDER_ROWS,
-  overscanRows = PACKET_OVERSCAN_ROWS,
-): { start: number; end: number; top: number; height: number } {
-  if (totalRows <= 0) return { start: 0, end: 0, top: 0, height: 0 };
-  const rawStart = Math.max(0, Math.floor(scrollTop / rowHeight) - overscanRows);
-  const start = Math.min(rawStart, Math.max(0, totalRows - renderRows));
-  const end = Math.min(totalRows, start + renderRows);
-  return {
-    start,
-    end,
-    top: start * rowHeight,
-    height: totalRows * rowHeight,
-  };
-}
-
-function mergeRelayLogSnapshot(
-  current: RelayLogSnapshot | null,
-  incoming: RelayLogSnapshot | RelayLogDeltaSnapshot,
-): RelayLogSnapshot {
-  const delta = incoming as RelayLogDeltaSnapshot;
-  if (!current || !("reset" in incoming) || delta.reset || current.logPath !== incoming.logPath) {
-    return {
-      logPath: incoming.logPath,
-      exists: incoming.exists,
-      fileSize: incoming.fileSize,
-      updatedAt: incoming.updatedAt,
-      totalLines: incoming.totalLines,
-      packetCount: incoming.packetCount,
-      clientCount: incoming.clientCount,
-      serverCount: incoming.serverCount,
-      entries: incoming.entries,
-      message: incoming.message,
-    };
-  }
-  if (
-    current.fileSize === incoming.fileSize &&
-    current.updatedAt === incoming.updatedAt &&
-    current.totalLines === incoming.totalLines &&
-    incoming.entries.length === 0
-  ) {
-    return current;
-  }
-  return {
-    logPath: incoming.logPath,
-    exists: incoming.exists,
-    fileSize: incoming.fileSize,
-    updatedAt: incoming.updatedAt,
-    totalLines: incoming.totalLines,
-    packetCount: incoming.packetCount,
-    clientCount: incoming.clientCount,
-    serverCount: incoming.serverCount,
-    entries: incoming.entries.length > 0 ? [...current.entries, ...incoming.entries] : current.entries,
-    message: incoming.message,
-  };
-}
-
-function relayLogSnapshotForClient(snapshot: RelayLogSnapshot | null, clientId: number | null): RelayLogSnapshot | null {
-  if (!snapshot || !Number.isInteger(clientId) || (clientId ?? 0) <= 0) return null;
-  const selectedClientId = clientId as number;
-  const entries = snapshot.entries.filter((entry) => entry.clientId === selectedClientId || (selectedClientId === 1 && entry.clientId === null));
-  let packetCount = 0;
-  let clientCount = 0;
-  let serverCount = 0;
-  for (const entry of entries) {
-    if (entry.header === null) continue;
-    packetCount += 1;
-    if (entry.direction === "CLIENT") clientCount += 1;
-    if (entry.direction === "SERVER") serverCount += 1;
-  }
-  return {
-    ...snapshot,
-    logPath: `${snapshot.logPath}#client-${selectedClientId}`,
-    packetCount,
-    clientCount,
-    serverCount,
-    entries,
-    message: entries.length > 0
-      ? `Selected client${selectedClientId} relay view active.`
-      : `No relay rows for selected client${selectedClientId}.`,
-  };
-}
-
-function clientPluginSnapshotForClient(options: {
-  readonly clientId: number;
-  readonly label: string;
-  readonly relay: RelayLogSnapshot | null;
-  readonly runtime: EngineRuntimeSnapshot | null;
-  readonly runtimeSummary: ClientRuntimeSummary | null;
-}): ClientPluginSnapshot {
-  const profileUsers = options.relay ? packetUsersFromEntries(options.relay.entries) : [];
-  const packetInfo = options.relay ? packetInfoStateFromEntries(options.relay.entries) : emptyPacketInfoState;
-  const packetInventory = options.relay ? packetInventoryStateFromEntries(options.relay.entries) : emptyPacketInventoryState;
-  const packetWallItems = options.relay ? packetWallItemStateFromEntries(options.relay.entries) : emptyPacketWallItemState;
-  const packetChatEntries = options.relay ? packetChatEntriesFromEntries(options.relay.entries) : [];
-  const packetFishing = options.relay ? packetFishingStateFromEntries(options.relay.entries) : emptyPacketFishingState;
-  return {
-    clientId: options.clientId,
-    label: options.label,
-    relay: options.relay,
-    runtime: options.runtime,
-    runtimeSummary: options.runtimeSummary,
-    profileUsers,
-    profileIndex: packetProfileIndexFromUsers(profileUsers),
-    packetInfo,
-    packetInventory,
-    packetWallItems,
-    packetChatEntries,
-    packetFishing,
-    updatedAt: options.runtimeSummary?.updatedAt ?? options.relay?.updatedAt ?? null,
-  };
-}
-
-function clientPluginSnapshotMapFromSources(options: {
-  readonly relayLog: RelayLogSnapshot | null;
-  readonly sessions: readonly ClientSessionSummary[];
-  readonly selectedClientId: number;
-  readonly selectedRuntimeSnapshot: EngineRuntimeSnapshot | null;
-  readonly selectedClientSnapshot: ClientSnapshot | null;
-}): ReadonlyMap<number, ClientPluginSnapshot> {
-  const sessions = options.sessions.length > 0
-    ? options.sessions
-    : options.selectedClientSnapshot?.client
-      ? [options.selectedClientSnapshot.client]
-      : [];
-  const map = new globalThis.Map<number, ClientPluginSnapshot>();
-  for (const session of sessions) {
-    const runtimeSummary = options.selectedClientSnapshot?.client?.id === session.id ? options.selectedClientSnapshot.runtime : null;
-    map.set(
-      session.id,
-      clientPluginSnapshotForClient({
-        clientId: session.id,
-        label: session.label || `client${session.id}`,
-        relay: relayLogSnapshotForClient(options.relayLog, session.id),
-        runtime: session.id === options.selectedClientId ? options.selectedRuntimeSnapshot : null,
-        runtimeSummary,
-      }),
-    );
-  }
-  if (!map.has(options.selectedClientId)) {
-    const selected = options.selectedClientSnapshot?.client;
-    map.set(
-      options.selectedClientId,
-      clientPluginSnapshotForClient({
-        clientId: options.selectedClientId,
-        label: selected?.label || `client${options.selectedClientId}`,
-        relay: relayLogSnapshotForClient(options.relayLog, options.selectedClientId),
-        runtime: options.selectedRuntimeSnapshot,
-        runtimeSummary: options.selectedClientSnapshot?.runtime ?? null,
-      }),
-    );
-  }
-  return map;
-}
-
-function mergeClientSummaryIntoList(current: ClientSessionList | null, snapshot: ClientSnapshot): ClientSessionList | null {
-  if (!current || !snapshot.client) return current;
-  return {
-    ...current,
-    sessions: current.sessions.map((session) => session.id === snapshot.client?.id ? snapshot.client : session),
-  };
-}
-
-interface UserPluginRoomUserCache {
-  readonly roomKey: string;
-  readonly usersByKey: ReadonlyMap<string, ReturnType<typeof pluginRuntimeUserPayload>>;
-}
-
-interface UserPluginRoomObjectRecord {
-  readonly payload: ReturnType<typeof pluginRuntimeItemPayload>;
-  readonly signature: string;
-}
-
-interface UserPluginRoomObjectCache {
-  readonly roomKey: string;
-  readonly itemsByKey: ReadonlyMap<string, UserPluginRoomObjectRecord>;
-}
-
-interface UserPluginChatCache {
-  readonly roomKey: string;
-  readonly keys: ReadonlySet<string>;
-}
-
-function pluginHasPermission(plugin: PluginDefinition, permission: PluginPermission): boolean {
-  return (plugin.permissions ?? []).includes(permission);
-}
-
-function requirePluginPermission(plugin: PluginDefinition, permissions: readonly PluginPermission[]): void {
-  if (permissions.some((permission) => pluginHasPermission(plugin, permission))) return;
-  throw new Error(`${plugin.name} needs ${permissions.map(permissionLabel).join(" or ")} permission.`);
-}
-
-function isDisabledPluginCleanupRequest(api: string): boolean {
-  return ["storage.get", "storage.set", "storage.delete", "client.getRights", "client.removeRights"].includes(api);
-}
-
-function assertDisabledPluginCleanupRequest(plugin: PluginDefinition, api: string, args: Record<string, unknown>): void {
-  if (!isDisabledPluginCleanupRequest(api)) {
-    throw new Error(`${plugin.name} is disabled.`);
-  }
-  if (api !== "client.removeRights") return;
-  const managedRights = pluginManagedClientRights(plugin);
-  const managedKeys = new Set(managedRights.map((right) => right.toLowerCase()));
-  const requestedRights = cleanPluginRightsList(args.rights);
-  if (requestedRights.length === 0) throw new Error(`${plugin.name} can only remove managed client rights while disabled.`);
-  if (requestedRights.some((right) => !managedKeys.has(right.toLowerCase()))) {
-    throw new Error(`${plugin.name} can only remove its own managed client rights while disabled.`);
-  }
-}
-
-function pluginRoomKey(snapshot: EngineRuntimeSnapshot | null): string {
-  if (!snapshot) return "";
-  return `${runtimeRoomType(snapshot)}:${runtimeRoomId(snapshot)}:${runtimeRoomName(snapshot)}`;
-}
-
-function pluginRoomPayload(snapshot: EngineRuntimeSnapshot | null) {
-  return {
-    id: compactValue(runtimeRoomId(snapshot)),
-    name: runtimeRoomName(snapshot),
-    owner: runtimeRoomOwner(snapshot),
-    type: runtimeRoomType(snapshot),
-    layout: compactValue(runtimeRoomProp(snapshot, "#layout") ?? runtimeRoomProp(snapshot, "layout")),
-    ready: Boolean(snapshot?.roomReady?.ready ?? snapshot?.roomEntryState?.roomReady?.ready),
-  };
-}
-
-function pluginRuntimeUserKey(user: RuntimeUserSummary, sessionName?: string | null): string {
-  const accountId = compactValue(user.accountId);
-  if (accountId !== "-") return `account:${accountId}`;
-  const roomIndex = compactValue(user.roomIndex);
-  if (roomIndex !== "-") return `room-index:${roomIndex}`;
-  return `row:${user.rowId}:${userDisplayName(user, sessionName).trim().toLowerCase()}`;
-}
-
-function pluginRuntimeUserPayload(user: RuntimeUserSummary, sessionName?: string | null) {
-  const displayName = userDisplayName(user, sessionName);
-  const kind = pluginRuntimeUserKind(user, sessionName);
-  return {
-    key: pluginRuntimeUserKey(user, sessionName),
-    id: compactValue(user.id ?? user.objectId ?? user.rowId),
-    rowId: user.rowId,
-    roomIndex: compactValue(user.roomIndex),
-    accountId: compactValue(user.accountId),
-    name: displayName,
-    isSelf: Boolean(sessionName && displayName.trim().toLowerCase() === String(sessionName).trim().toLowerCase()),
-    figure: compactValue(user.figure),
-    gender: compactValue(user.gender),
-    motto: compactValue(user.motto),
-    badgeCode: compactValue(user.badgeCode),
-    userType: compactValue(user.userType ?? user.type ?? user.objectClass),
-    kind,
-    isBot: kind === "bot",
-    isHuman: kind === "human" || kind === "self",
-    position: userPosition(user),
-    activity: compactValue(user.activity),
-    typing: user.typing ?? null,
-    expression: compactValue(user.expression),
-    lastSaid: compactValue(user.lastSaid),
-  };
-}
-
-function pluginRuntimeItemSignature(row: RuntimeItemRow): string {
-  const item = row.item;
-  return JSON.stringify({
-    key: row.key,
-    kind: row.kind,
-    id: compactValue(item.objectId ?? item.id),
-    className: compactValue(item.className ?? item.name),
-    name: compactValue(item.name),
-    ownerName: compactValue(item.ownerName),
-    x: compactValue(item.x),
-    y: compactValue(item.y),
-    z: compactValue(item.z),
-    direction: compactValue(item.direction),
-    wall: compactValue(item.wall),
-    local: compactValue(item.local),
-    orientation: compactValue(item.orientation),
-    rawLocation: compactValue(item.rawLocation),
-    state: compactValue(item.state),
-    type: compactValue(item.type),
-  });
-}
-
-function pluginRuntimeItemPayload(row: RuntimeItemRow, metadata: FurniMetadataSnapshot | null = null) {
-  const item = row.item;
-  const tile = itemRowTile(row);
-  const wallLocation = wallMoverLocation(item);
-  return {
-    key: row.key,
-    kind: row.kind,
-    label: row.label,
-    source: row.source,
-    id: compactValue(item.objectId ?? item.id),
-    objectId: compactValue(item.objectId),
-    itemId: compactValue(item.id),
-    className: compactValue(item.className ?? item.name),
-    name: itemRowTitle(row, metadata),
-    ownerName: compactValue(item.ownerName),
-    meta: itemRowMeta(row, metadata),
-    searchText: itemRowSearchText(row, metadata),
-    tile,
-    wallLocation,
-    wall: compactValue(item.wall),
-    local: compactValue(item.local),
-    orientation: compactValue(item.orientation ?? item.direction),
-    rawLocation: compactValue(item.rawLocation),
-    state: item.state ?? null,
-    type: compactValue(item.type),
-    raw: item,
-  };
-}
-
-function pluginRoomObjectRecords(
-  snapshot: EngineRuntimeSnapshot | null,
-  metadata: FurniMetadataSnapshot | null,
-): ReadonlyMap<string, UserPluginRoomObjectRecord> {
-  const map = new globalThis.Map<string, UserPluginRoomObjectRecord>();
-  for (const row of runtimeItemRows(snapshot)) {
-    map.set(row.key, {
-      payload: pluginRuntimeItemPayload(row, metadata),
-      signature: pluginRuntimeItemSignature(row),
-    });
-  }
-  return map;
-}
-
-function pluginRoomObjectsPayload(snapshot: EngineRuntimeSnapshot | null, clientId: number, metadata: FurniMetadataSnapshot | null) {
-  const items = [...pluginRoomObjectRecords(snapshot, metadata).values()].map((record) => record.payload);
-  const floorItems = items.filter((item) => item.kind !== "wall");
-  const wallItems = items.filter((item) => item.kind === "wall");
-  return {
-    clientId,
-    room: pluginRoomPayload(snapshot),
-    counts: {
-      total: items.length,
-      floorItems: floorItems.length,
-      wallItems: wallItems.length,
-      activeObjects: snapshot?.roomObjects?.counts.activeObjects ?? 0,
-      passiveObjects: snapshot?.roomObjects?.counts.passiveObjects ?? 0,
-    },
-    items,
-    floorItems,
-    wallItems,
-  };
-}
-
-function dispatchPluginRoomItemEvent(
-  host: RendererUserPluginHost,
-  phase: "Added" | "Updated" | "Removed",
-  clientId: number,
-  room: ReturnType<typeof pluginRoomPayload>,
-  item: ReturnType<typeof pluginRuntimeItemPayload>,
-  previous: ReturnType<typeof pluginRuntimeItemPayload> | null = null,
-): void {
-  const payload = { clientId, room, item, previous };
-  host.dispatchEvent(`room.item${phase}`, payload);
-  host.dispatchEvent(`room.${item.kind === "wall" ? "wallItem" : "floorItem"}${phase}`, payload);
-}
-
-const fishingPublicRoomNpcNames = new Set(["bob", "recruiter blaze"]);
-
-function pluginRuntimeUserKind(user: RuntimeUserSummary, sessionName?: string | null): "self" | "human" | "bot" | "unknown" {
-  const displayName = userDisplayName(user, sessionName).trim();
-  const normalizedName = displayName.toLowerCase();
-  const normalizedSession = String(sessionName ?? "").trim().toLowerCase();
-  if (normalizedName && normalizedSession && normalizedName === normalizedSession) return "self";
-  const type = compactValue(user.userType ?? user.type ?? user.objectClass ?? user.className).trim().toLowerCase();
-  const sourceText = [type, user.objectClass, user.className].map(compactValue).join(" ").toLowerCase();
-  if (type === "1" || sourceText.includes("human")) return "human";
-  if ((/^\d+$/.test(type) && type !== "1") || sourceText.includes("bot") || sourceText.includes("pet")) return "bot";
-  if (fishingPublicRoomNpcNames.has(normalizedName)) return "bot";
-  if (compactValue(user.accountId) !== "-" || compactValue(user.figure) !== "-") return "human";
-  return "unknown";
-}
-
-function pluginRoomOccupantsPayload(snapshot: EngineRuntimeSnapshot | null) {
-  const sessionName = snapshot?.userState?.sessionUserName ?? null;
-  const users = (snapshot?.userState?.users ?? []).map((user) => pluginRuntimeUserPayload(user, sessionName));
-  const humans = users.filter((user) => user.kind === "human" || user.kind === "self");
-  const others = users.filter((user) => user.kind === "human");
-  const bots = users.filter((user) => user.kind === "bot");
-  const unknown = users.filter((user) => user.kind === "unknown");
-  return {
-    totalCount: users.length,
-    humanCount: humans.length,
-    otherHumanCount: others.length,
-    botCount: bots.length,
-    unknownCount: unknown.length,
-    safeToAutomate: others.length === 0,
-    self: users.find((user) => user.kind === "self") ?? null,
-    bob: users.find((user) => String(user.name ?? "").trim().toLowerCase() === "bob") ?? null,
-    users,
-    otherHumans: others,
-    bots,
-    unknown,
-  };
-}
-
-function pluginRoomUsersPayload(snapshot: EngineRuntimeSnapshot | null, clientId: number) {
-  const sessionName = snapshot?.userState?.sessionUserName ?? null;
-  const users = snapshot?.userState?.users ?? [];
-  return {
-    clientId,
-    room: pluginRoomPayload(snapshot),
-    users: users.map((user) => pluginRuntimeUserPayload(user, sessionName)),
-  };
-}
-
-function pluginRelayPacketPayload(entry: RelayLogEntry, updatedAt?: string | null) {
-  const direction = entry.direction === "CLIENT" ? "client" : entry.direction === "SERVER" ? "server" : "relay";
-  return {
-    id: entry.id,
-    lineNumber: entry.lineNumber,
-    clientId: entry.clientId ?? 1,
-    clientLabel: entry.clientLabel,
-    sessionId: entry.sessionId,
-    direction,
-    route: entry.route,
-    mode: entry.mode,
-    header: entry.header,
-    packetName: entry.packetName,
-    size: entry.size,
-    payloadBytes: entry.payloadBytes,
-    bodyStatus: entry.bodyStatus,
-    bodyText: entry.bodyText,
-    bodyHex: entry.bodyHex,
-    bodyAscii: entry.bodyAscii,
-    bodyTruncated: entry.bodyTruncated,
-    bodyNote: entry.bodyNote,
-    message: entry.message,
-    decodedFields: entry.decodedFields,
-    plainText: relayEntryPlain(entry, updatedAt),
-  };
-}
-
-function pluginChatPayload(entry: RuntimeChatEntry, clientId: number, room: ReturnType<typeof pluginRoomPayload>) {
-  return {
-    clientId,
-    room,
-    index: entry.index ?? null,
-    timestamp: entry.timestamp ?? null,
-    userName: entry.userName ?? "System",
-    userId: entry.userId ?? null,
-    mode: entry.chatMode ?? "talk",
-    text: entry.text ?? "",
-  };
-}
-
-function pluginStorageKey(pluginId: string, key: unknown): string {
-  const normalizedKey = String(key ?? "").trim();
-  if (!normalizedKey || normalizedKey.length > 120 || /[\x00-\x1f]/.test(normalizedKey)) {
-    throw new Error("Plugin storage key must be 1-120 printable characters.");
-  }
-  return `habbpy-v4:user-plugin:${pluginId}:${normalizedKey}`;
-}
-
-function requestedPluginClientId(args: unknown, selectedClientId: number): number {
-  const record = args && typeof args === "object" ? (args as Record<string, unknown>) : {};
-  const direct = Number(record.clientId);
-  const options = record.options && typeof record.options === "object" ? (record.options as Record<string, unknown>) : {};
-  const nested = Number(options.clientId);
-  const candidate = Number.isInteger(direct) && direct > 0 ? direct : Number.isInteger(nested) && nested > 0 ? nested : selectedClientId;
-  return candidate;
-}
-
-function cleanPluginRightsList(value: unknown): readonly string[] {
-  const raw = Array.isArray(value)
-    ? value
-    : typeof value === "string"
-      ? value.split(/[,\s]+/)
-      : [];
-  const seen = new Set<string>();
-  const rights: string[] = [];
-  for (const entry of raw) {
-    const right = String(entry ?? "").trim();
-    if (!/^[A-Za-z0-9_.:-]{1,96}$/.test(right)) continue;
-    const key = right.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    rights.push(right);
-  }
-  return rights;
-}
-
-function pluginManagedClientRights(plugin: PluginDefinition): readonly string[] {
-  return cleanPluginRightsList(plugin.managedRuntime?.clientRights ?? []);
-}
-
-function disabledManagedClientRights(
-  pluginList: readonly PluginDefinition[],
-  enabledById: Readonly<Record<string, boolean>>,
-): readonly string[] {
-  const enabledManaged = new Set<string>();
-  for (const plugin of pluginList) {
-    if (enabledById[plugin.id] === false) continue;
-    for (const right of pluginManagedClientRights(plugin)) enabledManaged.add(right.toLowerCase());
-  }
-
-  const seen = new Set<string>();
-  const rights: string[] = [];
-  for (const plugin of pluginList) {
-    if (enabledById[plugin.id] !== false) continue;
-    for (const right of pluginManagedClientRights(plugin)) {
-      const key = right.toLowerCase();
-      if (enabledManaged.has(key) || seen.has(key)) continue;
-      seen.add(key);
-      rights.push(right);
-    }
-  }
-  return rights;
-}
-
-function matchingClientRights(currentRights: readonly string[] | undefined, wantedRights: readonly string[]): readonly string[] {
-  const current = new Set((currentRights ?? []).map((right) => right.toLowerCase()));
-  return wantedRights.filter((right) => current.has(right.toLowerCase()));
-}
-
-function clientRightsPayloadRights(value: unknown, key: "before" | "rights"): readonly string[] {
-  if (!value || typeof value !== "object") return [];
-  const record = value as { readonly result?: unknown; readonly [field: string]: unknown };
-  const nested = record.result && typeof record.result === "object" ? record.result as Record<string, unknown> : null;
-  return cleanPluginRightsList(nested?.[key] ?? record[key]);
-}
-
-function addClientRightOwners(owners: PluginClientRightsOwners, clientId: number, pluginId: string, rights: readonly string[]): void {
-  if (rights.length === 0) return;
-  const byRight = owners.get(clientId) ?? new globalThis.Map<string, Set<string>>();
-  owners.set(clientId, byRight);
-  for (const right of rights) {
-    const key = right.toLowerCase();
-    const pluginsForRight = byRight.get(key) ?? new Set<string>();
-    pluginsForRight.add(pluginId);
-    byRight.set(key, pluginsForRight);
-  }
-}
-
-function removeClientRightOwners(owners: PluginClientRightsOwners, clientId: number, pluginId: string, rights: readonly string[]): void {
-  const byRight = owners.get(clientId);
-  if (!byRight) return;
-  for (const right of rights) {
-    const key = right.toLowerCase();
-    const pluginsForRight = byRight.get(key);
-    if (!pluginsForRight) continue;
-    pluginsForRight.delete(pluginId);
-    if (pluginsForRight.size === 0) byRight.delete(key);
-  }
-  if (byRight.size === 0) owners.delete(clientId);
-}
-
-function updateClientRightOwners(
-  owners: PluginClientRightsOwners,
-  plugin: PluginDefinition,
-  clientId: number,
-  mode: "get" | "set" | "grant" | "remove",
-  requestedRights: readonly string[],
-  actionResult: EngineRuntimeActionResult,
-): void {
-  if (mode === "get") return;
-  const managedRights = pluginManagedClientRights(plugin);
-  if (managedRights.length === 0) return;
-  const managedKeys = new Set(managedRights.map((right) => right.toLowerCase()));
-  const afterKeys = new Set(clientRightsPayloadRights(actionResult.result, "rights").map((right) => right.toLowerCase()));
-  if (mode === "remove") {
-    removeClientRightOwners(owners, clientId, plugin.id, requestedRights.filter((right) => managedKeys.has(right.toLowerCase())));
-    return;
-  }
-  if (mode === "set") {
-    addClientRightOwners(owners, clientId, plugin.id, managedRights.filter((right) => afterKeys.has(right.toLowerCase())));
-    removeClientRightOwners(owners, clientId, plugin.id, managedRights.filter((right) => !afterKeys.has(right.toLowerCase())));
-    return;
-  }
-  addClientRightOwners(
-    owners,
-    clientId,
-    plugin.id,
-    requestedRights.filter((right) => managedKeys.has(right.toLowerCase()) && afterKeys.has(right.toLowerCase())),
-  );
-}
-
-function cleanInteger(value: unknown, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? Math.trunc(parsed) : fallback;
-}
-
-function cleanPositiveInt(value: unknown, fallback: number): number {
-  const parsed = cleanInteger(value, fallback);
-  return parsed > 0 ? parsed : fallback;
-}
-
-function pluginWalkTargetFromSnapshot(
-  snapshot: EngineRuntimeSnapshot | null,
-  selector: unknown,
-  metadata: FurniMetadataSnapshot | null,
-): { readonly x: number; readonly y: number; readonly furniId: number; readonly label: string } | null {
-  const rows = runtimeItemRows(snapshot).filter((row) => row.kind !== "wall" && itemRowTile(row));
-  if (rows.length === 0) return null;
-
-  const selectorRecord = selector && typeof selector === "object" ? (selector as Record<string, unknown>) : {};
-  const idCandidate = finiteNumber(
-    selectorRecord.objectId ??
-      selectorRecord.itemId ??
-      selectorRecord.id ??
-      (typeof selector === "number" || (typeof selector === "string" && /^\d+$/.test(selector.trim())) ? selector : null),
-  );
-  if (idCandidate !== null) {
-    const targetId = Math.trunc(idCandidate);
-    const idMatch = rows.find((row) => runtimeObjectNumericIds(row.item).includes(targetId));
-    const resolved = pluginWalkTargetFromRow(idMatch, metadata);
-    if (resolved) return resolved;
-  }
-
-  const textSelector = firstNonEmptyText([
-    typeof selector === "string" ? selector : "",
-    selectorRecord.name,
-    selectorRecord.className,
-    selectorRecord.query,
-    selectorRecord.text,
-    selectorRecord.key,
-  ]);
-  if (!textSelector) return null;
-
-  const normalized = textSelector.toLowerCase();
-  const exact = selectorRecord.exact === true;
-  const textMatch = rows.find((row) => {
-    const exactCandidates = [
-      row.key,
-      row.item.className,
-      row.item.name,
-      itemRowTitle(row, metadata),
-      objectTitle(row.item),
-      ...runtimeObjectNumericIds(row.item).map(String),
-    ].map((value) => compactValue(value).toLowerCase());
-    if (exact) return exactCandidates.includes(normalized);
-    return itemRowSearchText(row, metadata).includes(normalized) || exactCandidates.some((candidate) => candidate.includes(normalized));
-  });
-  return pluginWalkTargetFromRow(textMatch, metadata);
-}
-
-function pluginWalkTargetFromRow(
-  row: ItemRow | null | undefined,
-  metadata: FurniMetadataSnapshot | null,
-): { readonly x: number; readonly y: number; readonly furniId: number; readonly label: string } | null {
-  const tile = itemRowTile(row);
-  if (!row || !tile) return null;
-  return {
-    x: tile.x,
-    y: tile.y,
-    furniId: objectNumericId(row.item) ?? 0,
-    label: `${itemRowTitle(row, metadata)} (${compactValue(row.item.className ?? row.key)})`,
-  };
-}
-
-function pluginFindItemRows(
-  snapshot: EngineRuntimeSnapshot | null,
-  selector: unknown,
-  metadata: FurniMetadataSnapshot | null,
-  kind: "floor" | "wall" | "all" = "all",
-): readonly ItemRow[] {
-  const rows = runtimeItemRows(snapshot).filter((row) => {
-    if (kind === "floor") return row.kind !== "wall";
-    if (kind === "wall") return row.kind === "wall";
-    return true;
-  });
-  if (pluginSelectorIsEmpty(selector)) return rows;
-  return rows.filter((row) => pluginItemRowMatchesSelector(row, selector, metadata));
-}
-
-function pluginSelectorIsEmpty(selector: unknown): boolean {
-  if (selector === null || selector === undefined || selector === "") return true;
-  if (typeof selector !== "object") return false;
-  return Object.keys(selector as Record<string, unknown>).length === 0;
-}
-
-function pluginItemRowMatchesSelector(row: ItemRow, selector: unknown, metadata: FurniMetadataSnapshot | null): boolean {
-  const selectorRecord = selector && typeof selector === "object" ? (selector as Record<string, unknown>) : {};
-  const idCandidate = finiteNumber(
-    selectorRecord.objectId ??
-      selectorRecord.itemId ??
-      selectorRecord.id ??
-      (typeof selector === "number" || (typeof selector === "string" && /^\d+$/.test(selector.trim())) ? selector : null),
-  );
-  if (idCandidate !== null && runtimeObjectNumericIds(row.item).includes(Math.trunc(idCandidate))) return true;
-
-  const textSelector = firstNonEmptyText([
-    typeof selector === "string" ? selector : "",
-    selectorRecord.key,
-    selectorRecord.name,
-    selectorRecord.className,
-    selectorRecord.query,
-    selectorRecord.text,
-    selectorRecord.ownerName,
-  ]);
-  if (!textSelector) return false;
-  const normalized = textSelector.toLowerCase();
-  const exact = selectorRecord.exact === true;
-  const exactCandidates = [
-    row.key,
-    row.kind,
-    row.label,
-    row.item.className,
-    row.item.name,
-    row.item.ownerName,
-    itemRowTitle(row, metadata),
-    objectTitle(row.item),
-    ...runtimeObjectNumericIds(row.item).map(String),
-  ].map((value) => compactValue(value).toLowerCase());
-  if (exact) return exactCandidates.includes(normalized);
-  return itemRowSearchText(row, metadata).includes(normalized) || exactCandidates.some((candidate) => candidate.includes(normalized));
-}
-
-function pluginResolveFloorItem(
-  snapshot: EngineRuntimeSnapshot | null,
-  selector: unknown,
-  metadata: FurniMetadataSnapshot | null,
-): { readonly row: ItemRow; readonly id: number; readonly tile: { readonly x: number; readonly y: number; readonly direction: number } } | null {
-  const row = pluginFindItemRows(snapshot, selector, metadata, "floor")[0];
-  const id = objectNumericId(row?.item);
-  const tile = itemRowTile(row);
-  return row && id !== null && tile ? { row, id, tile } : null;
-}
-
-function pluginResolveWallItem(
-  snapshot: EngineRuntimeSnapshot | null,
-  selector: unknown,
-  metadata: FurniMetadataSnapshot | null,
-): { readonly row: ItemRow; readonly id: number; readonly location: WallMoverLocation } | null {
-  const row = pluginFindItemRows(snapshot, selector, metadata, "wall")[0];
-  const id = objectNumericId(row?.item);
-  const location = wallMoverLocation(row?.item);
-  return row && id !== null && location ? { row, id, location } : null;
-}
-
-function pluginSelectorNumericId(selector: unknown): number | null {
-  const record = selector && typeof selector === "object" ? (selector as Record<string, unknown>) : {};
-  const parsed = finiteNumber(
-    record.objectId ??
-      record.itemId ??
-      record.id ??
-      (typeof selector === "number" || (typeof selector === "string" && /^\d+$/.test(selector.trim())) ? selector : null),
-  );
-  return parsed !== null && parsed > 0 ? Math.trunc(parsed) : null;
-}
-
-function pluginSelectorTile(selector: unknown): { readonly x: number; readonly y: number; readonly direction: number } | null {
-  const record = selector && typeof selector === "object" ? (selector as Record<string, unknown>) : {};
-  const tileRecord = record.tile && typeof record.tile === "object" ? (record.tile as Record<string, unknown>) : record;
-  const x = finiteNumber(tileRecord.x);
-  const y = finiteNumber(tileRecord.y);
-  if (x === null || y === null) return null;
-  return { x: Math.trunc(x), y: Math.trunc(y), direction: cleanInteger(tileRecord.direction, 0) };
-}
-
-function pluginSelectorKind(selector: unknown): "floor" | "wall" | null {
-  const record = selector && typeof selector === "object" ? (selector as Record<string, unknown>) : {};
-  const kind = String(record.kind ?? "").trim().toLowerCase();
-  if (kind === "wall" || kind === "wallitem" || kind === "wall-item") return "wall";
-  if (kind === "floor" || kind === "flooritem" || kind === "floor-item" || kind === "active" || kind === "passive") return "floor";
-  return null;
-}
-
-function pluginSelectorWallLocation(selector: unknown, location: unknown): WallMoverLocation | null {
-  const locationRecord = location && typeof location === "object" ? (location as Record<string, unknown>) : {};
-  const selectorRecord = selector && typeof selector === "object" ? (selector as Record<string, unknown>) : {};
-  const candidate = Object.keys(locationRecord).length > 0
-    ? locationRecord
-    : selectorRecord.wallLocation && typeof selectorRecord.wallLocation === "object"
-      ? (selectorRecord.wallLocation as Record<string, unknown>)
-      : selectorRecord;
-  const directWallX = finiteNumber(candidate.wallX);
-  const directWallY = finiteNumber(candidate.wallY);
-  const directLocalX = finiteNumber(candidate.localX);
-  const directLocalY = finiteNumber(candidate.localY);
-  const orientation = candidate.orientation === "r" || candidate.orientation === "l" ? candidate.orientation : null;
-  if (directWallX !== null && directWallY !== null && directLocalX !== null && directLocalY !== null && orientation) {
-    return {
-      wallX: Math.trunc(directWallX),
-      wallY: Math.trunc(directWallY),
-      localX: Math.trunc(directLocalX),
-      localY: Math.trunc(directLocalY),
-      orientation,
-    };
-  }
-  return null;
-}
-
-function pluginWallMoveLocation(base: WallMoverLocation, input: unknown): WallMoverLocation {
-  const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
-  const deltaX = cleanInteger(record.deltaX ?? record.dx, 0);
-  const deltaY = cleanInteger(record.deltaY ?? record.dy, 0);
-  const orientation = record.orientation === "r" || record.orientation === "l" ? record.orientation : base.orientation;
-  return {
-    wallX: Object.prototype.hasOwnProperty.call(record, "wallX") ? cleanInteger(record.wallX, base.wallX) : base.wallX + deltaX,
-    wallY: Object.prototype.hasOwnProperty.call(record, "wallY") ? cleanInteger(record.wallY, base.wallY) : base.wallY + deltaY,
-    localX: Object.prototype.hasOwnProperty.call(record, "localX") ? cleanInteger(record.localX, base.localX) : base.localX,
-    localY: Object.prototype.hasOwnProperty.call(record, "localY") ? cleanInteger(record.localY, base.localY) : base.localY,
-    orientation,
-  };
-}
-
-function pluginFishingAreaRows(snapshot: EngineRuntimeSnapshot | null, metadata: FurniMetadataSnapshot | null): readonly ItemRow[] {
-  return runtimeItemRows(snapshot).filter((row) => row.kind !== "wall" && isFishingAreaObject(row.item) && itemRowTile(row));
-}
-
-function pluginFishingAreaPayload(row: ItemRow, metadata: FurniMetadataSnapshot | null): Record<string, unknown> {
-  const tile = itemRowTile(row);
-  return {
-    id: objectNumericId(row.item),
-    title: itemRowTitle(row, metadata),
-    meta: itemRowMeta(row, metadata),
-    tile,
-    item: row.item,
-  };
-}
-
-function pluginFishingAreaTarget(
-  snapshot: EngineRuntimeSnapshot | null,
-  areaId: unknown,
-  metadata: FurniMetadataSnapshot | null,
-): { readonly x: number; readonly y: number; readonly furniId: number; readonly label: string; readonly area: Record<string, unknown> } | null {
-  const rows = pluginFishingAreaRows(snapshot, metadata);
-  if (rows.length === 0) return null;
-  const parsedAreaId = cleanPositiveInt(areaId, 0);
-  const row = parsedAreaId > 0 ? rows.find((entry) => runtimeObjectNumericIds(entry.item).includes(parsedAreaId)) : rows[0];
-  const tile = itemRowTile(row);
-  if (!row || !tile) return null;
-  const area = pluginFishingAreaPayload(row, metadata);
-  return {
-    x: tile.x,
-    y: tile.y,
-    furniId: objectNumericId(row.item) ?? 0,
-    label: `${itemRowTitle(row, metadata)} (${compactValue(row.item.className ?? row.key)})`,
-    area,
-  };
-}
-
-function runtimeObjectNumericIds(entry: RuntimeObjectSummary | null | undefined): readonly number[] {
-  if (!entry) return [];
-  const record = entry as RuntimeObjectSummary & { readonly itemId?: unknown; readonly slotId?: unknown };
-  const ids = [record.objectId, record.id, record.itemId, record.slotId]
-    .map((value) => finiteNumber(value))
-    .filter((value): value is number => value !== null)
-    .map((value) => Math.trunc(value))
-    .filter((value) => value > 0);
-  return [...new Set(ids)];
-}
-
-function firstNonEmptyText(values: readonly unknown[]): string {
-  for (const value of values) {
-    const text = typeof value === "string" || typeof value === "number" ? String(value).trim() : "";
-    if (text) return text;
-  }
-  return "";
-}
-
-const PROFILE_IMPORT_STAGES: readonly ProfileImportStage[] = [
-  "validate",
-  "sanitize",
-  "projectorrays",
-  "index-casts",
-  "text-fields",
-  "materialize-bitmaps",
-  "generate-scripts",
-  "validate-profile",
-];
-
-const PROFILE_IMPORT_STAGE_LABELS: Record<ProfileImportStage, string> = {
-  validate: "Validate folder",
-  sanitize: "Copy client",
-  projectorrays: "Decompile",
-  "index-casts": "Index casts",
-  "text-fields": "Extract text",
-  "materialize-bitmaps": "Prepare assets",
-  "generate-scripts": "Prepare scripts",
-  "validate-profile": "Validate profile",
-};
-
-interface ProfileImportUiState {
-  readonly running: boolean;
-  readonly jobId: string | null;
-  readonly sourceName: string;
-  readonly startedAt: number | null;
-  readonly latest: ProfileImportProgress | null;
-  readonly entries: readonly ProfileImportProgress[];
-  readonly events: readonly ProfileImportProgress[];
-  readonly message: string;
-}
-
-const emptyProfileImportUiState: ProfileImportUiState = {
-  running: false,
-  jobId: null,
-  sourceName: "",
-  startedAt: null,
-  latest: null,
-  entries: [],
-  events: [],
-  message: "",
-};
-
-function pendingProfileImportUiState(): ProfileImportUiState {
-  const now = Date.now();
-  return {
-    running: true,
-    jobId: null,
-    sourceName: "",
-    startedAt: now,
-    latest: {
-      jobId: "pending-folder",
-      sourceName: "",
-      stage: "validate",
-      state: "running",
-      message: "Waiting for folder selection",
-      detail: "Choose a compiled Habbo client folder or existing Shockless profile",
-      percent: 0,
-      elapsedMs: 0,
-      logPath: null,
-      updatedAt: new Date(now).toISOString(),
-    },
-    entries: [],
-    events: [],
-    message: "Waiting for folder selection.",
-  };
-}
-
-function profileImportUiWithProgress(current: ProfileImportUiState, progress: ProfileImportProgress): ProfileImportUiState {
-  const sameJob = !current.jobId || current.jobId === progress.jobId || current.jobId === "pending-folder";
-  const baseEntries = sameJob ? current.entries : [];
-  const entries = [...baseEntries.filter((entry) => entry.stage !== progress.stage), progress].sort(
-    (left, right) => PROFILE_IMPORT_STAGES.indexOf(left.stage) - PROFILE_IMPORT_STAGES.indexOf(right.stage),
-  );
-  const baseEvents = sameJob ? current.events : [];
-  const events = [...baseEvents, progress].slice(-24);
-  const terminal = progress.stage === "validate-profile" && (progress.state === "done" || progress.state === "warning" || progress.state === "failed");
-  return {
-    running: !terminal,
-    jobId: progress.jobId,
-    sourceName: progress.sourceName,
-    startedAt: current.startedAt ?? Date.now() - (progress.elapsedMs ?? 0),
-    latest: progress,
-    entries,
-    events,
-    message: progress.message,
-  };
-}
-
-function profileImportUiFinished(current: ProfileImportUiState, message: string, failed: boolean): ProfileImportUiState {
-  const latest = current.latest;
-  const skipped = /cancel/i.test(message);
-  if (!latest) {
-    return {
-      ...emptyProfileImportUiState,
-      message,
-    };
-  }
-  const finalProgress: ProfileImportProgress = {
-    ...latest,
-    stage: failed ? "validate-profile" : latest.stage,
-    state: failed ? "failed" : skipped ? "skipped" : latest.state === "running" ? "done" : latest.state,
-    message: failed ? "Import failed" : message,
-    detail: failed || skipped ? message : latest.detail,
-    percent: failed || skipped ? Math.max(0, latest.percent) : Math.max(latest.percent, 100),
-    elapsedMs: latest.elapsedMs ?? (current.startedAt ? Date.now() - current.startedAt : undefined),
-    updatedAt: new Date().toISOString(),
-  };
-  return {
-    ...current,
-    running: false,
-    latest: finalProgress,
-    entries: [...current.entries.filter((entry) => entry.stage !== finalProgress.stage), finalProgress].sort(
-      (left, right) => PROFILE_IMPORT_STAGES.indexOf(left.stage) - PROFILE_IMPORT_STAGES.indexOf(right.stage),
-    ),
-    events: [...current.events, finalProgress].slice(-24),
-    message,
-  };
-}
-
-function profileImportStageEntry(entries: readonly ProfileImportProgress[], stage: ProfileImportStage): ProfileImportProgress | undefined {
-  return entries.find((entry) => entry.stage === stage);
-}
-
-function formatImportElapsed(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
-
-function profileImportStatusLabel(state: ProfileImportUiState): string {
-  if (state.running) return "Running";
-  if (state.latest?.state === "failed") return "Failed";
-  if (state.latest?.state === "warning") return "Imported with warnings";
-  if (state.latest?.state === "done") return "Complete";
-  return "Idle";
-}
-
-function ImporterWorkspace({
-  bridgeAvailable,
-  bridgeMessage,
-  engineBusy,
-  settingsBusy,
-  engineLaunch,
-  elapsedMs,
-  importState,
-  profiles,
-  selectedProfile,
-  onImport,
-  onRefresh,
-  onStart,
-  onSetCustomHotelView,
-  onSetResizablePresentation,
-  onSetVersionCheckBuild,
-  versionCheckDraft,
-  onVersionCheckDraftChange,
-}: {
-  readonly bridgeAvailable: boolean;
-  readonly bridgeMessage: string;
-  readonly engineBusy: boolean;
-  readonly settingsBusy: boolean;
-  readonly engineLaunch: EngineLaunchState | null;
-  readonly elapsedMs: number;
-  readonly importState: ProfileImportUiState;
-  readonly profiles: readonly ClientProfileSummary[];
-  readonly selectedProfile: ClientProfileSummary | null;
-  readonly onImport: () => void;
-  readonly onRefresh: () => void;
-  readonly onStart: () => void;
-  readonly onSetCustomHotelView: (enabled: boolean) => void;
-  readonly onSetResizablePresentation: (enabled: boolean) => void;
-  readonly onSetVersionCheckBuild: () => void;
-  readonly versionCheckDraft: string;
-  readonly onVersionCheckDraftChange: (value: string) => void;
-}) {
-  const latest = importState.latest;
-  const latestPercent = Math.max(0, Math.min(100, Math.round(latest?.percent ?? 0)));
-  const profileReady = Boolean(selectedProfile?.ready && engineLaunch?.status !== "running");
-  const status = profileImportStatusLabel(importState);
-  const message = importState.message || engineLaunch?.message || bridgeMessage;
-  const launchSettingsDisabled = !bridgeAvailable || settingsBusy || engineLaunch?.status === "running";
-  return (
-    <div className="importer-workspace" aria-label="Client importer">
-      <section className="importer-hero">
-        <div className="importer-identity">
-          <img className="hotel-avatar importer-avatar" src="./img/avatar.png" alt="" aria-hidden="true" />
-          <div>
-            <strong>Client Importer</strong>
-            <span>{profiles.length > 0 ? profileLine(selectedProfile) : "No playable profile attached"}</span>
-          </div>
-        </div>
-        <div className="importer-actions">
-          <button type="button" onClick={onRefresh} disabled={!bridgeAvailable || engineBusy} title="Refresh client library">
-            <RefreshCw size={14} />
-            <span>Refresh</span>
-          </button>
-          <button type="button" className="primary" onClick={onImport} disabled={!bridgeAvailable || engineBusy} title="Import or build client">
-            <FolderInput size={14} />
-            <span>{importState.running ? "Importing" : "Import/Build Client"}</span>
-          </button>
-          {profileReady ? (
-            <button type="button" className="primary" onClick={onStart} disabled={!bridgeAvailable || engineBusy} title="Start embedded client">
-              <Play size={14} />
-              <span>Start</span>
-            </button>
-          ) : null}
-        </div>
-      </section>
-
-      <section className="importer-main">
-        <div className="importer-progress-panel">
-          <div className="importer-panel-heading">
-            <span>{status}</span>
-            <strong>{latestPercent}%</strong>
-          </div>
-          <div className="importer-current-step">
-            <strong>{latest ? PROFILE_IMPORT_STAGE_LABELS[latest.stage] : "Ready"}</strong>
-            <span>{latest?.message ?? message ?? "Select a compiled client folder to build a playable Shockless profile."}</span>
-            {latest?.detail ? <small>{latest.detail}</small> : null}
-          </div>
-          <div className="importer-progress-meta">
-            <span>{formatImportElapsed(elapsedMs)} elapsed</span>
-            <span>{importState.sourceName || latest?.sourceName || "No folder selected"}</span>
-            {latest?.current !== undefined && latest.total !== undefined ? (
-              <span>
-                {latest.current.toLocaleString()} / {latest.total.toLocaleString()}
-              </span>
-            ) : latest?.current !== undefined ? (
-              <span>{latest.current.toLocaleString()} written</span>
-            ) : null}
-          </div>
-          <div className="importer-progress-bar" aria-label="Import progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={latestPercent}>
-            <span style={{ width: `${latestPercent}%` }} />
-          </div>
-          {importState.running ? (
-            <p className="importer-note">Decompile and asset preparation can use CPU and disk while generated files are written.</p>
-          ) : null}
-          <ol className="importer-stage-list">
-            {PROFILE_IMPORT_STAGES.map((stage) => {
-              const entry = profileImportStageEntry(importState.entries, stage);
-              const stateClass = entry?.state ?? "pending";
-              return (
-                <li className={stateClass} key={stage}>
-                  <strong>{PROFILE_IMPORT_STAGE_LABELS[stage]}</strong>
-                  <span>{entry?.message ?? "Waiting"}</span>
-                  {entry?.detail ? <small>{entry.detail}</small> : null}
-                </li>
-              );
-            })}
-          </ol>
-        </div>
-
-        <div className="importer-detail-panel">
-          <div className="importer-panel-heading">
-            <span>Details</span>
-            <strong>{profiles.length} profile{profiles.length === 1 ? "" : "s"}</strong>
-          </div>
-          <div className="importer-detail-grid">
-            <span>Selected</span>
-            <strong>{profileLine(selectedProfile)}</strong>
-            <span>Engine</span>
-            <strong>{statusLabel(engineLaunch?.status)}</strong>
-            <span>Stage</span>
-            <strong>{engineLaunch?.settings?.resizablePresentation ? "Responsive" : "Fixed Stage"}</strong>
-            <span>Hotel View</span>
-            <strong>{engineLaunch?.settings?.customHotelView ? "Custom" : "Default"}</strong>
-            <span>Version</span>
-            <strong>{compactValue(engineLaunch?.settings?.versionCheckBuild ?? selectedProfile?.versionCheckBuild ?? null)}</strong>
-            <span>Log</span>
-            <strong>{compactValue(latest?.logPath ? latest.logPath.split(/[\\/]/).pop() : null)}</strong>
-          </div>
-          <div className="importer-launch-settings" aria-label="Launch settings">
-            <label className="toggle-row checkbox-first-row">
-              <input
-                type="checkbox"
-                checked={engineLaunch?.settings?.customHotelView === true}
-                disabled={launchSettingsDisabled}
-                onChange={(event) => onSetCustomHotelView(event.currentTarget.checked)}
-              />
-              <span>Custom hotel view</span>
-            </label>
-            <label className="toggle-row checkbox-first-row">
-              <input
-                type="checkbox"
-                checked={engineLaunch?.settings?.resizablePresentation !== false}
-                disabled={launchSettingsDisabled}
-                onChange={(event) => onSetResizablePresentation(event.currentTarget.checked)}
-              />
-              <span>Responsive stage resize</span>
-            </label>
-            <form
-              className="runtime-input-row importer-version-row"
-              onSubmit={(event) => {
-                event.preventDefault();
-                onSetVersionCheckBuild();
-              }}
-            >
-              <input
-                value={versionCheckDraft}
-                onChange={(event) => onVersionCheckDraftChange(event.currentTarget.value)}
-                placeholder={selectedProfile?.versionCheckBuild ? String(selectedProfile.versionCheckBuild) : "auto"}
-                disabled={!bridgeAvailable || engineBusy || !selectedProfile}
-                aria-label="Version check build override"
-              />
-              <button type="submit" disabled={!bridgeAvailable || engineBusy || !selectedProfile}>
-                Apply
-              </button>
-            </form>
-          </div>
-          <div className="importer-log-lines" aria-label="Importer detail log">
-            {importState.events.length > 0 ? (
-              importState.events.slice(-12).map((entry, index) => (
-                <code className={entry.state} key={`${entry.jobId}-${entry.stage}-${entry.updatedAt}-${index}`}>
-                  [{statusLabel(entry.state)}] {PROFILE_IMPORT_STAGE_LABELS[entry.stage]}: {entry.message}
-                  {entry.detail ? ` (${entry.detail})` : ""}
-                </code>
-              ))
-            ) : (
-              <p>{message || "Importer idle."}</p>
-            )}
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-}
 
 export function App() {
   const [state, dispatch] = useReducer(shellReducer, initialAppState);
@@ -8013,98 +4349,28 @@ export function App() {
 
   return (
     <main className={`app-shell ${state.ui.dockCollapsed ? "dock-collapsed" : ""}`}>
-      <div className={`boot-splash ${booting ? "" : "boot-hide"}`} aria-hidden={!booting}>
-        <div className="boot-inner">
-          <div className="boot-brand">
-            <img className="boot-sprite" src="./img/headicon.png" alt="" aria-hidden="true" />
-            <span className="boot-title">Habbpy v4</span>
-          </div>
-          <div className="boot-bar">
-            <span />
-          </div>
-        </div>
-      </div>
+      <BootSplash booting={booting} />
 
       <section className="game-region" aria-label="Embedded Shockless game area">
-        <header className="top-bar">
-          <div className="top-bar-copy">
-            <img className="app-brand-sprite" src="./img/headicon.png" alt="" aria-hidden="true" />
-            <div>
-              <div className="app-title">Habbpy v4</div>
-              <div className="app-subtitle">Shockless Engine companion shell</div>
-            </div>
-          </div>
-          <div className="engine-actions" aria-label="Embedded engine controls">
-            <button
-              className="engine-action-button"
-              type="button"
-              onClick={() => void refreshLibrary()}
-              disabled={!desktopBridgeAvailable || engineBusy || profileImportRunning}
-              title="Refresh"
-            >
-              <RefreshCw size={14} />
-              <span>Refresh</span>
-            </button>
-            {engineUrl ? (
-              <button
-                className="engine-action-button"
-                type="button"
-                onClick={() => void stopEngine()}
-                disabled={!desktopBridgeAvailable || engineBusy || profileImportRunning}
-                title="Stop"
-              >
-                <Square size={13} />
-                <span>Stop</span>
-              </button>
-            ) : (
-              <button
-                className="engine-action-button primary"
-                type="button"
-                onClick={() => void startEngine()}
-                disabled={!desktopBridgeAvailable || engineBusy || profileImportRunning || (!selectedProfile?.ready && engineLaunch?.status === "not-configured")}
-                title="Start"
-              >
-                <Play size={14} />
-                <span>Start</span>
-              </button>
-            )}
-          </div>
-          <div className="session-strip" aria-label="Client sessions">
-            {(clientSessions?.sessions.length ? clientSessions.sessions : selectedClientSession ? [selectedClientSession] : []).map((session) => (
-              <button
-                key={session.id}
-                type="button"
-                className={`session-chip ${session.selected ? "selected" : ""} ${session.status === "running" ? "running" : session.status === "error" ? "error" : ""}`}
-                onClick={() => void selectClientSession(session.id)}
-                title={clientSessionTitle(session)}
-                aria-label={`Select client ${session.id}`}
-              >
-                <span>{session.id}</span>
-                {session.headless ? <small>H</small> : null}
-              </button>
-            ))}
-            {!clientSessions?.sessions.length && !selectedClientSession ? <span className="session-empty">1</span> : null}
-            <button
-              className="session-add-button"
-              type="button"
-              onClick={() => void addManualVisibleClient()}
-              title="Start a manual visible client"
-              aria-label="Add client session"
-            >
-              <Plus size={15} />
-            </button>
-          </div>
-          <div
-            className={`conn-status ${
-              state.engine.embedded ? "online" : engineLaunch?.status === "ready" ? "ready" : "idle"
-            }`}
-            aria-label="Engine status"
-            title={state.engine.location}
-          >
-            <span className="conn-dot" />
-            <span>{state.engine.embedded ? "Connected" : engineLaunch?.status === "ready" ? "Ready" : "Preview"}</span>
-          </div>
-        </header>
+        <TopBar
+          desktopBridgeAvailable={desktopBridgeAvailable}
+          engineBusy={engineBusy}
+          profileImportRunning={profileImportRunning}
+          engineUrl={engineUrl}
+          engineLaunch={engineLaunch}
+          selectedProfile={selectedProfile}
+          clientSessions={clientSessions}
+          selectedClientSession={selectedClientSession}
+          selectedClientSnapshotLabel={state.engine.profileLabel}
+          engineLocation={state.engine.location}
+          engineEmbedded={state.engine.embedded}
+          clientSessionTitle={clientSessionTitle}
+          onRefresh={() => void refreshLibrary()}
+          onStop={() => void stopEngine()}
+          onStart={() => void startEngine()}
+          onSelectClientSession={(id) => void selectClientSession(id)}
+          onAddManualVisibleClient={() => void addManualVisibleClient()}
+        />
 
         <div className={`game-frame ${hasMountedVisibleGameViews ? "embedded" : ""}`}>
           <div className="game-toolbar">
@@ -8300,76 +4566,43 @@ export function App() {
               </div>
             </div>
           ) : null}
-          {pluginEnabledById.room !== false && pluginSurfaceEnabledByPluginId.room?.overlay && roomReady ? (
-            <div className="room-overlay room-overlay-top">
-              <strong>{runtimeRoomName(selectedRuntimeSnapshot)}</strong>
-              <span>
-                {runtimeRoomType(selectedRuntimeSnapshot)} / {compactValue(selectedRuntimeSnapshot?.userState?.roomUserCount ?? selectedRuntimeSnapshot?.roomReady?.roomLikeSpriteCount)} users
-              </span>
-              {privateRoomReady ? (
-                <button
-                  className="room-zoom-toggle"
-                  type="button"
-                  onClick={() => void setEmbeddedRoomZoom(gameZoom === 1 ? 2 : 1)}
-                  title={gameZoom === 1 ? "Zoom to 200%" : "Zoom to 100%"}
-                  aria-label={gameZoom === 1 ? "Zoom to 200%" : "Zoom to 100%"}
-                >
-                  {gameZoom === 1 ? <ZoomIn size={13} /> : <ZoomOut size={13} />}
-                  <span>{gameZoom === 1 ? "2x" : "1x"}</span>
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-          {pluginEnabledById["dev-tools"] !== false && pluginSurfaceEnabledByPluginId["dev-tools"]?.status && selectedRuntimeSnapshot ? (
-            <div className="room-overlay room-overlay-bottom">
-              <strong>FPS {compactValue(state.engine.fps ?? selectedRuntimeSnapshot.performanceStats?.rafPerSecond)}</strong>
-              <span>{runtimeRoomName(selectedRuntimeSnapshot)}</span>
-            </div>
-          ) : null}
+          <RoomOverlays
+            roomPluginEnabled={pluginEnabledById.room !== false}
+            roomOverlayEnabled={Boolean(pluginSurfaceEnabledByPluginId.room?.overlay)}
+            devToolsPluginEnabled={pluginEnabledById["dev-tools"] !== false}
+            devToolsStatusEnabled={Boolean(pluginSurfaceEnabledByPluginId["dev-tools"]?.status)}
+            roomReady={roomReady}
+            privateRoomReady={privateRoomReady}
+            runtimeSnapshot={selectedRuntimeSnapshot}
+            gameZoom={gameZoom}
+            fps={state.engine.fps ?? selectedRuntimeSnapshot?.performanceStats?.currentFps ?? selectedRuntimeSnapshot?.performanceStats?.rafPerSecond ?? null}
+            onCloseRoomOverlay={() => void setPluginSurfaceEnabled("room", "overlay", false)}
+            onCloseFpsOverlay={() => void setPluginSurfaceEnabled("dev-tools", "status", false)}
+            onZoomToggle={() => void setEmbeddedRoomZoom(gameZoom === 1 ? 2 : 1)}
+          />
         </div>
       </section>
 
       <aside className="plugin-dock" aria-label="Plugin dock" data-selected-plugin={selectedPlugin.id}>
-        <nav className="icon-rail" aria-label="Plugins">
-          <button
-            className="rail-toggle"
-            type="button"
-            aria-label={state.ui.dockCollapsed ? "Expand plugin dock" : "Collapse plugin dock"}
-            onClick={() => dispatch({ type: "toggleDockCollapsed" })}
-            title={state.ui.dockCollapsed ? "Expand plugin dock" : "Collapse plugin dock"}
-          >
-            {state.ui.dockCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-          </button>
-
-          <div className="rail-list">
-            {filteredPlugins.map((plugin) => {
-              const enabled = pluginEnabledById[plugin.id] !== false;
-              const active = plugin.id === selectedPlugin.id;
-              return (
-                <button
-                  className={`rail-tab ${active ? "active" : ""} ${enabled ? "" : "disabled"}`}
-                  type="button"
-                  key={plugin.id}
-                  title={plugin.name}
-                  aria-label={plugin.name}
-                  aria-pressed={active}
-                  onClick={() => {
-                    if (active && !state.ui.dockCollapsed) {
-                      dispatch({ type: "toggleDockCollapsed" });
-                    } else {
-                      dispatch({ type: "selectPlugin", pluginId: plugin.id });
-                      if (state.ui.dockCollapsed) dispatch({ type: "toggleDockCollapsed" });
-                    }
-                  }}
-                >
-                  <span className="plugin-icon">
-                    <PluginIcon plugin={plugin} />
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </nav>
+        <IconRail
+          dockCollapsed={state.ui.dockCollapsed}
+          filteredPlugins={filteredPlugins}
+          pluginEnabledById={pluginEnabledById}
+          selectedPluginId={selectedPlugin.id}
+          PluginIcon={PluginIcon}
+          onToggleDock={() => dispatch({ type: "toggleDockCollapsed" })}
+          onSelectPlugin={(pluginId) => {
+            // Toggle: clicking the icon of the already-open panel closes it; clicking any
+            // other icon (or while closed) opens that panel. Previously a click only ever
+            // opened/switched, so the open tab could never be closed by its own icon.
+            if (!state.ui.dockCollapsed && selectedPlugin.id === pluginId) {
+              dispatch({ type: "toggleDockCollapsed" });
+            } else {
+              dispatch({ type: "selectPlugin", pluginId });
+              if (state.ui.dockCollapsed) dispatch({ type: "toggleDockCollapsed" });
+            }
+          }}
+        />
 
         {!state.ui.dockCollapsed ? (
           <section className="plugin-panel" aria-label={`${selectedPlugin.name} panel`}>
@@ -8384,3224 +4617,539 @@ export function App() {
             </div>
 
             {selectedPlugin.id === "connection" ? (
-              <div className="client-library">
-                <div className="client-library-actions">
-                  <button
-                    className="wide-action"
-                    type="button"
-                    onClick={() => void importClientReference()}
-                    disabled={!desktopBridgeAvailable || engineBusy || profileImportRunning}
-                  >
-                    <FolderInput size={14} />
-                    <span>{profileImportRunning ? "Importing..." : "Import/Build Client"}</span>
-                  </button>
-                </div>
-                <div className="profile-list-compact">
-                  {(libraryState?.profiles ?? []).map((profile) => (
-                    <button
-                      className={`profile-option ${profile.profileRoot === libraryState?.selectedProfileRoot ? "active" : ""}`}
-                      type="button"
-                      key={profile.profileRoot}
-                      onClick={() => void selectClientProfile(profile.profileRoot)}
-                    >
-                      <strong>{profileLine(profile)}</strong>
-                      <small>{profile.ready ? "Ready / Referenced" : profile.reason}</small>
-                    </button>
-                  ))}
-                  {(libraryState?.profiles.length ?? 0) === 0 ? <p className="empty-panel-note">{bridgeMessage}</p> : null}
-                </div>
-                <div className="mini-section">
-                  <h3>Session</h3>
-                  <div className="kv-grid">
-                    <span>State</span>
-                    <strong>{profileImportRunning ? "Importing" : engineBusy ? "Starting" : statusLabel(engineLaunch?.status)}</strong>
-                    <span>Session ID</span>
-                    <strong>{relaySessionId}</strong>
-                    <span>Bridge</span>
-                    <strong>{compactValue(selectedRuntimeSnapshot?.networkBridgeUrl)}</strong>
-                    <span>Relay Log</span>
-                    <strong>{selectedClientRelayLog?.exists ? `${compactValue(selectedClientRelayLog.entries.length)} selected rows` : "Missing"}</strong>
-                    <span>Client Packets</span>
-                    <strong>{compactValue(selectedClientRelayLog?.clientCount)}</strong>
-                    <span>Server Packets</span>
-                    <strong>{compactValue(selectedClientRelayLog?.serverCount)}</strong>
-                    <span>Latest Client</span>
-                    <strong>{relayPacketSummary(latestClientPacket)}</strong>
-                    <span>Latest Server</span>
-                    <strong>{relayPacketSummary(latestServerPacket)}</strong>
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Selected Client</h3>
-                  <div className="kv-grid">
-                    <span>Client</span>
-                    <strong>{selectedClientSnapshot?.client ? `client${selectedClientSnapshot.client.id} / ${selectedClientSnapshot.client.label}` : compactValue(selectedClientSession?.label)}</strong>
-                    <span>Mode</span>
-                    <strong>{selectedClientSnapshot?.client?.headless ? "headless" : selectedClientSnapshot?.client?.visible ? "visible" : "-"}</strong>
-                    <span>User</span>
-                    <strong>{compactValue(selectedClientSnapshot?.runtime?.userName ?? selectedClientSnapshot?.client?.username)}</strong>
-                    <span>Room</span>
-                    <strong>{compactValue(selectedClientSnapshot?.runtime?.roomName ?? selectedClientSnapshot?.client?.roomName)}</strong>
-                    <span>Users</span>
-                    <strong>{compactValue(selectedClientSnapshot?.runtime?.userCount)}</strong>
-                    <span>Relay</span>
-                    <strong>{selectedClientSnapshot?.relay ? `${selectedClientSnapshot.relay.packetCount} packets` : "-"}</strong>
-                    <span>Updated</span>
-                    <strong>{compactValue(selectedClientSnapshot?.runtime?.updatedAt)}</strong>
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Parsed State</h3>
-                  <div className="kv-grid">
-                    <span>Client</span>
-                    <strong>client{selectedClientId}</strong>
-                    <span>Profiles</span>
-                    <strong>{compactValue(packetProfileUsers.length)}</strong>
-                    <span>Friends</span>
-                    <strong>{compactValue(packetInfoState.friends.length)}</strong>
-                    <span>Requests</span>
-                    <strong>{compactValue(packetInfoState.friendRequests.length)}</strong>
-                    <span>Messages</span>
-                    <strong>{compactValue(packetInfoState.privateMessages.length)}</strong>
-                    <span>Chat Rows</span>
-                    <strong>{compactValue(packetChatEntries.length)}</strong>
-                    <span>Inventory</span>
-                    <strong>{compactValue(packetInventoryState.totalCount)}</strong>
-                    <span>Wall Items</span>
-                    <strong>{compactValue(packetWallItemState.itemCount)}</strong>
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Encryption</h3>
-                  <div className="kv-grid">
-                    <span>State</span>
-                    <strong>{relayEncryptionState}</strong>
-                    <span>Client Mode</span>
-                    <strong>{relayClientModes}</strong>
-                    <span>Server Mode</span>
-                    <strong>{relayServerModes}</strong>
-                    <span>Body Logging</span>
-                    <strong>{relayBodyLoggingState}</strong>
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Engine</h3>
-                  <div className="kv-grid">
-                    <span>Title</span>
-                    <strong>{compactValue(selectedRuntimeSnapshot?.title)}</strong>
-                    <span>Runtime</span>
-                    <strong>{compactValue(selectedRuntimeSnapshot?.scriptBundle?.runtimeVersion)}</strong>
-                    <span>Presentation</span>
-                    <strong>{engineLaunch?.settings?.resizablePresentation ? "responsive" : "fixed-stage"}</strong>
-                    <span>FPS</span>
-                    <strong>{compactValue(runtimeFps(selectedRuntimeSnapshot))}</strong>
-                    <span>Ticks</span>
-                    <strong>{compactValue(runtimeTickRate(selectedRuntimeSnapshot))}</strong>
-                    <span>Scripts</span>
-                    <strong>{compactValue(selectedRuntimeSnapshot?.scriptBundle?.executableScripts)}</strong>
-                    <span>Fields</span>
-                    <strong>{compactValue(selectedRuntimeSnapshot?.editableFields.length)}</strong>
-                    <span>Windows</span>
-                    <strong>{compactValue(selectedRuntimeSnapshot?.windowIds.length)}</strong>
-                  </div>
-                </div>
-              </div>
+              <ConnectionPanel
+                desktopBridgeAvailable={desktopBridgeAvailable}
+                engineBusy={engineBusy}
+                profileImportRunning={profileImportRunning}
+                libraryState={libraryState}
+                bridgeMessage={bridgeMessage}
+                engineLaunch={engineLaunch}
+                relaySessionId={relaySessionId}
+                selectedRuntimeSnapshot={selectedRuntimeSnapshot}
+                selectedClientRelayLog={selectedClientRelayLog}
+                latestClientPacket={latestClientPacket}
+                latestServerPacket={latestServerPacket}
+                selectedClientSnapshot={selectedClientSnapshot}
+                selectedClientSession={selectedClientSession}
+                selectedClientId={selectedClientId}
+                packetProfileUsers={packetProfileUsers}
+                packetInfoState={packetInfoState}
+                packetChatEntries={packetChatEntries}
+                packetInventoryState={packetInventoryState}
+                packetWallItemState={packetWallItemState}
+                relayEncryptionState={relayEncryptionState}
+                relayClientModes={relayClientModes}
+                relayServerModes={relayServerModes}
+                relayBodyLoggingState={relayBodyLoggingState}
+                onImportClientReference={() => void importClientReference()}
+                onSelectClientProfile={(root) => void selectClientProfile(root)}
+              />
             ) : null}
 
             {selectedPlugin.id === "plugin-manager" ? (
-              <div className="runtime-panel plugin-manager-panel">
-                <div className="mini-section">
-                  <h3>Plugin Manager</h3>
-                  <div className="runtime-actions plugin-manager-actions">
-                    <button className="wide-action" type="button" disabled={!desktopBridgeAvailable} onClick={() => void reloadPlugins()}>
-                      <RefreshCw size={14} />
-                      Reload Plugins
-                    </button>
-                    <button className="wide-action" type="button" disabled={!desktopBridgeAvailable} onClick={() => void openPluginsFolder()}>
-                      <FolderInput size={14} />
-                      Open Folder
-                    </button>
-                    <button className="wide-action" type="button" disabled={!desktopBridgeAvailable} onClick={() => void installPluginFromFolder()}>
-                      <Plus size={14} />
-                      Install From Folder
-                    </button>
-                  </div>
-                  <div className="kv-grid">
-                    <span>User Root</span>
-                    <strong>{compactValue(pluginRegistryState?.userPluginRoot)}</strong>
-                    <span>Portable Root</span>
-                    <strong>{compactValue(pluginRegistryState?.portablePluginRoot)}</strong>
-                    <span>Plugins</span>
-                    <strong>{compactValue(availablePlugins.length)}</strong>
-                    <span>Enabled</span>
-                    <strong>{compactValue(availablePlugins.filter((plugin) => pluginEnabledById[plugin.id] !== false).length)}</strong>
-                  </div>
-                  {pluginManagerMessage || pluginRegistryState?.message ? (
-                    <p className="runtime-message">{pluginManagerMessage || pluginRegistryState?.message}</p>
-                  ) : null}
-                </div>
-
-                <div className="mini-section">
-                  <h3>Create Plugin</h3>
-                  <div className="inline-field-grid">
-                    <label className="field-stack">
-                      <span>Plugin Id</span>
-                      <input value={newPluginId} onChange={(event) => setNewPluginId(event.currentTarget.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))} />
-                    </label>
-                    <label className="field-stack">
-                      <span>Name</span>
-                      <input value={newPluginName} onChange={(event) => setNewPluginName(event.currentTarget.value)} />
-                    </label>
-                  </div>
-                  <button className="wide-action" type="button" disabled={!desktopBridgeAvailable || !newPluginId.trim()} onClick={() => void createPluginFromTemplate()}>
-                    <Plus size={14} />
-                    Create From Template
-                  </button>
-                </div>
-
-                <div className="mini-section">
-                  <h3>Installed Plugins</h3>
-                  <div className="plugin-manager-list" aria-label="Installed plugins">
-                    {availablePlugins.map((plugin) => {
-                      const pinned = pinnedPluginIds.has(plugin.id);
-                      const enabled = pluginEnabledById[plugin.id] !== false;
-                      return (
-                        <div className={`plugin-manager-row ${enabled ? "enabled" : "disabled"} ${pinned ? "pinned" : ""}`} key={plugin.id}>
-                          <div className="plugin-manager-row-main">
-                            <div className="panel-icon">
-                              <PluginIcon plugin={plugin} />
-                            </div>
-                            <div>
-                              <strong>{plugin.name}</strong>
-                              <small>
-                                {originLabel(plugin.origin ?? "built-in")} / {labelCase(plugin.category)} / {statusLabel(plugin.status)}
-                              </small>
-                              <p>{plugin.summary}</p>
-                            </div>
-                            <label className="switch-row">
-                              <input
-                                type="checkbox"
-                                checked={enabled}
-                                disabled={pinned || !desktopBridgeAvailable}
-                                onChange={(event) => void setPluginEnabled(plugin, event.currentTarget.checked)}
-                              />
-                              <span>{pinned ? "Pinned" : enabled ? "Enabled" : "Disabled"}</span>
-                            </label>
-                          </div>
-                          <div className="chip-list permission-chip-list">
-                            {(plugin.permissions ?? []).map((permission) => (
-                              <span key={permission}>{permissionLabel(permission)}</span>
-                            ))}
-                            {(plugin.permissions ?? []).length === 0 ? <span>No permissions</span> : null}
-                          </div>
-                          <div className="plugin-surface-grid">
-                            {plugin.uiSurfaces.map((surface) => (
-                              <label className="toggle-row checkbox-first-row" key={surface.id}>
-                                <input
-                                  type="checkbox"
-                                  checked={pluginSurfaceEnabledByPluginId[plugin.id]?.[surface.id] ?? surface.enabledByDefault}
-                                  disabled={!desktopBridgeAvailable || !enabled}
-                                  onChange={(event) => void setPluginSurfaceEnabled(plugin.id, surface.id, event.currentTarget.checked)}
-                                />
-                                <span>
-                                  <strong>{surface.label}</strong>
-                                  <small>{labelCase(surface.kind)} / {surface.summary}</small>
-                                </span>
-                              </label>
-                            ))}
-                          </div>
-                          {plugin.loadError ? <p className="runtime-message">{plugin.loadError}</p> : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {(pluginRegistryState?.loadErrors.length ?? 0) > 0 ? (
-                  <div className="mini-section">
-                    <h3>Load Errors</h3>
-                    <div className="mini-table">
-                      {pluginRegistryState?.loadErrors.map((error) => (
-                        <p key={`${error.sourcePath}:${error.message}`}>
-                          <span>{compactValue(error.pluginId ?? "Plugin")}</span>
-                          <strong>{error.message}</strong>
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
+              <PluginManagerPanel
+                desktopBridgeAvailable={desktopBridgeAvailable}
+                pluginRegistryState={pluginRegistryState}
+                availablePlugins={availablePlugins}
+                pluginEnabledById={pluginEnabledById}
+                pluginSurfaceEnabledByPluginId={pluginSurfaceEnabledByPluginId}
+                pinnedPluginIds={pinnedPluginIds}
+                pluginManagerMessage={pluginManagerMessage}
+                newPluginId={newPluginId}
+                newPluginName={newPluginName}
+                onReloadPlugins={() => void reloadPlugins()}
+                onOpenPluginsFolder={() => void openPluginsFolder()}
+                onInstallPluginFromFolder={() => void installPluginFromFolder()}
+                onSetNewPluginId={setNewPluginId}
+                onSetNewPluginName={setNewPluginName}
+                onCreatePluginFromTemplate={() => void createPluginFromTemplate()}
+                onSetPluginEnabled={(plugin, enabled) => void setPluginEnabled(plugin, enabled)}
+                onSetPluginSurfaceEnabled={(pluginId, surfaceId, enabled) => void setPluginSurfaceEnabled(pluginId, surfaceId, enabled)}
+              />
             ) : null}
 
             {selectedPlugin.id === "settings" ? (
-              <div className="runtime-panel settings-panel">
-                <div className="mini-section">
-                  <h3>Engine</h3>
-                  <label className="toggle-row checkbox-first-row">
-                    <input
-                      type="checkbox"
-                      checked={engineLaunch?.settings?.customHotelView === true}
-                      disabled={!desktopBridgeAvailable || engineBusy || engineLaunch?.status === "running"}
-                      onChange={(event) => void updateEngineLaunchSettings({ customHotelView: event.currentTarget.checked }, `Custom hotel view ${event.currentTarget.checked ? "enabled" : "disabled"}.`)}
-                    />
-                    <span>
-                      <strong>Custom Hotel View</strong>
-                      <small>Use the Habbpy hotel view when launching compatible profiles.</small>
-                    </span>
-                  </label>
-                  <label className="toggle-row checkbox-first-row">
-                    <input
-                      type="checkbox"
-                      checked={engineLaunch?.settings?.resizablePresentation !== false}
-                      disabled={!desktopBridgeAvailable || engineBusy || engineLaunch?.status === "running"}
-                      onChange={(event) => void updateEngineLaunchSettings({ resizablePresentation: event.currentTarget.checked }, `Responsive stage resize ${event.currentTarget.checked ? "enabled" : "disabled"}.`)}
-                    />
-                    <span>
-                      <strong>Responsive Stage Resize</strong>
-                      <small>Adapt the stage to the app window while preserving the Director room.</small>
-                    </span>
-                  </label>
-                  <div className="runtime-input-row">
-                    <input
-                      value={versionCheckDraft}
-                      onChange={(event) => setVersionCheckDraft(event.currentTarget.value.replace(/[^\d]/g, ""))}
-                      placeholder="VERSIONCHECK auto"
-                      aria-label="Version check build override"
-                    />
-                    <button type="button" disabled={!desktopBridgeAvailable || engineBusy} onClick={applyVersionCheckBuild}>
-                      Apply
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!desktopBridgeAvailable || engineBusy}
-                      onClick={() => {
-                        setVersionCheckDraft("");
-                        void updateEngineLaunchSettings({ versionCheckBuild: null }, "Version check override cleared.");
-                      }}
-                    >
-                      Clear
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mini-section">
-                  <h3>Performance</h3>
-                  <label className="toggle-row checkbox-first-row">
-                    <input
-                      type="checkbox"
-                      checked={appPreferences?.hardwareAcceleration ?? true}
-                      onChange={(event) => void updateHardwareAccelerationPreference(event.currentTarget.checked)}
-                      disabled={!desktopBridgeAvailable}
-                    />
-                    <span>
-                      <strong>Hardware Acceleration</strong>
-                      <small>{appPreferences?.hardwareAccelerationRestartRequired ? "Restart required for this change." : "GPU acceleration is active when available."}</small>
-                    </span>
-                  </label>
-                  <div className="mini-table">
-                    <p>
-                      <span>GPU Launch</span>
-                      <strong>{appPreferences?.hardwareAccelerationActive === false ? "Disabled" : "Enabled"}</strong>
-                    </p>
-                    <p>
-                      <span>Preference</span>
-                      <strong>{appPreferences?.hardwareAcceleration === false ? "Disabled" : "Enabled"}</strong>
-                    </p>
-                    <p>
-                      <span>Restart</span>
-                      <strong>{appPreferences?.hardwareAccelerationRestartRequired ? "Required" : "Not Required"}</strong>
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mini-section">
-                  <h3>Hotkeys</h3>
-                  <div className="inline-field-grid">
-                    <label className="field-stack">
-                      <span>Key</span>
-                      <input value={settingsBindKey} onChange={(event) => setSettingsBindKey(event.currentTarget.value)} />
-                    </label>
-                    <label className="field-stack">
-                      <span>Command</span>
-                      <input value={settingsBindCommand} onChange={(event) => setSettingsBindCommand(event.currentTarget.value)} />
-                    </label>
-                  </div>
-                  <div className="runtime-actions">
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable || !settingsBindKey.trim() || !settingsBindCommand.trim()}
-                      onClick={() => void runMultiAccountCommand(`bind ${commandArg(settingsBindKey.trim())} ${commandArg(settingsBindCommand.trim())}`)}
-                    >
-                      Save Binding
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable || !settingsBindKey.trim()}
-                      onClick={() => void runMultiAccountCommand(`unbind ${commandArg(settingsBindKey.trim())}`)}
-                    >
-                      Remove Binding
-                    </button>
-                  </div>
-                  <div className="mini-table">
-                    {(consoleCommandState?.bindings ?? []).map((binding) => (
-                      <p key={binding.key}>
-                        <span>{binding.key}</span>
-                        <strong>{binding.command}</strong>
-                      </p>
-                    ))}
-                    {(consoleCommandState?.bindings.length ?? 0) === 0 ? (
-                      <p>
-                        <span>Bindings</span>
-                        <strong>No bindings configured.</strong>
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="mini-section">
-                  <h3>Console</h3>
-                  <label className="toggle-row checkbox-first-row">
-                    <input
-                      type="checkbox"
-                      checked={packetFilters.wrap}
-                      onChange={(event) => {
-                        const checked = event.currentTarget.checked;
-                        setPacketFilters((current) => ({ ...current, wrap: checked }));
-                        void updateAppPreferencePatch(
-                          { packetOutputWrap: checked },
-                          `Packet text wrapping ${checked ? "enabled" : "disabled"}.`,
-                        );
-                      }}
-                    />
-                    <span>
-                      <strong>Wrap Packet Text</strong>
-                      <small>Wrap long packet rows in the console and Packet Log panel.</small>
-                    </span>
-                  </label>
-                  <label className="toggle-row checkbox-first-row">
-                    <input
-                      type="checkbox"
-                      checked={packetFilters.autoscroll}
-                      onChange={(event) => {
-                        const checked = event.currentTarget.checked;
-                        setPacketFilters((current) => ({ ...current, autoscroll: checked }));
-                        void updateAppPreferencePatch(
-                          { packetOutputAutoScroll: checked },
-                          `Packet auto scroll ${checked ? "enabled" : "disabled"}.`,
-                        );
-                      }}
-                    />
-                    <span>
-                      <strong>Auto Scroll Packet Output</strong>
-                      <small>Keep packet views pinned to the newest live rows.</small>
-                    </span>
-                  </label>
-                </div>
-
-                <div className="mini-section">
-                  <h3>Session Defaults</h3>
-                  <label className="field-stack">
-                    <span>Account File</span>
-                    <input value={multiAccountFile} onChange={(event) => setMultiAccountFile(event.currentTarget.value)} />
-                  </label>
-                  <div className="inline-field-grid">
-                    <label className="field-stack">
-                      <span>Count</span>
-                      <input value={multiAccountCount} onChange={(event) => setMultiAccountCount(event.currentTarget.value.replace(/[^\d]/g, ""))} />
-                    </label>
-                    <label className="field-stack">
-                      <span>Concurrency</span>
-                      <input
-                        value={multiAccountConcurrency}
-                        onChange={(event) => setMultiAccountConcurrency(event.currentTarget.value.replace(/[^\d]/g, ""))}
-                      />
-                    </label>
-                  </div>
-                  <label className="field-stack">
-                    <span>Key Env</span>
-                    <input value={multiAccountKeyEnv} onChange={(event) => setMultiAccountKeyEnv(event.currentTarget.value)} />
-                  </label>
-                  <label className="field-stack">
-                    <span>Summon Target</span>
-                    <input value={multiAccountSummonTarget} onChange={(event) => setMultiAccountSummonTarget(event.currentTarget.value)} />
-                  </label>
-                  <label className="field-stack">
-                    <span>Default Load Mode</span>
-                    <select
-                      value={multiAccountLoadMode}
-                      onChange={(event) => setMultiAccountLoadMode(event.currentTarget.value === "visible" ? "visible" : "headless")}
-                    >
-                      <option value="headless">Headless</option>
-                      <option value="visible">Visible</option>
-                    </select>
-                  </label>
-                  <label className="toggle-row checkbox-first-row">
-                    <input
-                      type="checkbox"
-                      checked={appPreferences?.autoSubmitVisibleLogin !== false}
-                      disabled={!desktopBridgeAvailable}
-                      onChange={(event) => {
-                        const checked = event.currentTarget.checked;
-                        void updateAppPreferencePatch(
-                          { autoSubmitVisibleLogin: checked },
-                          `Visible client auto-login ${checked ? "enabled" : "disabled"}.`,
-                        );
-                      }}
-                    />
-                    <span>
-                      <strong>Auto-submit Visible Logins</strong>
-                      <small>Automatically submits credentials for loaded visible client sessions.</small>
-                    </span>
-                  </label>
-                  <div className="runtime-actions">
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable || !multiAccountFile.trim()}
-                      onClick={() => void saveSessionDefaultPreferences()}
-                    >
-                      Save Defaults
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable || !multiAccountFile.trim()}
-                      onClick={() =>
-                        void runMultiAccountCommand(
-                          `load ${commandArg(multiAccountFile.trim())} ${clampMultiAccountCount(multiAccountCount)}${multiAccountLoadMode === "headless" ? " --headless" : ""} --concurrency ${clampMultiAccountConcurrency(multiAccountConcurrency)}`,
-                        )
-                      }
-                    >
-                      Load Default
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <SettingsPanel
+                desktopBridgeAvailable={desktopBridgeAvailable}
+                engineBusy={engineBusy}
+                engineLaunch={engineLaunch}
+                versionCheckDraft={versionCheckDraft}
+                appPreferences={appPreferences}
+                settingsBindKey={settingsBindKey}
+                settingsBindCommand={settingsBindCommand}
+                consoleCommandState={consoleCommandState}
+                packetFilters={packetFilters}
+                multiAccountFile={multiAccountFile}
+                multiAccountCount={multiAccountCount}
+                multiAccountConcurrency={multiAccountConcurrency}
+                multiAccountKeyEnv={multiAccountKeyEnv}
+                multiAccountSummonTarget={multiAccountSummonTarget}
+                multiAccountLoadMode={multiAccountLoadMode}
+                onUpdateEngineLaunchSettings={(patch, message) => void updateEngineLaunchSettings(patch, message)}
+                onSetVersionCheckDraft={setVersionCheckDraft}
+                onApplyVersionCheckBuild={applyVersionCheckBuild}
+                onUpdateHardwareAccelerationPreference={(enabled) => void updateHardwareAccelerationPreference(enabled)}
+                onSetSettingsBindKey={setSettingsBindKey}
+                onSetSettingsBindCommand={setSettingsBindCommand}
+                onRunMultiAccountCommand={(cmd) => void runMultiAccountCommand(cmd)}
+                onSetPacketFilters={setPacketFilters as any}
+                onUpdateAppPreferencePatch={(patch, message) => void updateAppPreferencePatch(patch, message)}
+                onSetMultiAccountFile={setMultiAccountFile}
+                onSetMultiAccountCount={setMultiAccountCount}
+                onSetMultiAccountConcurrency={setMultiAccountConcurrency}
+                onSetMultiAccountKeyEnv={setMultiAccountKeyEnv}
+                onSetMultiAccountSummonTarget={setMultiAccountSummonTarget}
+                onSetMultiAccountLoadMode={setMultiAccountLoadMode}
+                onSaveSessionDefaultPreferences={() => void saveSessionDefaultPreferences()}
+              />
             ) : null}
 
             {selectedPlugin.origin === "user" ? (
-              <div className="runtime-panel user-plugin-panel">
-                <div className="mini-section">
-                  <h3>{selectedPlugin.name}</h3>
-                  <p className="runtime-message">{selectedPlugin.summary}</p>
-                  <div className="kv-grid">
-                    <span>Status</span>
-                    <strong>{statusLabel(selectedPlugin.status)}</strong>
-                    <span>Version</span>
-                    <strong>{compactValue(selectedPlugin.version)}</strong>
-                    <span>Author</span>
-                    <strong>{compactValue(selectedPlugin.author)}</strong>
-                    <span>Category</span>
-                    <strong>{labelCase(selectedPlugin.category)}</strong>
-                    <span>Entry</span>
-                    <strong>{compactValue(selectedPlugin.entry ? selectedPlugin.entry.split(/[\\/]/).pop() : null)}</strong>
-                    <span>Surfaces</span>
-                    <strong>{compactValue(selectedPlugin.uiSurfaces.length)}</strong>
-                  </div>
-                </div>
-
-                <div className="mini-section">
-                  <h3>Permissions</h3>
-                  <div className="chip-list permission-chip-list">
-                    {(selectedPlugin.permissions ?? []).map((permission) => (
-                      <span key={permission}>{permissionLabel(permission)}</span>
-                    ))}
-                    {(selectedPlugin.permissions ?? []).length === 0 ? <span>No permissions</span> : null}
-                  </div>
-                </div>
-
-                <div className="mini-section">
-                  <h3>Surfaces</h3>
-                  <div className="mini-table">
-                    {selectedPlugin.uiSurfaces.map((surface) => (
-                      <p key={surface.id}>
-                        <span>{surface.label}</span>
-                        <strong>{labelCase(surface.kind)} / {(pluginSurfaceEnabledByPluginId[selectedPlugin.id]?.[surface.id] ?? surface.enabledByDefault) ? "Enabled" : "Disabled"}</strong>
-                      </p>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mini-section">
-                  <h3>Files</h3>
-                  <div className="runtime-actions">
-                    <button className="wide-action" type="button" disabled={!desktopBridgeAvailable} onClick={() => void openPluginsFolder()}>
-                      <FolderInput size={14} />
-                      Open Plugins Folder
-                    </button>
-                    <button className="wide-action" type="button" disabled={!desktopBridgeAvailable} onClick={() => void reloadPlugins()}>
-                      <RefreshCw size={14} />
-                      Reload Plugin List
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <UserPluginPanel
+                selectedPlugin={selectedPlugin}
+                pluginSurfaceEnabledByPluginId={pluginSurfaceEnabledByPluginId}
+                desktopBridgeAvailable={desktopBridgeAvailable}
+                onOpenPluginsFolder={() => void openPluginsFolder()}
+                onReloadPlugins={() => void reloadPlugins()}
+              />
             ) : null}
 
             {selectedPlugin.id === "multi-account" ? (
-              <div className="runtime-panel multi-account-panel">
-                <div className="mini-section">
-                  <h3>Sessions</h3>
-                  <div className="kv-grid">
-                    <span>Selected</span>
-                    <strong>client{selectedClientId} / {compactValue(selectedClientSession?.label)}</strong>
-                    <span>Main</span>
-                    <strong>{mainClientSession ? `client${mainClientSession.id} / ${mainClientSession.label}` : `client${clientSessions?.mainClientId ?? 1}`}</strong>
-                    <span>Running</span>
-                    <strong>{compactValue((clientSessions?.sessions ?? []).filter((session) => session.status === "running").length)}</strong>
-                    <span>Headless</span>
-                    <strong>{compactValue((clientSessions?.sessions ?? []).filter((session) => session.headless).length)}</strong>
-                  </div>
-                  <div className="multi-session-list" aria-label="Multi account sessions">
-                    {(clientSessions?.sessions ?? []).map((session) => (
-                      <div
-                        key={session.id}
-                        className={`multi-session-row ${session.selected ? "active" : ""} ${session.main ? "main" : ""}`}
-                      >
-                        <button
-                          className="multi-session-select"
-                          type="button"
-                          onClick={() => void selectClientSession(session.id)}
-                          title={clientSessionTitle(session)}
-                        >
-                          <span>client{session.id}</span>
-                          <strong>{session.label}</strong>
-                          <small>{session.username || "-"} / {session.roomName || "-"}</small>
-                          <em>{session.headless ? "headless" : "visible"} {session.main ? "/ main" : ""}</em>
-                        </button>
-                        <button
-                          className="multi-session-close"
-                          type="button"
-                          disabled={!desktopBridgeAvailable || session.id === 1}
-                          onClick={() => void runMultiAccountCommand(`close ${session.id}`)}
-                          title={session.id === 1 ? "Use Stop for client1" : `Close client${session.id}`}
-                          aria-label={`Close client ${session.id}`}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="runtime-actions multi-account-actions">
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable}
-                      onClick={() => void refreshClientSessions().then(() => refreshMimicState())}
-                    >
-                      Refresh
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable}
-                      onClick={() => void runMultiAccountCommand("newclient")}
-                    >
-                      New Visible
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable}
-                      onClick={() => void runMultiAccountCommand(`main ${selectedClientId}`)}
-                    >
-                      Set Main
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mini-section">
-                  <h3>Load Accounts</h3>
-                  <label className="field-stack">
-                    <span>Account File</span>
-                    <input value={multiAccountFile} onChange={(event) => setMultiAccountFile(event.currentTarget.value)} />
-                  </label>
-                  <div className="inline-field-grid">
-                    <label className="field-stack">
-                      <span>Count</span>
-                      <input value={multiAccountCount} onChange={(event) => setMultiAccountCount(event.currentTarget.value.replace(/[^\d]/g, ""))} />
-                    </label>
-                    <label className="field-stack">
-                      <span>Concurrency</span>
-                      <input value={multiAccountConcurrency} onChange={(event) => setMultiAccountConcurrency(event.currentTarget.value.replace(/[^\d]/g, ""))} />
-                    </label>
-                  </div>
-                  <label className="field-stack">
-                    <span>Key Env</span>
-                    <input value={multiAccountKeyEnv} onChange={(event) => setMultiAccountKeyEnv(event.currentTarget.value)} />
-                  </label>
-                  <div className="runtime-actions multi-account-actions">
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable || !multiAccountFile.trim()}
-                      onClick={() =>
-                        void runMultiAccountCommand(
-                          `load ${commandArg(multiAccountFile.trim())} ${clampMultiAccountCount(multiAccountCount)} --headless --concurrency ${clampMultiAccountConcurrency(multiAccountConcurrency)}`,
-                        )
-                      }
-                    >
-                      Load Headless
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable || !multiAccountFile.trim()}
-                      onClick={() =>
-                        void runMultiAccountCommand(
-                          `load ${commandArg(multiAccountFile.trim())} ${clampMultiAccountCount(multiAccountCount)} --concurrency ${clampMultiAccountConcurrency(multiAccountConcurrency)}`,
-                        )
-                      }
-                    >
-                      Load Visible
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable || !multiAccountFile.trim() || !multiAccountKeyEnv.trim()}
-                      onClick={() =>
-                        void runMultiAccountCommand(
-                          `accounts import ${commandArg(multiAccountFile.trim())} --key-env ${multiAccountKeyEnv.trim()}`,
-                        )
-                      }
-                    >
-                      Import Store
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable || !multiAccountKeyEnv.trim()}
-                      onClick={() =>
-                        void runMultiAccountCommand(
-                          `accounts load ${clampMultiAccountCount(multiAccountCount)} --headless --key-env ${multiAccountKeyEnv.trim()} --concurrency ${clampMultiAccountConcurrency(multiAccountConcurrency)}`,
-                        )
-                      }
-                    >
-                      Store Headless
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable || !multiAccountKeyEnv.trim()}
-                      onClick={() =>
-                        void runMultiAccountCommand(
-                          `accounts load ${clampMultiAccountCount(multiAccountCount)} --key-env ${multiAccountKeyEnv.trim()} --concurrency ${clampMultiAccountConcurrency(multiAccountConcurrency)}`,
-                        )
-                      }
-                    >
-                      Store Visible
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable}
-                      onClick={() => void runMultiAccountCommand("list")}
-                    >
-                      List
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mini-section">
-                  <h3>Summon</h3>
-                  <label className="field-stack">
-                    <span>Target</span>
-                    <input value={multiAccountSummonTarget} onChange={(event) => setMultiAccountSummonTarget(event.currentTarget.value)} />
-                  </label>
-                  <div className="runtime-actions multi-account-actions">
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable || !multiAccountSummonTarget.trim()}
-                      onClick={() => void runMultiAccountCommand(`summon ${commandArg(multiAccountSummonTarget.trim())}`)}
-                    >
-                      Summon
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable || !multiAccountSummonTarget.trim()}
-                      onClick={() => void runMultiAccountCommand(`summon ${commandArg(multiAccountSummonTarget.trim())} --room`)}
-                    >
-                      Enter Room
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable}
-                      onClick={() => void runMultiAccountCommand("summon headless")}
-                    >
-                      Summon Headless
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable}
-                      onClick={() => void runMultiAccountCommand("summon all")}
-                    >
-                      Summon All
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mini-section">
-                  <h3>Mimic</h3>
-                  <div className="kv-grid">
-                    <span>State</span>
-                    <strong>{mimicState?.enabled ? "On" : "Off"}</strong>
-                    <span>Mimic From</span>
-                    <strong>{mimicSourceSession ? `client${mimicSourceSession.id} / ${mimicSourceSession.label}` : `client${mimicState?.sourceClientId ?? 1}`}</strong>
-                    <span>Targets</span>
-                    <strong>{mimicTargetSessions.length > 0 ? mimicTargetSessions.map((session) => `client${session.id}`).join(", ") : "-"}</strong>
-                    <span>Forwarded</span>
-                    <strong>{compactValue(mimicState?.forwardedCount)}</strong>
-                  </div>
-                  <div className="runtime-actions multi-account-actions">
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable}
-                      onClick={() => void runMultiAccountCommand(`mimic on --source ${mainMimicSourceId}`)}
-                    >
-                      Enable From Main
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable}
-                      onClick={() => void runMultiAccountCommand("mimic off")}
-                    >
-                      Disable
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable}
-                      onClick={() => void runMultiAccountCommand(`mimic source ${selectedClientId}`)}
-                    >
-                      Use Selected
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable}
-                      onClick={() => void runMultiAccountCommand("mimic status")}
-                    >
-                      Status
-                    </button>
-                  </div>
-                  {mimicCategoryOptions.map((option) => {
-                    const checked = mimicState?.categories[option.id] !== false;
-                    return (
-                      <label className="toggle-row checkbox-first-row" key={option.id}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          disabled={!desktopBridgeAvailable}
-                          onChange={(event) => void runMultiAccountCommand(`mimic set ${option.id} ${event.currentTarget.checked ? "on" : "off"}`)}
-                        />
-                        <span>
-                          <strong>{option.label}</strong>
-                          <small>{option.detail}</small>
-                        </span>
-                      </label>
-                    );
-                  })}
-                  {mimicState?.lastError ? <p className="runtime-message">{mimicState.lastError}</p> : null}
-                </div>
-
-                {multiAccountMessage ? <pre className="multi-account-output">{multiAccountMessage}</pre> : null}
-              </div>
+              <MultiAccountPanel
+                desktopBridgeAvailable={desktopBridgeAvailable}
+                selectedClientId={selectedClientId}
+                selectedClientSession={selectedClientSession}
+                clientSessions={clientSessions}
+                mainClientSession={mainClientSession}
+                multiAccountFile={multiAccountFile}
+                multiAccountCount={multiAccountCount}
+                multiAccountConcurrency={multiAccountConcurrency}
+                multiAccountKeyEnv={multiAccountKeyEnv}
+                multiAccountSummonTarget={multiAccountSummonTarget}
+                mimicState={mimicState}
+                mimicSourceSession={mimicSourceSession}
+                mimicTargetSessions={mimicTargetSessions}
+                mainMimicSourceId={mainMimicSourceId}
+                multiAccountMessage={multiAccountMessage}
+                onSelectClientSession={(id) => void selectClientSession(id)}
+                onRunMultiAccountCommand={(cmd) => void runMultiAccountCommand(cmd)}
+                onRefreshClientSessions={refreshClientSessions}
+                onRefreshMimicState={refreshMimicState}
+                onSetMultiAccountFile={setMultiAccountFile}
+                onSetMultiAccountCount={setMultiAccountCount}
+                onSetMultiAccountConcurrency={setMultiAccountConcurrency}
+                onSetMultiAccountKeyEnv={setMultiAccountKeyEnv}
+                onSetMultiAccountSummonTarget={setMultiAccountSummonTarget}
+              />
             ) : null}
 
             {selectedPlugin.id === "info" ? (
-              <div className="runtime-panel">
-                <button
-                  className="wide-action"
-                  type="button"
-                  onClick={() => void refreshRuntimeSnapshot()}
-                  disabled={!engineUrl || runtimeBusy}
-                >
-                  <RefreshCw size={14} />
-                  <span>Read Info</span>
-                </button>
-                <div className="kv-grid">
-                  <span>Name</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.userState?.sessionUserName)}</strong>
-                  <span>Account ID</span>
-                  <strong>{compactValue(selectedUser?.accountId)}</strong>
-                  <span>Badge</span>
-                  <strong>{packetInfoState.activeBadgeCode !== "-" ? packetInfoState.activeBadgeCode : compactValue(selectedUser?.badgeCode)}</strong>
-                  <span>Room</span>
-                  <strong>{runtimeRoomName(selectedRuntimeSnapshot)} [{runtimeRoomId(selectedRuntimeSnapshot)}]</strong>
-                  <span>Owner</span>
-                  <strong>{runtimeRoomOwner(selectedRuntimeSnapshot)}</strong>
-                  <span>Layout</span>
-                  <strong>{compactValue(runtimeRoomProp(selectedRuntimeSnapshot, "#layout") ?? runtimeRoomProp(selectedRuntimeSnapshot, "layout"))}</strong>
-                  <span>Inventory</span>
-                  <strong>{compactValue(inventoryTotalCount)}</strong>
-                  <span>Rights</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.userState?.rightsCount)}</strong>
-                  <span>Friends</span>
-                  <strong>{compactValue(packetInfoState.friends.length)}</strong>
-                  <span>Badges</span>
-                  <strong>{compactValue(packetInfoState.badges.length)}</strong>
-                  <span>Effects</span>
-                  <strong>{compactValue(packetInfoState.statusEffects.length)}</strong>
-                  <span>Prefs</span>
-                  <strong>{compactValue(packetInfoState.preferences.length)}</strong>
-                  <span>Requests</span>
-                  <strong>{compactValue(socialRequestCount)}</strong>
-                  <span>Messages</span>
-                  <strong>{compactValue(socialMessageCount)}</strong>
-                </div>
-                <div className="mini-section">
-                  <h3>Rights</h3>
-                  <div className="chip-list">
-                    {(selectedRuntimeSnapshot?.userState?.rights ?? []).slice(0, 18).map((right) => (
-                      <span key={right}>{right}</span>
-                    ))}
-                    {(selectedRuntimeSnapshot?.userState?.rights.length ?? 0) === 0 ? <span>none</span> : null}
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Badges</h3>
-                  <div className="chip-list">
-                    {packetInfoState.badges.slice(0, 24).map((badge) => (
-                      <span key={badge}>{badge}</span>
-                    ))}
-                    {packetInfoState.badges.length === 0 ? <span>none</span> : null}
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Preferences</h3>
-                  <div className="mini-table">
-                    {packetInfoState.preferences.slice(0, 12).map((preference, index) => (
-                      <p key={`${index}:${preference}`}>
-                        <span>{index + 1}</span>
-                        <strong>{preference}</strong>
-                      </p>
-                    ))}
-                    {packetInfoState.preferences.length === 0 ? (
-                      <p>
-                        <span>Prefs</span>
-                        <strong>-</strong>
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Effects</h3>
-                  <div className="mini-table">
-                    {packetInfoState.statusEffects.slice(0, 12).map((effect) => (
-                      <p key={`${effect.name}:${effect.value}`}>
-                        <span>{effect.value}</span>
-                        <strong>{effect.name}</strong>
-                      </p>
-                    ))}
-                    {packetInfoState.statusEffects.length === 0 ? (
-                      <p>
-                        <span>Effects</span>
-                        <strong>-</strong>
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Public User Lookup</h3>
-                  <form
-                    className="runtime-input-row"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      void lookupPublicUser();
-                    }}
-                  >
-                    <input
-                      value={publicLookupName}
-                      onChange={(event) => setPublicLookupName(event.currentTarget.value)}
-                      placeholder={selectedUserName && selectedUserName !== "-" ? selectedUserName : "Habbo name"}
-                      aria-label="Origins public user lookup name"
-                    />
-                    <button type="submit" disabled={publicLookupBusy}>
-                      Lookup
-                    </button>
-                  </form>
-                  <div className="kv-grid">
-                    <span>Name</span>
-                    <strong>{compactValue(publicLookupResult?.name)}</strong>
-                    <span>ID</span>
-                    <strong>{compactValue(publicLookupResult?.id)}</strong>
-                    <span>Motto</span>
-                    <strong>{compactValue(publicLookupResult?.motto)}</strong>
-                    <span>Figure</span>
-                    <strong>{compactValue(publicLookupResult?.figureString)}</strong>
-                    <span>Created</span>
-                    <strong>{compactValue(publicLookupResult?.memberSince)}</strong>
-                    <span>Visible</span>
-                    <strong>{compactValue(publicLookupResult?.profileVisible)}</strong>
-                  </div>
-                  {publicLookupResult ? <p className="runtime-message">{publicLookupResult.message}</p> : null}
-                  {(publicLookupResult?.selectedBadges.length ?? 0) > 0 ? (
-                    <div className="chip-list">
-                      {publicLookupResult?.selectedBadges.map((badge) => <span key={badge}>{badge}</span>)}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
+              <InfoPanel
+                engineUrl={engineUrl}
+                runtimeBusy={runtimeBusy}
+                runtimeSnapshot={selectedRuntimeSnapshot}
+                packetInfoState={packetInfoState}
+                inventoryTotalCount={inventoryTotalCount}
+                socialRequestCount={socialRequestCount}
+                socialMessageCount={socialMessageCount}
+                selectedUserAccountId={compactValue(selectedUser?.accountId)}
+                selectedUserBadgeCode={compactValue(selectedUser?.badgeCode)}
+                publicLookupName={publicLookupName}
+                publicLookupBusy={publicLookupBusy}
+                publicLookupResult={publicLookupResult}
+                selectedUserName={selectedUserName}
+                onRead={() => void refreshRuntimeSnapshot()}
+                onLookupPublicUser={() => void lookupPublicUser()}
+                onSetPublicLookupName={setPublicLookupName}
+              />
             ) : null}
 
             {selectedPlugin.id === "room" ? (
-              <div className="runtime-panel">
-                <div className="runtime-actions">
-                  <button
-                    className="wide-action"
-                    type="button"
-                    onClick={() => void refreshRuntimeSnapshot()}
-                    disabled={!engineUrl || runtimeBusy}
-                  >
-                    <RefreshCw size={14} />
-                    <span>Read Live Room</span>
-                  </button>
-                  <button
-                    className="wide-action"
-                    type="button"
-                    onClick={() => void runRuntimeAction({ kind: "showHotelView" })}
-                    disabled={!engineUrl || runtimeBusy}
-                  >
-                    Hotel View
-                  </button>
-                  <button
-                    className="wide-action"
-                    type="button"
-                    onClick={() => void runRuntimeAction({ kind: "openNavigator", view: "nav_pr" })}
-                    disabled={!engineUrl || runtimeBusy}
-                  >
-                    Public Navigator
-                  </button>
-                </div>
-                <form
-                  className="runtime-input-row"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void runRuntimeAction({ kind: "enterPrivateRoom", flatId: privateRoomId });
-                  }}
-                >
-                  <input
-                    value={privateRoomId}
-                    onChange={(event) => setPrivateRoomId(event.currentTarget.value)}
-                    placeholder="Flat id"
-                    aria-label="Private room flat id"
-                  />
-                  <button type="submit" disabled={!engineUrl || runtimeBusy}>
-                    Enter
-                  </button>
-                </form>
-                <form
-                  className="runtime-input-row"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void runRuntimeAction({ kind: "enterPublicRoom", query: publicRoomQuery });
-                  }}
-                >
-                  <input
-                    value={publicRoomQuery}
-                    onChange={(event) => setPublicRoomQuery(event.currentTarget.value)}
-                    placeholder="Public room name, id, unit, or port"
-                    aria-label="Public room query"
-                  />
-                  <button type="submit" disabled={!engineUrl || runtimeBusy}>
-                    Enter
-                  </button>
-                </form>
-                <form
-                  className="runtime-input-row"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void runRuntimeAction({ kind: "stageClick", x: Number(roomStageClickX), y: Number(roomStageClickY) });
-                  }}
-                >
-                  <input
-                    value={roomStageClickX}
-                    onChange={(event) => setRoomStageClickX(event.currentTarget.value)}
-                    placeholder="Stage x"
-                    aria-label="Walk stage x"
-                  />
-                  <input
-                    value={roomStageClickY}
-                    onChange={(event) => setRoomStageClickY(event.currentTarget.value)}
-                    placeholder="Stage y"
-                    aria-label="Walk stage y"
-                  />
-                  <button type="submit" disabled={!engineUrl || runtimeBusy}>
-                    Walk
-                  </button>
-                </form>
-                <div className="kv-grid">
-                  <span>View</span>
-                  <strong>{runtimeLocation(selectedRuntimeSnapshot)}</strong>
-                  <span>Room ID</span>
-                  <strong>{runtimeRoomId(selectedRuntimeSnapshot)}</strong>
-                  <span>Owner</span>
-                  <strong>{runtimeRoomOwner(selectedRuntimeSnapshot)}</strong>
-                  <span>Room Type</span>
-                  <strong>{runtimeRoomType(selectedRuntimeSnapshot)}</strong>
-                  <span>Ready</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.roomReady?.ready ?? selectedRuntimeSnapshot?.roomEntryState?.roomReady?.ready)}</strong>
-                  <span>Entry</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.roomEntryState?.entryState?.state)}</strong>
-                  <span>Layout</span>
-                  <strong>{compactValue(runtimeRoomProp(selectedRuntimeSnapshot, "#layout") ?? runtimeRoomProp(selectedRuntimeSnapshot, "layout"))}</strong>
-                  <span>Users</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.roomObjects?.counts.users)}</strong>
-                  <span>Floor Objects</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.roomObjects?.counts.activeObjects)}</strong>
-                  <span>Wall Items</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.roomObjects?.counts.wallItems)}</strong>
-                </div>
-                <div className="mini-section">
-                  <h3>Recent Room Objects</h3>
-                  <div className="mini-table">
-                    {(selectedRuntimeSnapshot?.roomObjects?.activeObjects ?? []).slice(0, 6).map((entry, index) => (
-                      <p key={`${entry.objectId ?? entry.id ?? index}`}>
-                        <span>{compactValue(entry.objectId ?? entry.id ?? index)}</span>
-                        <strong>{objectTitle(entry)}</strong>
-                      </p>
-                    ))}
-                    {(selectedRuntimeSnapshot?.roomObjects?.activeObjects.length ?? 0) === 0 ? <p>No active room objects yet.</p> : null}
-                  </div>
-                </div>
-                {runtimeMessage ? <p className="runtime-message">{runtimeMessage}</p> : null}
-              </div>
+              <RoomPanel
+                engineUrl={engineUrl}
+                runtimeBusy={runtimeBusy}
+                runtimeSnapshot={selectedRuntimeSnapshot}
+                privateRoomId={privateRoomId}
+                publicRoomQuery={publicRoomQuery}
+                roomStageClickX={roomStageClickX}
+                roomStageClickY={roomStageClickY}
+                runtimeMessage={runtimeMessage}
+                onRead={() => void refreshRuntimeSnapshot()}
+                onShowHotelView={() => void runRuntimeAction({ kind: "showHotelView" })}
+                onOpenNavigator={() => void runRuntimeAction({ kind: "openNavigator", view: "nav_pr" })}
+                onSetPrivateRoomId={setPrivateRoomId}
+                onEnterPrivateRoom={(flatId) => void runRuntimeAction({ kind: "enterPrivateRoom", flatId })}
+                onSetPublicRoomQuery={setPublicRoomQuery}
+                onEnterPublicRoom={(query) => void runRuntimeAction({ kind: "enterPublicRoom", query })}
+                onSetStageClickX={setRoomStageClickX}
+                onSetStageClickY={setRoomStageClickY}
+                onWalk={(x, y) => void runRuntimeAction({ kind: "stageClick", x, y })}
+              />
             ) : null}
 
             {selectedPlugin.id === "user" ? (
-              <div className="runtime-panel">
-                <div className="user-select-row">
-                  <select
-                    value={selectedUser?.rowId ?? ""}
-                    onChange={(event) => setSelectedUserKey(event.currentTarget.value)}
-                    disabled={userRows.length === 0}
-                    aria-label="Room user"
-                  >
-                    {userRows.length > 0 ? (
-                      userRows.map((user) => (
-                        <option key={user.rowId} value={user.rowId}>
-                          {userDisplayName(user, selectedRuntimeSnapshot?.userState?.sessionUserName)} ({user.rowId})
-                        </option>
-                      ))
-                    ) : (
-                      <option value="">No room users</option>
-                    )}
-                  </select>
-                  <button
-                    type="button"
-                    disabled={!engineUrl || runtimeBusy}
-                    onClick={() => void refreshRuntimeSnapshot()}
-                    aria-label="Refresh user state"
-                    title="Refresh user state"
-                  >
-                    <RefreshCw size={13} />
-                  </button>
-                </div>
-                <div className="kv-grid">
-                  <span>Session User</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.userState?.sessionUserName)}</strong>
-                  <span>Room Users</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.userState?.roomUserCount ?? selectedRuntimeSnapshot?.roomObjects?.counts.users)}</strong>
-                  <span>Room</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.userState?.roomName ?? runtimeRoomName(selectedRuntimeSnapshot))}</strong>
-                  <span>Owner</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.userState?.roomOwner ?? runtimeRoomOwner(selectedRuntimeSnapshot))}</strong>
-                  <span>Rights</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.userState?.rightsCount)}</strong>
-                </div>
-                <div className="mini-section">
-                  <h3>Profile</h3>
-                  <div className="mini-table user-detail-table">
-                    <p>
-                      <span>Name</span>
-                      <strong>{selectedUserName}</strong>
-                  </p>
-                  <p>
-                    <span>Account</span>
-                      <strong>{selectedUserAccountId}</strong>
-                  </p>
-                  <p>
-                    <span>Index</span>
-                      <strong>{selectedUserIndex}</strong>
-                  </p>
-                  <p>
-                    <span>Gender</span>
-                      <strong>{selectedUserGender}</strong>
-                  </p>
-                  <p>
-                    <span>Type</span>
-                      <strong>{selectedUserType}</strong>
-                  </p>
-                  <p>
-                    <span>Badge</span>
-                      <strong>{selectedUserBadgeCode}</strong>
-                  </p>
-                  <p>
-                    <span>Motto</span>
-                      <strong>{selectedUserMotto}</strong>
-                  </p>
-                </div>
-              </div>
-                <div className="mini-section">
-                  <h3>State</h3>
-                  <div className="mini-table user-detail-table">
-                    <p>
-                      <span>Position</span>
-                      <strong>{selectedUserPosition}</strong>
-                    </p>
-                    <p>
-                      <span>Direction</span>
-                      <strong>{compactValue(selectedUser?.direction)}</strong>
-                    </p>
-                    <p>
-                      <span>Activity</span>
-                      <strong>{compactValue(selectedUser?.activity)}</strong>
-                    </p>
-                    <p>
-                      <span>Typing</span>
-                      <strong>{compactValue(selectedUser?.typing)}</strong>
-                    </p>
-                    <p>
-                      <span>Expression</span>
-                      <strong>{compactValue(selectedUser?.expression)}</strong>
-                    </p>
-                    <p>
-                      <span>Last Said</span>
-                      <strong>{compactValue(selectedUser?.lastSaid)}</strong>
-                    </p>
-                    <p>
-                      <span>Last Action</span>
-                      <strong>{compactValue(selectedUser?.lastAction)}</strong>
-                    </p>
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Appearance</h3>
-                  <div className="mini-table user-detail-table">
-                    <p>
-                      <span>Figure</span>
-                      <strong>{selectedUserFigure}</strong>
-                    </p>
-                    <p>
-                      <span>PH Figure</span>
-                      <strong>{selectedUserPoolFigure}</strong>
-                    </p>
-                    <p>
-                      <span>Sprites</span>
-                      <strong>{compactValue(selectedUser?.spriteCount)}</strong>
-                    </p>
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Profile Tools</h3>
-                  {userToolMessage ? <p className="runtime-message">{userToolMessage}</p> : null}
-                  <div className="runtime-actions user-tool-actions">
-                    <button className="wide-action" type="button" disabled={!selectedUser} onClick={() => void copyUserValue("name", selectedUserName)}>
-                      <Copy size={12} /> Name
-                    </button>
-                    <button className="wide-action" type="button" disabled={!selectedUser} onClick={() => void copySelectedUserProfile()}>
-                      <Copy size={12} /> Profile
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!selectedUser || selectedUserMotto === "-"}
-                      onClick={() => void copyUserValue("motto", selectedUserMotto)}
-                    >
-                      <Copy size={12} /> Motto
-                    </button>
-                    <button className="wide-action" type="button" disabled={!selectedUser || selectedUserFigure === "-"} onClick={() => void copyUserValue("figure", selectedUserFigure)}>
-                      <Copy size={12} /> Figure
-                    </button>
-                    <button className="wide-action" type="button" disabled={!selectedUser || selectedUserFigure === "-"} onClick={storeSelectedUserLook}>
-                      <FolderInput size={12} /> Store Look
-                    </button>
-                    <button className="wide-action" type="button" disabled={!activeStoredUserLook} onClick={() => void copyStoredUserLook()}>
-                      <Copy size={12} /> Stored
-                    </button>
-                  </div>
-                  <div className="user-stored-look-row">
-                    <select
-                      value={activeStoredUserLook}
-                      onChange={(event) => setSelectedStoredUserLook(event.currentTarget.value)}
-                      disabled={userStoredLooks.length === 0}
-                      aria-label="Stored user look"
-                    >
-                      {userStoredLooks.length > 0 ? (
-                        userStoredLooks.map((look) => (
-                          <option key={look} value={look}>
-                            {look}
-                          </option>
-                        ))
-                      ) : (
-                        <option value="">No stored parsed looks</option>
-                      )}
-                    </select>
-                    <button type="button" title="Copy stored look" aria-label="Copy stored look" disabled={!activeStoredUserLook} onClick={() => void copyStoredUserLook()}>
-                      <Copy size={12} />
-                    </button>
-                    <button type="button" title="Clear stored looks" aria-label="Clear stored looks" disabled={userStoredLooks.length === 0} onClick={clearStoredUserLooks}>
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Room Users</h3>
-                  <div className="mini-table user-list-table">
-                    {userRows.slice(0, 12).map((user) => (
-                      <p key={user.rowId}>
-                        <span>{compactValue(user.rowId)}</span>
-                        <strong>{userDisplayName(user, selectedRuntimeSnapshot?.userState?.sessionUserName)} / {userRowMeta(user, selectedRuntimeSnapshot?.userState?.sessionUserName)}</strong>
-                      </p>
-                    ))}
-                    {userRows.length === 0 ? (
-                      <p>No room users are available until a room session is active.</p>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Session Rights</h3>
-                  <div className="chip-list">
-                    {(selectedRuntimeSnapshot?.userState?.rights ?? []).slice(0, 14).map((right) => (
-                      <span key={right}>{right}</span>
-                    ))}
-                    {(selectedRuntimeSnapshot?.userState?.rights.length ?? 0) === 0 ? <span>none</span> : null}
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Actions</h3>
-                  <div className="runtime-actions user-tool-actions user-action-blocks">
-                    <button
-                      className="wide-action"
-                      type="button"
-                      onClick={() => void sendUserAction({ action: "wave" }, "Wave")}
-                      disabled={!engineUrl || runtimeBusy}
-                    >
-                      Wave
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      onClick={() => void sendUserAction({ action: "dance", number: 1 }, "Dance")}
-                      disabled={!engineUrl || runtimeBusy}
-                    >
-                      Dance 1
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      onClick={() => void sendUserAction({ action: "dance", number: 2 }, "Dance 2")}
-                      disabled={!engineUrl || runtimeBusy}
-                    >
-                      Dance 2
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      onClick={() => void sendUserAction({ action: "dance", number: 3 }, "Dance 3")}
-                      disabled={!engineUrl || runtimeBusy}
-                    >
-                      Dance 3
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      onClick={() => void sendUserAction({ action: "dance", number: 4 }, "Dance 4")}
-                      disabled={!engineUrl || runtimeBusy}
-                    >
-                      Dance 4
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      onClick={() => void sendUserAction({ action: "stopDance" }, "Stop Dance")}
-                      disabled={!engineUrl || runtimeBusy}
-                    >
-                      Stop Dance
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      onClick={() => void sendUserAction({ action: "hcdance", number: 2 }, "HC Dance")}
-                      disabled={!engineUrl || runtimeBusy}
-                    >
-                      HC Dance
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      onClick={() => void sendUserAction({ action: "carryDrink" }, "Carry Drink")}
-                      disabled={!engineUrl || runtimeBusy}
-                    >
-                      Carry Drink
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      onClick={() => void sendUserAction({ action: "applyLook", figure: selectedUserFigure }, "Apply Look")}
-                      disabled={!engineUrl || runtimeBusy || selectedUserFigure === "-"}
-                    >
-                      Apply Look
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      onClick={() => void sendUserAction({ action: "applyLook", figure: activeStoredUserLook }, "Apply Stored Look")}
-                      disabled={!engineUrl || runtimeBusy || !activeStoredUserLook}
-                    >
-                      Apply Stored
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      onClick={() => {
-                        const enabled = !engineUserNameLabels;
-                        setEngineUserNameLabels(enabled);
-                        void runRuntimeAction({ kind: "setUserNameLabels", enabled });
-                      }}
-                      disabled={!engineUrl || runtimeBusy}
-                    >
-                      {engineUserNameLabels ? "Hide Names" : "Show Names"}
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <UserPanel
+                engineUrl={engineUrl}
+                runtimeBusy={runtimeBusy}
+                selectedRuntimeSnapshot={selectedRuntimeSnapshot}
+                selectedUser={selectedUser}
+                userRows={userRows}
+                selectedUserName={selectedUserName}
+                selectedUserAccountId={selectedUserAccountId}
+                selectedUserIndex={selectedUserIndex}
+                selectedUserGender={selectedUserGender}
+                selectedUserType={selectedUserType}
+                selectedUserBadgeCode={selectedUserBadgeCode}
+                selectedUserMotto={selectedUserMotto}
+                selectedUserPosition={selectedUserPosition}
+                selectedUserFigure={selectedUserFigure}
+                selectedUserPoolFigure={selectedUserPoolFigure}
+                userToolMessage={userToolMessage}
+                activeStoredUserLook={activeStoredUserLook}
+                userStoredLooks={userStoredLooks}
+                engineUserNameLabels={engineUserNameLabels}
+                onSetSelectedUserKey={setSelectedUserKey}
+                onRefresh={() => void refreshRuntimeSnapshot()}
+                onCopyUserValue={(label, value) => void copyUserValue(label, value)}
+                onCopySelectedUserProfile={() => void copySelectedUserProfile()}
+                onStoreSelectedUserLook={storeSelectedUserLook}
+                onCopyStoredUserLook={() => void copyStoredUserLook()}
+                onSetSelectedStoredUserLook={setSelectedStoredUserLook}
+                onClearStoredUserLooks={clearStoredUserLooks}
+                onSendUserAction={(action, label) => void sendUserAction(action as UserRelayAction, label)}
+                onSetEngineUserNameLabels={setEngineUserNameLabels}
+                onRunRuntimeAction={(action) => void runRuntimeAction(action as EngineRuntimeAction)}
+              />
             ) : null}
 
             {selectedPlugin.id === "items" ? (
-              <div className="runtime-panel">
-                <div className="runtime-input-row item-filter-row">
-                  <input
-                    value={itemFilter}
-                    onChange={(event) => setItemFilter(event.currentTarget.value)}
-                    placeholder="Search items"
-                    aria-label="Search items"
-                  />
-                  <button type="button" disabled={!engineUrl || runtimeBusy} onClick={() => void refreshRuntimeSnapshot()}>
-                    Read
-                  </button>
-                </div>
-                {socialMessage ? <p className="runtime-message">{socialMessage}</p> : null}
-                <div className="kv-grid">
-                  <span>Floor Active</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.roomObjects?.counts.activeObjects)}</strong>
-                  <span>Floor Passive</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.roomObjects?.counts.passiveObjects)}</strong>
-                  <span>Wall Items</span>
-                  <strong>{compactValue(itemWallCount)}</strong>
-                  <span>Filtered</span>
-                  <strong>{compactValue(filteredItemRows.length)}</strong>
-                  <span>Selected</span>
-                  <strong>{selectedItemRow ? `${selectedItemRow.label} ${compactValue(selectedItemRow.item.objectId ?? selectedItemRow.item.id)}` : "-"}</strong>
-                  <span>Catalogue</span>
-                  <strong>{compactValue(furniMetadata ? `${furniMetadata.entryCount} entries` : null)}</strong>
-                </div>
-                <div className="mini-section">
-                  <h3>Items</h3>
-                  <div className="item-list">
-                    {filteredItemRows.slice(0, 18).map((row) => (
-                      <button
-                        className={`item-row ${selectedItemRow?.key === row.key ? "active" : ""}`}
-                        key={row.key}
-                        type="button"
-                        onClick={() => setSelectedItemKey(row.key)}
-                      >
-                        <span>{row.label}</span>
-                        <div>
-                          <strong>{itemRowTitle(row, furniMetadata)}</strong>
-                          <small>{itemRowMeta(row, furniMetadata)}</small>
-                        </div>
-                      </button>
-                    ))}
-                    {filteredItemRows.length === 0 ? (
-                      <div className="item-row empty">
-                        <span>-</span>
-                        <div>
-                          <strong>{roomReady ? "No matching items" : "Waiting for room item data"}</strong>
-                          <small>{roomReady ? "No matching items." : "Enter a room to populate the item list."}</small>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Selected Detail</h3>
-                  <div className="mini-table item-detail-table">
-                    <p>
-                      <span>Type</span>
-                      <strong>{compactValue(selectedItemRow?.label)}</strong>
-                    </p>
-                    <p>
-                      <span>ID</span>
-                      <strong>{compactValue(selectedItemRow?.item.objectId ?? selectedItemRow?.item.id)}</strong>
-                    </p>
-                    <p>
-                      <span>Class</span>
-                      <strong>{compactValue(selectedItemRow?.item.className)}</strong>
-                    </p>
-                    <p>
-                      <span>Name</span>
-                      <strong>{furniDisplayName(furniMetadata, selectedItemRow?.item)}</strong>
-                    </p>
-                    <p>
-                      <span>Furni ID</span>
-                      <strong>{compactValue(selectedItemMetadata?.id)}</strong>
-                    </p>
-                    <p>
-                      <span>Category</span>
-                      <strong>{compactValue(selectedItemMetadata?.category)}</strong>
-                    </p>
-                    <p>
-                      <span>Desc</span>
-                      <strong>{compactValue(selectedItemMetadata?.description)}</strong>
-                    </p>
-                    <p>
-                      <span>XY</span>
-                      <strong>{compactValue(selectedItemRow?.item.x)}, {compactValue(selectedItemRow?.item.y)}, {compactValue(selectedItemRow?.item.z)}</strong>
-                    </p>
-                    <p>
-                      <span>Direction</span>
-                      <strong>{compactValue(selectedItemRow?.item.direction)}</strong>
-                    </p>
-                    <p>
-                      <span>Owner</span>
-                      <strong>{compactValue(selectedItemRow?.item.ownerName)}</strong>
-                    </p>
-                    <p>
-                      <span>Wall</span>
-                      <strong>{compactValue(selectedItemRow?.item.wall)}</strong>
-                    </p>
-                    <p>
-                      <span>Local</span>
-                      <strong>{compactValue(selectedItemRow?.item.local)}</strong>
-                    </p>
-                    <p>
-                      <span>Face</span>
-                      <strong>{compactValue(selectedItemRow?.item.orientation)}</strong>
-                    </p>
-                    <p>
-                      <span>Raw Loc</span>
-                      <strong>{compactValue(selectedItemRow?.item.rawLocation)}</strong>
-                    </p>
-                    <p>
-                      <span>State</span>
-                      <strong>{compactValue(selectedItemRow?.item.state)}</strong>
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <ItemsPanel
+                engineUrl={engineUrl}
+                runtimeBusy={runtimeBusy}
+                roomReady={roomReady}
+                itemFilter={itemFilter}
+                socialMessage={socialMessage}
+                activeObjectsCount={selectedRuntimeSnapshot?.roomObjects?.counts.activeObjects ?? 0}
+                passiveObjectsCount={selectedRuntimeSnapshot?.roomObjects?.counts.passiveObjects ?? 0}
+                wallCount={itemWallCount}
+                filteredCount={filteredItemRows.length}
+                selectedLabel={selectedItemRow?.label ?? "-"}
+                metadataEntryCount={furniMetadata ? furniMetadata.entryCount : null}
+                filteredItemRows={filteredItemRows}
+                selectedItemRow={selectedItemRow}
+                selectedItemMetadata={selectedItemMetadata}
+                itemTitle={(row) => itemRowTitle(row, furniMetadata)}
+                itemMeta={(row) => itemRowMeta(row, furniMetadata)}
+                itemDisplayName={(item) => furniDisplayName(furniMetadata, item)}
+                onSetFilter={setItemFilter}
+                onRead={() => void refreshRuntimeSnapshot()}
+                onSelectKey={setSelectedItemKey}
+              />
             ) : null}
 
             {selectedPlugin.id === "inventory" ? (
-              <div className="runtime-panel">
-                <button
-                  className="wide-action"
-                  type="button"
-                  disabled={!engineUrl || runtimeBusy}
-                  onClick={() => void runRuntimeAction({ kind: "requestInventory" })}
-                >
-                  Request Hand
-                </button>
-                <div className="runtime-input-row item-filter-row">
-                  <input
-                    value={inventoryFilter}
-                    onChange={(event) => setInventoryFilter(event.currentTarget.value)}
-                    placeholder="Search inventory"
-                    aria-label="Search inventory"
-                  />
-                  <button type="button" disabled={!engineUrl || runtimeBusy} onClick={() => void refreshRuntimeSnapshot(["inventory"])}>
-                    Read
-                  </button>
-                </div>
-                <div className="kv-grid">
-                  <span>Total</span>
-                  <strong>{compactValue(inventoryTotalCount)}</strong>
-                  <span>Rows</span>
-                  <strong>{compactValue(inventoryRowCount)}</strong>
-                  <span>Floor</span>
-                  <strong>{compactValue(inventoryFloorCount)}</strong>
-                  <span>Wall</span>
-                  <strong>{compactValue(inventoryWallCount)}</strong>
-                  <span>State</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.inventory?.openState)}</strong>
-                </div>
-                <div className="mini-section">
-                  <h3>Inventory Items</h3>
-                  <div className="item-list inventory-table">
-                    {filteredInventoryRows.slice(0, 24).map((row) => (
-                      <button
-                        className={`item-row ${selectedInventoryRow?.key === row.key ? "active" : ""}`}
-                        key={row.key}
-                        type="button"
-                        onClick={() => setSelectedInventoryKey(row.key)}
-                      >
-                        <span>{row.kind}</span>
-                        <div>
-                          <strong>{row.title}</strong>
-                          <small>{row.meta}</small>
-                        </div>
-                      </button>
-                    ))}
-                    {filteredInventoryRows.length === 0 ? (
-                      <button className="item-row empty" type="button" disabled>
-                        <span>Empty</span>
-                        <div>
-                          <strong>
-                            {inventoryRows.length === 0
-                              ? selectedRuntimeSnapshot?.inventory?.note ?? "Waiting for inventory packet rows."
-                              : "No inventory rows match the filter."}
-                          </strong>
-                          <small>{inventoryRows.length === 0 ? "Use Request Hand or wait for STRIPINFO_2." : "Clear the search filter."}</small>
-                        </div>
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-                {selectedInventoryRow ? (
-                  <div className="mini-section">
-                    <h3>Item Detail</h3>
-                    <div className="mini-table item-detail-table">
-                      {selectedInventoryRow.detailRows.map((row) => (
-                        <p key={row.label}>
-                          <span>{row.label}</span>
-                          <strong>{compactValue(row.value)}</strong>
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
+              <InventoryPanel
+                engineUrl={engineUrl}
+                runtimeBusy={runtimeBusy}
+                inventoryFilter={inventoryFilter}
+                inventoryTotalCount={inventoryTotalCount}
+                inventoryRowCount={inventoryRowCount}
+                inventoryFloorCount={inventoryFloorCount}
+                inventoryWallCount={inventoryWallCount}
+                inventoryOpenState={compactValue(selectedRuntimeSnapshot?.inventory?.openState)}
+                filteredInventoryRows={filteredInventoryRows}
+                selectedInventoryRow={selectedInventoryRow}
+                inventoryRowsLength={inventoryRows.length}
+                inventoryNote={selectedRuntimeSnapshot?.inventory?.note ?? null}
+                onRequestHand={() => void runRuntimeAction({ kind: "requestInventory" })}
+                onSetFilter={setInventoryFilter}
+                onRead={() => void refreshRuntimeSnapshot(["inventory"])}
+                onSelectKey={setSelectedInventoryKey}
+              />
             ) : null}
 
             {selectedPlugin.id === "social" ? (
-              <div className="runtime-panel">
-                <div className="runtime-input-row visitor-filter-row">
-                  <input
-                    value={socialFriendFilter}
-                    onChange={(event) => setSocialFriendFilter(event.currentTarget.value)}
-                    placeholder="Search friends"
-                    aria-label="Search friends"
-                  />
-                  <button type="button" disabled={!engineUrl || runtimeBusy} onClick={() => void refreshRuntimeSnapshot()}>
-                    Read
-                  </button>
-                </div>
-                <div className="kv-grid">
-                  <span>Friends</span>
-                  <strong>{compactValue(packetInfoState.friends.length)}</strong>
-                  <span>Online</span>
-                  <strong>{compactValue(onlinePacketFriends)}</strong>
-                  <span>Filtered</span>
-                  <strong>{compactValue(filteredPacketFriends.length)}</strong>
-                  <span>Badges</span>
-                  <strong>{compactValue(packetInfoState.badges.length)}</strong>
-                  <span>Active Badge</span>
-                  <strong>{compactValue(packetInfoState.activeBadgeCode)}</strong>
-                  <span>Rights</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.userState?.rightsCount)}</strong>
-                  <span>Chat Lines</span>
-                  <strong>{compactValue(sourceChatHistory.length > 0 ? sourceChatHistory.length : packetChatEntries.length)}</strong>
-                  <span>Room Users</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.userState?.roomUserCount)}</strong>
-                  <span>Friend Limit</span>
-                  <strong>{compactValue(packetInfoState.messengerUserLimit)}</strong>
-                  <span>Requests</span>
-                  <strong>{compactValue(socialRequestCount)}</strong>
-                  <span>Messages</span>
-                  <strong>{compactValue(socialMessageCount)}</strong>
-                </div>
-                <div className="mini-section">
-                  <h3>Friends</h3>
-                  <div className="mini-table">
-                    {filteredPacketFriends.slice(0, 14).map((friend) => {
-                      const accountId = packetFriendActionId(friend);
-                      return (
-                        <p className="social-row" key={packetFriendKey(friend)}>
-                          <span>{friend.online ? "On" : "Off"}</span>
-                          <strong>{packetFriendTitle(friend)} / {packetFriendMeta(friend)}</strong>
-                          <span className="social-row-actions">
-                            <button
-                              type="button"
-                              disabled={!desktopBridgeAvailable || accountId === null || !friend.canFollow}
-                              onClick={() => accountId !== null && void sendSocialAction({ action: "followFriend", accountId, name: friend.name }, `Follow friend ${friend.name}`)}
-                            >
-                              Follow
-                            </button>
-                            <button
-                              type="button"
-                              disabled={!desktopBridgeAvailable || accountId === null}
-                              onClick={() => accountId !== null && void sendSocialAction({ action: "removeFriend", accountId, name: friend.name }, `Remove friend ${friend.name}`)}
-                            >
-                              Remove
-                            </button>
-                          </span>
-                        </p>
-                      );
-                    })}
-                    {filteredPacketFriends.length === 0 ? (
-                      <p>
-                        <span>Friends</span>
-                        <strong>{packetInfoState.friends.length === 0 ? "No friend rows parsed yet." : "No friends match the filter."}</strong>
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Messages</h3>
-                  <div className="mini-table">
-                    {visiblePrivateMessages.map((message) => (
-                      <p key={message.key}>
-                        <span>{message.senderAccountId}</span>
-                        <strong>{message.sentAt} / {message.text}</strong>
-                      </p>
-                    ))}
-                    {visiblePrivateMessages.length === 0 ? (
-                      <p>
-                        <span>Messages</span>
-                        <strong>{packetInfoState.messengerMessageCount !== "-" ? `${packetInfoState.messengerMessageCount} listed, no rows decoded yet.` : "No private message rows parsed yet."}</strong>
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <div className="mini-section-title-row">
-                    <h3>Requests</h3>
-                    <button
-                      type="button"
-                      disabled={!desktopBridgeAvailable}
-                      onClick={() => void sendSocialAction({ action: "refreshFriendRequests" }, "Refresh friend requests")}
-                    >
-                      Refresh
-                    </button>
-                  </div>
-                  <div className="mini-table">
-                    {visibleFriendRequests.map((request) => {
-                      const accountId = packetFriendRequestActionId(request);
-                      return (
-                        <p className="social-row" key={request.key}>
-                          <span>{request.accountId}</span>
-                          <strong>{request.name} / request {request.requestId}</strong>
-                          <span className="social-row-actions">
-                            <button
-                              type="button"
-                              disabled={!desktopBridgeAvailable || accountId === null}
-                              onClick={() => accountId !== null && void sendSocialAction({ action: "acceptRequest", accountId }, `Accept request ${request.name}`)}
-                            >
-                              Accept
-                            </button>
-                            <button
-                              type="button"
-                              disabled={!desktopBridgeAvailable || accountId === null}
-                              onClick={() => accountId !== null && void sendSocialAction({ action: "declineRequest", accountId }, `Decline request ${request.name}`)}
-                            >
-                              Decline
-                            </button>
-                          </span>
-                        </p>
-                      );
-                    })}
-                    {visibleFriendRequests.length === 0 ? (
-                      <p>
-                        <span>Requests</span>
-                        <strong>{packetInfoState.messengerRequestCount !== "-" ? `${packetInfoState.messengerRequestCount} listed, no rows decoded yet.` : "No friend request rows parsed yet."}</strong>
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Badges</h3>
-                  <div className="chip-list">
-                    {packetInfoState.badges.slice(0, 18).map((badge) => (
-                      <span key={badge}>{badge}</span>
-                    ))}
-                    {packetInfoState.badges.length === 0 ? <span>none</span> : null}
-                  </div>
-                </div>
-              </div>
+              <SocialPanel
+                engineUrl={engineUrl}
+                runtimeBusy={runtimeBusy}
+                desktopBridgeAvailable={desktopBridgeAvailable}
+                socialFriendFilter={socialFriendFilter}
+                packetInfoState={packetInfoState}
+                onlinePacketFriends={onlinePacketFriends}
+                filteredPacketFriends={filteredPacketFriends}
+                visiblePrivateMessages={visiblePrivateMessages}
+                visibleFriendRequests={visibleFriendRequests}
+                rightsCount={selectedRuntimeSnapshot?.userState?.rightsCount ?? 0}
+                sourceChatHistoryLength={sourceChatHistory.length}
+                packetChatEntriesLength={packetChatEntries.length}
+                roomUserCount={selectedRuntimeSnapshot?.userState?.roomUserCount ?? 0}
+                socialRequestCount={socialRequestCount}
+                socialMessageCount={socialMessageCount}
+                onSetFilter={setSocialFriendFilter}
+                onRead={() => void refreshRuntimeSnapshot()}
+                onSendSocialAction={(action, label) => void sendSocialAction(action as SocialRelayAction, label)}
+              />
             ) : null}
 
             {selectedPlugin.id === "visitors" ? (
-              <div className="runtime-panel">
-                <div className="runtime-input-row visitor-filter-row">
-                  <input
-                    value={visitorFilter}
-                    onChange={(event) => setVisitorFilter(event.currentTarget.value)}
-                    placeholder="Search visitors"
-                    aria-label="Search visitors"
-                  />
-                  <button type="button" disabled={!engineUrl || runtimeBusy} onClick={() => void refreshRuntimeSnapshot()}>
-                    Read
-                  </button>
-                  <button type="button" disabled={visitorLookupBusy || filteredVisitorEntries.every((entry) => entry.accountId !== "-")} onClick={() => void lookupMissingVisitorProfiles()}>
-                    Lookup IDs
-                  </button>
-                </div>
-                <div className="kv-grid">
-                  <span>Current</span>
-                  <strong>{compactValue(visitorState.activeKeys.length)}</strong>
-                  <span>Seen</span>
-                  <strong>{compactValue(visitorEntries.length)}</strong>
-                  <span>Filtered</span>
-                  <strong>{compactValue(filteredVisitorEntries.length)}</strong>
-                  <span>Room</span>
-                  <strong>{visitorRoomName}</strong>
-                  <span>Missing IDs</span>
-                  <strong>{compactValue(missingVisitorAccountIds)}</strong>
-                  <span>Public Profiles</span>
-                  <strong>{compactValue(Object.keys(visitorPublicProfiles).length)}</strong>
-                </div>
-                {visitorLookupMessage ? <p className="runtime-message">{visitorLookupMessage}</p> : null}
-                <div className="mini-section">
-                  <h3>Visitors</h3>
-                  <div className="visitor-list">
-                    {filteredVisitorEntries.map((entry) => (
-                      <div className={`visitor-row ${entry.current ? "visitor-current" : "visitor-left"}`} key={entry.key}>
-                        <span>{entry.current ? "*" : "-"}</span>
-                        <div>
-                          <strong>{entry.name}</strong>
-                          <small>{visitorMeta(entry)}</small>
-                        </div>
-                      </div>
-                    ))}
-                    {filteredVisitorEntries.length === 0 ? (
-                      <div className="visitor-row visitor-left">
-                        <span>-</span>
-                        <div>
-                          <strong>{roomReady ? "No matching visitors" : "Waiting for room user data"}</strong>
-                          <small>{roomReady ? "No matching visitors." : "Start the embedded client and enter a room."}</small>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
+              <VisitorsPanel
+                engineUrl={engineUrl}
+                runtimeBusy={runtimeBusy}
+                visitorFilter={visitorFilter}
+                visitorLookupBusy={visitorLookupBusy}
+                visitorStateActiveKeysLength={visitorState.activeKeys.length}
+                visitorEntriesLength={visitorEntries.length}
+                filteredVisitorEntries={filteredVisitorEntries}
+                filteredVisitorEntriesLength={filteredVisitorEntries.length}
+                visitorRoomName={visitorRoomName}
+                missingVisitorAccountIds={missingVisitorAccountIds}
+                visitorPublicProfilesCount={Object.keys(visitorPublicProfiles).length}
+                visitorLookupMessage={visitorLookupMessage}
+                roomReady={roomReady}
+                onSetFilter={setVisitorFilter}
+                onRead={() => void refreshRuntimeSnapshot()}
+                onLookupIds={() => void lookupMissingVisitorProfiles()}
+              />
             ) : null}
 
             {selectedPlugin.id === "chat" ? (
-              <div className="runtime-panel">
-                <div className="chat-filter-row" aria-label="Chat filters">
-                  {(["talk", "whisper", "shout", "system"] as const).map((kind) => (
-                    <label key={kind}>
-                      <input
-                        type="checkbox"
-                        checked={chatFilters[kind]}
-                        onChange={(event) => {
-                          const checked = event.currentTarget.checked;
-                          setChatFilters((current) => ({ ...current, [kind]: checked }));
-                        }}
-                      />
-                      <span>{labelCase(kind)}</span>
-                    </label>
-                  ))}
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={chatFilters.autoscroll}
-                      onChange={(event) => {
-                        const checked = event.currentTarget.checked;
-                        setChatFilters((current) => ({ ...current, autoscroll: checked }));
-                      }}
-                    />
-                    <span>auto</span>
-                  </label>
-                </div>
-                <form
-                  className="runtime-input-row chat-send-row"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    const message = chatDraft.trim();
-                    if (!message) return;
-                    setChatDraft("");
-                    void runRuntimeAction({ kind: "sendChat", message });
-                  }}
-                >
-                  <input
-                    value={chatDraft}
-                    onChange={(event) => setChatDraft(event.currentTarget.value)}
-                    placeholder={roomReady ? "Send room chat" : "Chat available in room"}
-                    aria-label="Room chat message"
-                    disabled={!roomReady}
-                  />
-                  <button type="submit" disabled={!engineUrl || runtimeBusy || !roomReady || !chatDraft.trim()}>
-                    Send
-                  </button>
-                </form>
-                <div className="chat-list" aria-label="Room chat history" ref={chatListRef}>
-                  {visibleChatHistory.length > 0 ? (
-                    visibleChatHistory.map((entry, index) => (
-                      <div className="chat-entry" key={chatEntryKey(entry, index)}>
-                        <span>{entry.timestamp || "-"}</span>
-                        <strong>{chatEntryLabel(entry)}</strong>
-                        <p>{entry.text || ""}</p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="empty-panel-note">No chat history is available yet.</p>
-                  )}
-                </div>
-                <button className="wide-action chat-clear-action" type="button" onClick={() => setChatClearOffset(chatHistory.length)}>
-                  Clear Display
-                </button>
-                <div className="kv-grid chat-stats-grid">
-                  <span>Room Ready</span>
-                  <strong>{compactValue(roomReady)}</strong>
-                  <span>Room Messages</span>
-                  <strong>{compactValue(activeChatSourceHistory.length)}</strong>
-                  <span>Packet Rows</span>
-                  <strong>{compactValue(packetChatEntries.length)}</strong>
-                  <span>Displayed</span>
-                  <strong>{compactValue(visibleChatHistory.length)}</strong>
-                </div>
-                {runtimeMessage ? <p className="runtime-message">{runtimeMessage}</p> : null}
-              </div>
+              <ChatPanel
+                engineUrl={engineUrl}
+                runtimeBusy={runtimeBusy}
+                roomReady={roomReady}
+                chatDraft={chatDraft}
+                chatFilters={chatFilters}
+                visibleChatHistory={visibleChatHistory}
+                chatHistoryLength={chatHistory.length}
+                activeChatSourceHistoryLength={activeChatSourceHistory.length}
+                packetChatEntriesLength={packetChatEntries.length}
+                displayedCount={visibleChatHistory.length}
+                runtimeMessage={runtimeMessage}
+                chatListRef={chatListRef}
+                onSetChatDraft={setChatDraft}
+                onSetChatFilter={(kind, checked) => setChatFilters((current) => ({ ...current, [kind]: checked }))}
+                onSend={(message) => void runRuntimeAction({ kind: "sendChat", message })}
+                onClearDisplay={() => setChatClearOffset(chatHistory.length)}
+              />
             ) : null}
 
             {selectedPlugin.id === "automation" ? (
-              <div className="runtime-panel">
-                <div className="mini-section">
-                  <h3>Login Comfort</h3>
-                  <label className="toggle-row checkbox-first-row">
-                    <input
-                      type="checkbox"
-                      checked={automationPrefs.autoHideBulletin}
-                      onChange={(event) => {
-                        const checked = event.currentTarget.checked;
-                        setAutomationPrefs((current) => ({ ...current, autoHideBulletin: checked }));
-                        setAutomationMessage(checked ? "Auto-hide Bulletin is enabled." : "Auto-hide Bulletin is disabled.");
-                      }}
-                    />
-                    <span>Auto-hide Bulletin Board after login</span>
-                  </label>
-                  <div className="runtime-actions automation-actions">
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!engineUrl || runtimeBusy}
-                      onClick={() => void hideBulletinBoard("manual")}
-                    >
-                      Hide Bulletin Now
-                    </button>
-                    <button className="wide-action" type="button" disabled={!engineUrl || runtimeBusy} onClick={() => void refreshRuntimeSnapshot()}>
-                      Read Windows
-                    </button>
-                  </div>
-                  {automationMessage ? <p className="runtime-message">{automationMessage}</p> : null}
-                </div>
-                <div className="kv-grid">
-                  <span>Room Ready</span>
-                  <strong>{compactValue(roomReady)}</strong>
-                  <span>Auto Bulletin</span>
-                  <strong>{automationPrefs.autoHideBulletin ? "Enabled" : "Disabled"}</strong>
-                  <span>Visible Windows</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.windowIds.length)}</strong>
-                  <span>Users</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.roomObjects?.counts.users)}</strong>
-                  <span>Fish Areas</span>
-                  <strong>{compactValue(fishingAreaRows.length)}</strong>
-                  <span>Plants</span>
-                  <strong>{compactValue(plantRows.length)}</strong>
-                  <span>Wall Items</span>
-                  <strong>{compactValue(wallMoverRows.length)}</strong>
-                </div>
-              </div>
+              <AutomationPanel
+                engineUrl={engineUrl}
+                runtimeBusy={runtimeBusy}
+                roomReady={roomReady}
+                autoHideBulletin={automationPrefs.autoHideBulletin}
+                windowCount={selectedRuntimeSnapshot?.windowIds.length ?? 0}
+                userCount={selectedRuntimeSnapshot?.roomObjects?.counts.users ?? 0}
+                fishAreaCount={fishingAreaRows.length}
+                plantCount={plantRows.length}
+                wallItemCount={wallMoverRows.length}
+                message={automationMessage}
+                onAutoHideChange={(enabled) => {
+                  setAutomationPrefs((current) => ({ ...current, autoHideBulletin: enabled }));
+                  setAutomationMessage(enabled ? "Auto-hide Bulletin is enabled." : "Auto-hide Bulletin is disabled.");
+                }}
+                onHideBulletin={() => void hideBulletinBoard("manual")}
+                onReadWindows={() => void refreshRuntimeSnapshot()}
+              />
             ) : null}
 
             {selectedPlugin.id === "fishing" ? (
-              <div className="runtime-panel">
-                <div className="runtime-actions automation-actions">
-                  <button
-                    className="wide-action"
-                    type="button"
-                    disabled={!desktopBridgeAvailable || !roomReady || runtimeBusy || !selectedFishingAreaRow}
-                    onClick={() => void sendFishingStart()}
-                  >
-                    Start Fishing
-                  </button>
-                  <button
-                    className="wide-action"
-                    type="button"
-                    disabled={!desktopBridgeAvailable || runtimeBusy}
-                    onClick={() => void sendFishingAction({ action: "requestFishopedia" }, "Fishing request Fishopedia")}
-                  >
-                    Read Fishopedia
-                  </button>
-                  <button
-                    className="wide-action"
-                    type="button"
-                    disabled={!desktopBridgeAvailable || runtimeBusy}
-                    onClick={() => void sendFishingAction({ action: "requestTokens" }, "Fishing request tokens")}
-                  >
-                    Read Tokens
-                  </button>
-                  <button
-                    className="wide-action"
-                    type="button"
-                    disabled={!desktopBridgeAvailable || runtimeBusy}
-                    onClick={() => void sendFishingAction({ action: "registerDerby" }, "Fishing derby register")}
-                  >
-                    Register Derby
-                  </button>
-                  <button className="wide-action" type="button" disabled={!engineUrl || runtimeBusy} onClick={() => void refreshRuntimeSnapshot()}>
-                    Refresh
-                  </button>
-                </div>
-                <div className="kv-grid">
-                  <span>Room Ready</span>
-                  <strong>{compactValue(roomReady)}</strong>
-                  <span>Areas</span>
-                  <strong>{compactValue(fishingAreaRows.length)}</strong>
-                  <span>Target</span>
-                  <strong>{compactValue(selectedFishingAreaRow ? objectTitle(selectedFishingAreaRow.item) : null)}</strong>
-                  <span>Status</span>
-                  <strong>{packetFishingState.status}</strong>
-                  <span>Minigame</span>
-                  <strong>{packetFishingState.minigameActive ? "active" : "idle"}</strong>
-                  <span>Pin</span>
-                  <strong>{compactValue(packetFishingState.minigamePin)}</strong>
-                  <span>Catches</span>
-                  <strong>{compactValue(packetFishingState.catches)}</strong>
-                  <span>Golden</span>
-                  <strong>{compactValue(packetFishingState.golden)}</strong>
-                  <span>XP</span>
-                  <strong>{compactValue(packetFishingState.xp)}</strong>
-                  <span>Tokens</span>
-                  <strong>{compactValue(packetFishingState.tokens)}</strong>
-                  <span>Level</span>
-                  <strong>{compactValue(packetFishingState.level)}</strong>
-                  <span>Frenzies</span>
-                  <strong>{compactValue(packetFishingState.frenzies)}</strong>
-                  <span>Fishopedia</span>
-                  <strong>{compactValue(packetFishingState.fishopedia.length)}</strong>
-                  <span>Last Action</span>
-                  <strong>{compactValue(packetFishingState.lastClientAction)}</strong>
-                </div>
-                {fishingMessage || packetFishingState.note !== "-" ? <p className="runtime-message">{fishingMessage || packetFishingState.note}</p> : null}
-                <div className="mini-section">
-                  <h3>Catch Log</h3>
-                  <div className="mini-table">
-                    {packetFishingState.catchLog.slice(-8).reverse().map((entry) => (
-                      <p key={entry.key}>
-                        <span>{entry.golden ? "gold" : "fish"}</span>
-                        <strong>{entry.fishName} / +{entry.xp} XP / line {entry.sourceLine}</strong>
-                      </p>
-                    ))}
-                    {packetFishingState.catchLog.length === 0 ? (
-                      <p>
-                        <span>-</span>
-                        <strong>No fishing catch packets parsed yet.</strong>
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Active Fishing Areas</h3>
-                  <div className="item-list">
-                    {fishingAreaRows.slice(0, 8).map((row) => (
-                      <div className="item-row empty" key={row.key}>
-                        <span>{row.label}</span>
-                        <div>
-                          <strong>{itemRowTitle(row, furniMetadata)}</strong>
-                          <small>{itemRowMeta(row, furniMetadata)}</small>
-                        </div>
-                      </div>
-                    ))}
-                    {fishingAreaRows.length === 0 ? (
-                      <div className="item-row empty">
-                        <span>-</span>
-                        <div>
-                          <strong>No fishing areas matched</strong>
-                          <small>Enter a fishing room to populate this list.</small>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Fishopedia</h3>
-                  <div className="mini-table">
-                    {packetFishingState.fishopedia.slice(0, 10).map((entry) => (
-                      <p key={entry.key}>
-                        <span>{entry.catches !== "-" ? entry.catches : "-"}</span>
-                        <strong>
-                          {entry.fishName}
-                          {entry.xp !== "-" ? ` / ${entry.xp} XP` : ""}
-                          {entry.location !== "-" ? ` / ${entry.location}` : ""}
-                        </strong>
-                      </p>
-                    ))}
-                    {packetFishingState.fishopedia.length === 0 ? (
-                      <p>
-                        <span>-</span>
-                        <strong>No Fishopedia packets parsed yet.</strong>
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
+              <FishingPanel
+                engineUrl={engineUrl}
+                runtimeBusy={runtimeBusy}
+                desktopBridgeAvailable={desktopBridgeAvailable}
+                roomReady={roomReady}
+                fishingMessage={fishingMessage}
+                packetFishingState={packetFishingState}
+                fishingAreaRows={fishingAreaRows}
+                selectedFishingAreaRow={selectedFishingAreaRow}
+                itemTitle={(row) => itemRowTitle(row, furniMetadata)}
+                itemMeta={(row) => itemRowMeta(row, furniMetadata)}
+                onStartFishing={() => void sendFishingStart()}
+                onSendAction={(action, label) => void sendFishingAction(action as FishingRelayAction, label)}
+                onRefresh={() => void refreshRuntimeSnapshot()}
+              />
             ) : null}
 
             {selectedPlugin.id === "present-catcher" ? (
-              <div className="runtime-panel present-catcher-panel">
-                <div className="runtime-actions automation-actions">
-                  <button
-                    className="wide-action"
-                    type="button"
-                    disabled={!desktopBridgeAvailable || !roomReady || presentCatcherRunning}
-                    onClick={() => {
-                      setPresentCatcherRunning(true);
-                      setPresentCatcherMessage("Watching current room for hammers and event presents.");
-                    }}
-                  >
-                    Start
-                  </button>
-                  <button
-                    className="wide-action"
-                    type="button"
-                    disabled={!presentCatcherRunning}
-                    onClick={() => {
-                      setPresentCatcherRunning(false);
-                      setPresentCatcherMessage("Stopped.");
-                    }}
-                  >
-                    Stop
-                  </button>
-                  <button
-                    className="wide-action"
-                    type="button"
-                    disabled={!desktopBridgeAvailable || !roomReady}
-                    onClick={() => void runPresentCatcherStep(false)}
-                  >
-                    Step
-                  </button>
-                  <button className="wide-action" type="button" disabled={!engineUrl || runtimeBusy} onClick={() => void refreshRuntimeSnapshot(["core", "room", "inventory"])}>
-                    Refresh
-                  </button>
-                </div>
-                <div className="present-catcher-tab-row" role="tablist" aria-label="Present Catcher views">
-                  {(["catcher", "gifts", "fragments"] as const).map((tab) => (
-                    <button
-                      className={presentCatcherTab === tab ? "active" : ""}
-                      key={tab}
-                      type="button"
-                      onClick={() => setPresentCatcherTab(tab)}
-                    >
-                      {labelCase(tab)}
-                    </button>
-                  ))}
-                </div>
-                <div className="kv-grid">
-                  <span>Room Ready</span>
-                  <strong>{compactValue(roomReady)}</strong>
-                  <span>Room</span>
-                  <strong>{runtimeRoomName(selectedRuntimeSnapshot)}</strong>
-                  <span>Hammers</span>
-                  <strong>{compactValue(presentHammerRows.length)}</strong>
-                  <span>Presents</span>
-                  <strong>{compactValue(presentRows.length)}</strong>
-                  <span>Inventory Gifts</span>
-                  <strong>{compactValue(presentGiftRows.length)}</strong>
-                  <span>Panic Users</span>
-                  <strong>{compactValue(presentCatcherPanicNames.length)}</strong>
-                  <span>Status</span>
-                  <strong>{presentCatcherRunning ? "Running" : "Idle"}</strong>
-                  <span>Packets</span>
-                  <strong>{compactValue(presentCatcherPacketRows.length)}</strong>
-                </div>
-                {presentCatcherMessage ? <p className="runtime-message">{presentCatcherMessage}</p> : null}
-
-                {presentCatcherTab === "catcher" ? (
-                  <>
-                    <div className="mini-section">
-                      <h3>Targets</h3>
-                      <div className="item-list">
-                        {[...presentHammerRows, ...presentRows].slice(0, 12).map((row) => {
-                          const isHammer = isPresentCatcherHammerObject(row.item);
-                          return (
-                            <button
-                              className="item-row"
-                              key={row.key}
-                              type="button"
-                              disabled={!desktopBridgeAvailable || !roomReady}
-                              onClick={() => void usePresentCatcherFloorItem(row, isHammer ? "hammer" : "present")}
-                            >
-                              <span>{isHammer ? "Hammer" : "Present"}</span>
-                              <div>
-                                <strong>{itemRowTitle(row, furniMetadata)}</strong>
-                                <small>{itemRowMeta(row, furniMetadata)}</small>
-                              </div>
-                            </button>
-                          );
-                        })}
-                        {presentHammerRows.length + presentRows.length === 0 ? (
-                          <div className="item-row empty">
-                            <span>-</span>
-                            <div>
-                              <strong>No event targets parsed</strong>
-                              <small>Enter an event room with hammers or anniversary presents.</small>
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="mini-section">
-                      <h3>Panic List</h3>
-                      <form
-                        className="runtime-input-row"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          const name = presentCatcherPanicDraft.trim();
-                          if (!name) return;
-                          setPresentCatcherPanicNames((current) => [...new Set([...current, name])]);
-                          setPresentCatcherPanicDraft("");
-                        }}
-                      >
-                        <input value={presentCatcherPanicDraft} onChange={(event) => setPresentCatcherPanicDraft(event.currentTarget.value)} placeholder="Name to avoid" />
-                        <button type="submit">Add</button>
-                      </form>
-                      <div className="mini-table user-list-table">
-                        {userRows.slice(0, 10).map((user) => {
-                          const name = userDisplayName(user, selectedRuntimeSnapshot?.userState?.sessionUserName);
-                          const listed = presentCatcherPanicNames.some((entry) => entry.toLowerCase() === name.toLowerCase());
-                          return (
-                            <p key={pluginRuntimeUserKey(user, selectedRuntimeSnapshot?.userState?.sessionUserName)}>
-                              <span>{listed ? "Avoid" : "Room"}</span>
-                              <strong>
-                                {name}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (listed) setPresentCatcherPanicNames((current) => current.filter((entry) => entry.toLowerCase() !== name.toLowerCase()));
-                                    else setPresentCatcherPanicNames((current) => [...new Set([...current, name])]);
-                                  }}
-                                >
-                                  {listed ? "Remove" : "Add"}
-                                </button>
-                              </strong>
-                            </p>
-                          );
-                        })}
-                        {userRows.length === 0 ? <p>No room users parsed yet.</p> : null}
-                      </div>
-                    </div>
-                  </>
-                ) : null}
-
-                {presentCatcherTab === "gifts" ? (
-                  <>
-                    <div className="mini-section">
-                      <h3>Gift Opener</h3>
-                      <div className="inline-field-grid">
-                        <label className="field-stack">
-                          <span>Class Filter</span>
-                          <input value={presentCatcherGiftClass} onChange={(event) => setPresentCatcherGiftClass(event.currentTarget.value)} />
-                        </label>
-                        <label className="field-stack">
-                          <span>X</span>
-                          <input value={presentPlaceX} onChange={(event) => setPresentPlaceX(event.currentTarget.value.replace(/[^\d-]/g, ""))} />
-                        </label>
-                        <label className="field-stack">
-                          <span>Y</span>
-                          <input value={presentPlaceY} onChange={(event) => setPresentPlaceY(event.currentTarget.value.replace(/[^\d-]/g, ""))} />
-                        </label>
-                        <label className="field-stack">
-                          <span>Dir</span>
-                          <input value={presentPlaceDirection} onChange={(event) => setPresentPlaceDirection(event.currentTarget.value.replace(/[^\d-]/g, ""))} />
-                        </label>
-                      </div>
-                      <div className="runtime-actions automation-actions">
-                        <button className="wide-action" type="button" disabled={!engineUrl || runtimeBusy} onClick={() => void requestPresentCatcherInventory()}>
-                          Request Inventory
-                        </button>
-                        <button className="wide-action" type="button" disabled={!desktopBridgeAvailable || !selectedPresentGiftRow} onClick={() => void placeSelectedPresentGift()}>
-                          Place Selected
-                        </button>
-                        <button className="wide-action" type="button" disabled={!desktopBridgeAvailable} onClick={() => void sendPresentCatcherPacket({ header: 65, bodyText: "new" }, "Refresh strip")}>
-                          Refresh Strip
-                        </button>
-                      </div>
-                      <form
-                        className="runtime-input-row"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          void openPresentObject();
-                        }}
-                      >
-                        <input value={presentOpenObjectId} onChange={(event) => setPresentOpenObjectId(event.currentTarget.value.replace(/[^\d]/g, ""))} placeholder="Placed object id" />
-                        <button type="submit" disabled={!desktopBridgeAvailable}>
-                          Open
-                        </button>
-                      </form>
-                    </div>
-                    <div className="mini-section">
-                      <h3>Matching Inventory</h3>
-                      <div className="item-list inventory-table">
-                        {presentGiftRows.slice(0, 14).map((row) => (
-                          <button
-                            className={`item-row ${selectedPresentGiftRow?.rowId === row.rowId ? "active" : ""}`}
-                            key={row.rowId}
-                            type="button"
-                            onClick={() => {
-                              setSelectedPresentGiftKey(row.rowId);
-                              const decodedId = decodeShockwaveVl64Text(compactValue(row.itemId));
-                              const fallbackId = finiteNumber(row.objectId ?? row.slotId ?? row.itemId);
-                              const openId = decodedId !== null ? Math.abs(decodedId) : fallbackId !== null ? Math.trunc(Math.abs(fallbackId)) : null;
-                              if (openId) setPresentOpenObjectId(String(openId));
-                            }}
-                          >
-                            <span>{row.inventoryKind || "item"}</span>
-                            <div>
-                              <strong>{compactValue(row.className)}</strong>
-                              <small>token {compactValue(row.itemId)} / object {compactValue(row.objectId)}</small>
-                            </div>
-                          </button>
-                        ))}
-                        {presentGiftRows.length === 0 ? (
-                          <div className="item-row empty">
-                            <span>-</span>
-                            <div>
-                              <strong>No matching inventory gifts</strong>
-                              <small>Open/request inventory and adjust the class filter.</small>
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  </>
-                ) : null}
-
-                {presentCatcherTab === "fragments" ? (
-                  <>
-                    <div className="mini-section">
-                      <h3>Treasure Fragments</h3>
-                      <div className="inline-field-grid">
-                        <label className="field-stack">
-                          <span>Event</span>
-                          <input value={presentFragmentEvent} onChange={(event) => setPresentFragmentEvent(event.currentTarget.value)} />
-                        </label>
-                        <label className="field-stack">
-                          <span>Receiver Index</span>
-                          <input value={presentFragmentTradeTarget} onChange={(event) => setPresentFragmentTradeTarget(event.currentTarget.value)} />
-                        </label>
-                        <label className="field-stack">
-                          <span>Slot Id</span>
-                          <input value={presentFragmentSlotId} onChange={(event) => setPresentFragmentSlotId(event.currentTarget.value.replace(/[^\d]/g, ""))} />
-                        </label>
-                      </div>
-                      <div className="runtime-actions automation-actions">
-                        <button className="wide-action" type="button" disabled={!desktopBridgeAvailable} onClick={() => void sendPresentFragmentPacket("request")}>
-                          Read Fragments
-                        </button>
-                        <button className="wide-action" type="button" disabled={!desktopBridgeAvailable} onClick={() => void sendPresentFragmentPacket("backpack")}>
-                          Read Backpack
-                        </button>
-                        <button className="wide-action" type="button" disabled={!desktopBridgeAvailable} onClick={() => void sendPresentFragmentPacket("trade")}>
-                          Trade With
-                        </button>
-                        <button className="wide-action" type="button" disabled={!desktopBridgeAvailable} onClick={() => void sendPresentFragmentPacket("add")}>
-                          Add Slot
-                        </button>
-                        <button className="wide-action" type="button" disabled={!desktopBridgeAvailable} onClick={() => void sendPresentFragmentPacket("accept")}>
-                          Accept
-                        </button>
-                        <button className="wide-action" type="button" disabled={!desktopBridgeAvailable} onClick={() => void sendPresentFragmentPacket("cancel")}>
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                    <div className="mini-section">
-                      <h3>Fragment Packet Feed</h3>
-                      <div className="mini-table packet-detail-table">
-                        {presentCatcherPacketRows.slice().reverse().map((entry) => (
-                          <p key={entry.id}>
-                            <span>{compactValue(entry.header)}</span>
-                            <strong>{relayEntryPlain(entry, relayLog?.updatedAt)}</strong>
-                          </p>
-                        ))}
-                        {presentCatcherPacketRows.length === 0 ? <p>No present/gift/fragment packets parsed yet.</p> : null}
-                      </div>
-                    </div>
-                  </>
-                ) : null}
-              </div>
+              <PresentCatcherPanel
+                desktopBridgeAvailable={desktopBridgeAvailable}
+                roomReady={roomReady}
+                engineUrl={engineUrl}
+                runtimeBusy={runtimeBusy}
+                presentCatcherRunning={presentCatcherRunning}
+                presentCatcherMessage={presentCatcherMessage}
+                presentCatcherTab={presentCatcherTab}
+                presentCatcherPanicDraft={presentCatcherPanicDraft}
+                presentCatcherPanicNames={presentCatcherPanicNames}
+                presentCatcherGiftClass={presentCatcherGiftClass}
+                presentPlaceX={presentPlaceX}
+                presentPlaceY={presentPlaceY}
+                presentPlaceDirection={presentPlaceDirection}
+                presentOpenObjectId={presentOpenObjectId}
+                presentFragmentEvent={presentFragmentEvent}
+                presentFragmentSlotId={presentFragmentSlotId}
+                presentFragmentTradeTarget={presentFragmentTradeTarget}
+                selectedRuntimeSnapshot={selectedRuntimeSnapshot}
+                presentHammerRows={presentHammerRows}
+                presentRows={presentRows}
+                presentGiftRows={presentGiftRows}
+                selectedPresentGiftRow={selectedPresentGiftRow}
+                presentCatcherPacketRows={presentCatcherPacketRows}
+                userRows={userRows}
+                furniMetadata={furniMetadata}
+                relayLog={relayLog}
+                onStartPresentCatcher={() => setPresentCatcherRunning(true)}
+                onStopPresentCatcher={() => setPresentCatcherRunning(false)}
+                onRunPresentCatcherStep={(auto) => void runPresentCatcherStep(auto)}
+                onRefreshRuntimeSnapshot={(scopes) => void refreshRuntimeSnapshot(scopes as EngineRuntimeSnapshotScope[])}
+                onSetPresentCatcherTab={setPresentCatcherTab}
+                onSetPresentCatcherPanicDraft={setPresentCatcherPanicDraft}
+                onSetPresentCatcherPanicNames={setPresentCatcherPanicNames}
+                onSetPresentCatcherGiftClass={setPresentCatcherGiftClass}
+                onSetPresentPlaceX={setPresentPlaceX}
+                onSetPresentPlaceY={setPresentPlaceY}
+                onSetPresentPlaceDirection={setPresentPlaceDirection}
+                onSetPresentOpenObjectId={setPresentOpenObjectId}
+                onSetPresentFragmentEvent={setPresentFragmentEvent}
+                onSetPresentFragmentSlotId={setPresentFragmentSlotId}
+                onSetPresentFragmentTradeTarget={setPresentFragmentTradeTarget}
+                onUsePresentCatcherFloorItem={(row, mode) => void usePresentCatcherFloorItem(row, mode)}
+                onRequestPresentCatcherInventory={() => void requestPresentCatcherInventory()}
+                onPlaceSelectedPresentGift={() => void placeSelectedPresentGift()}
+                onSendPresentCatcherPacket={(packet, label) => void sendPresentCatcherPacket(packet, label)}
+                onOpenPresentObject={() => void openPresentObject()}
+                onSendPresentFragmentPacket={(kind) => void sendPresentFragmentPacket(kind as Parameters<typeof sendPresentFragmentPacket>[0])}
+                onSetSelectedPresentGiftKey={setSelectedPresentGiftKey}
+                onSetPresentCatcherMessage={setPresentCatcherMessage}
+              />
             ) : null}
 
             {selectedPlugin.id === "gardening" ? (
-              <div className="runtime-panel">
-                <div className="runtime-actions automation-actions">
-                  <button
-                    className="wide-action"
-                    type="button"
-                    disabled={!desktopBridgeAvailable || !roomReady || gardeningRunning || plantRows.length === 0}
-                    onClick={() => void startGardening("cycle")}
-                  >
-                    Start Gardening
-                  </button>
-                  <button
-                    className="wide-action"
-                    type="button"
-                    disabled={!desktopBridgeAvailable || !roomReady || gardeningRunning || plantRows.length === 0}
-                    onClick={() => void startGardening("compost")}
-                  >
-                    Compost All
-                  </button>
-                  <button className="wide-action" type="button" disabled={!gardeningRunning} onClick={stopGardening}>
-                    Stop
-                  </button>
-                  <button className="wide-action" type="button" disabled={!engineUrl || runtimeBusy} onClick={() => void refreshRuntimeSnapshot()}>
-                    Refresh
-                  </button>
-                </div>
-                <div className="chat-filter-row packet-filter-row" aria-label="Gardening settings">
-                  <label>
-                    <span>Cycle sec</span>
-                    <input
-                      value={gardeningCycleSec}
-                      onChange={(event) => setGardeningCycleSec(event.target.value)}
-                      inputMode="numeric"
-                      aria-label="Gardening cycle seconds"
-                    />
-                  </label>
-                </div>
-                <div className="kv-grid">
-                  <span>Room Ready</span>
-                  <strong>{compactValue(roomReady)}</strong>
-                  <span>Plants</span>
-                  <strong>{compactValue(plantRows.length)}</strong>
-                  <span>Ready</span>
-                  <strong>{plantRows.length > 0 ? compactValue(plantRows.length) : "-"}</strong>
-                  <span>Phase</span>
-                  <strong>{gardeningJob?.phase ?? "idle"}</strong>
-                  <span>Cycle Sec</span>
-                  <strong>{compactValue(gardeningCycleSec)}</strong>
-                  <span>Tracked</span>
-                  <strong>{compactValue(gardeningJob ? gardeningJob.queue.length + 1 : plantRows.length)}</strong>
-                  <span>Room</span>
-                  <strong>{runtimeRoomName(selectedRuntimeSnapshot)}</strong>
-                  <span>Avatar Tile</span>
-                  <strong>{userTile(selfUser) ? `${userTile(selfUser)?.x},${userTile(selfUser)?.y}` : "-"}</strong>
-                </div>
-                {gardeningMessage || gardeningJob?.note ? <p className="runtime-message">{gardeningMessage || gardeningJob?.note}</p> : null}
-                <div className="mini-section">
-                  <h3>Plants In Room</h3>
-                  <div className="item-list">
-                    {plantRows.map((row) => (
-                      <button
-                        className={`item-row ${selectedPlantRow?.key === row.key ? "active" : ""}`}
-                        key={row.key}
-                        type="button"
-                        onClick={() => setSelectedPlantKey(row.key)}
-                      >
-                        <span>{row.label}</span>
-                        <div>
-                          <strong>{itemRowTitle(row, furniMetadata)}</strong>
-                          <small>{itemRowMeta(row, furniMetadata)}</small>
-                        </div>
-                      </button>
-                    ))}
-                    {plantRows.length === 0 ? (
-                      <div className="item-row empty">
-                        <span>-</span>
-                        <div>
-                          <strong>No plants found</strong>
-                          <small>Enter a room with plants to populate this list.</small>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Current Target Plant</h3>
-                  <div className="mini-table item-detail-table">
-                    <p>
-                      <span>ID</span>
-                      <strong>{compactValue(selectedPlantRow?.item.objectId ?? selectedPlantRow?.item.id)}</strong>
-                    </p>
-                    <p>
-                      <span>Plant</span>
-                      <strong>{compactValue(selectedPlantRow ? itemRowTitle(selectedPlantRow, furniMetadata) : null)}</strong>
-                    </p>
-                    <p>
-                      <span>XY</span>
-                      <strong>{compactValue(selectedPlantRow?.item.x)}, {compactValue(selectedPlantRow?.item.y)}, {compactValue(selectedPlantRow?.item.z)}</strong>
-                    </p>
-                    <p>
-                      <span>Stage</span>
-                      <strong>{compactValue(selectedPlantRow?.item.state)}</strong>
-                    </p>
-                    <p>
-                      <span>Status</span>
-                      <strong>{gardeningJob && selectedPlantRow && gardeningJob.plantKey === selectedPlantRow.key ? gardeningJob.phase : selectedPlantRow ? "queued" : "-"}</strong>
-                    </p>
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Current Cycle</h3>
-                  <div className="mini-table item-detail-table">
-                    <p>
-                      <span>Target</span>
-                      <strong>{compactValue(gardeningJob?.objectId)}</strong>
-                    </p>
-                    <p>
-                      <span>Original</span>
-                      <strong>
-                        {gardeningJob ? `${gardeningJob.originalX},${gardeningJob.originalY} dir ${gardeningJob.originalDirection}` : "-"}
-                      </strong>
-                    </p>
-                    <p>
-                      <span>Working</span>
-                      <strong>{gardeningJob ? `${gardeningJob.workingX},${gardeningJob.workingY}` : "-"}</strong>
-                    </p>
-                    <p>
-                      <span>Attempts</span>
-                      <strong>{gardeningJob ? `move ${gardeningJob.moveAttempts} / action ${gardeningJob.actionAttempts}` : "-"}</strong>
-                    </p>
-                    <p>
-                      <span>Completed</span>
-                      <strong>{compactValue(gardeningJob?.completed ?? 0)}</strong>
-                    </p>
-                    <p>
-                      <span>Queued</span>
-                      <strong>{compactValue(gardeningJob?.queue.length ?? plantRows.length)}</strong>
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <GardeningPanel
+                engineUrl={engineUrl}
+                runtimeBusy={runtimeBusy}
+                desktopBridgeAvailable={desktopBridgeAvailable}
+                roomReady={roomReady}
+                gardeningRunning={gardeningRunning}
+                gardeningCycleSec={gardeningCycleSec}
+                gardeningMessage={gardeningMessage}
+                gardeningJob={gardeningJob}
+                runtimeSnapshot={selectedRuntimeSnapshot}
+                plantRows={plantRows}
+                selectedPlantRow={selectedPlantRow}
+                selfUser={selfUser}
+                itemTitle={(row) => itemRowTitle(row, furniMetadata)}
+                itemMeta={(row) => itemRowMeta(row, furniMetadata)}
+                onStartGardening={(mode) => void startGardening(mode)}
+                onStopGardening={stopGardening}
+                onSetCycleSec={setGardeningCycleSec}
+                onSelectPlant={setSelectedPlantKey}
+                onRefresh={() => void refreshRuntimeSnapshot()}
+              />
             ) : null}
 
             {selectedPlugin.id === "wall-mover" ? (
-              <div className="runtime-panel">
-                <div className="runtime-actions automation-actions">
-                  <button className="wide-action" type="button" disabled={!engineUrl || runtimeBusy} onClick={() => void refreshRuntimeSnapshot()}>
-                    Refresh
-                  </button>
-                </div>
-                {wallMoverMessage ? <p className="runtime-message">{wallMoverMessage}</p> : null}
-                <div className="kv-grid">
-                  <span>Rights</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.userState?.rightsCount)}</strong>
-                  <span>Target ID</span>
-                  <strong>{compactValue(selectedWallMoverItemId)}</strong>
-                  <span>Class</span>
-                  <strong>{compactValue(selectedWallMoverRow?.item.className ?? selectedWallMoverRow?.item.name)}</strong>
-                  <span>Owner</span>
-                  <strong>{compactValue(selectedWallMoverRow?.item.ownerName)}</strong>
-                  <span>Wall Pos</span>
-                  <strong>{compactValue(selectedWallMoverRow?.item.wall)}</strong>
-                  <span>Local Pos</span>
-                  <strong>{compactValue(selectedWallMoverRow?.item.local)}</strong>
-                  <span>Orientation</span>
-                  <strong>{compactValue(selectedWallMoverRow?.item.orientation ?? selectedWallMoverRow?.item.direction)}</strong>
-                  <span>Step</span>
-                  <strong>{compactValue(wallMoverStep)}</strong>
-                </div>
-                <div className="mini-section">
-                  <h3>Move</h3>
-                  <div className="inline-field-grid">
-                    <label className="field-stack">
-                      <span>Step</span>
-                      <input
-                        value={wallMoverStep}
-                        onChange={(event) => setWallMoverStep(event.currentTarget.value.replace(/[^\d]/g, "").slice(0, 2))}
-                        inputMode="numeric"
-                      />
-                    </label>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!desktopBridgeAvailable || selectedWallMoverItemId === null}
-                      onClick={() => void sendWallMoverPickup()}
-                    >
-                      Pick Up Selected
-                    </button>
-                  </div>
-                  <div className="wall-mover-pad" aria-label="Wall mover nudge controls">
-                    <span />
-                    <button type="button" disabled={!desktopBridgeAvailable || selectedWallMoverItemId === null || selectedWallMoverLocation === null} onClick={() => void sendWallMoverMove(0, -1)}>
-                      Up
-                    </button>
-                    <span />
-                    <button type="button" disabled={!desktopBridgeAvailable || selectedWallMoverItemId === null || selectedWallMoverLocation === null} onClick={() => void sendWallMoverMove(-1, 0)}>
-                      Left
-                    </button>
-                    <button type="button" disabled={!desktopBridgeAvailable || selectedWallMoverItemId === null || selectedWallMoverLocation === null} onClick={() => void sendWallMoverMove(0, 1)}>
-                      Down
-                    </button>
-                    <button type="button" disabled={!desktopBridgeAvailable || selectedWallMoverItemId === null || selectedWallMoverLocation === null} onClick={() => void sendWallMoverMove(1, 0)}>
-                      Right
-                    </button>
-                  </div>
-                  <div className="wall-mover-action-row">
-                    <button
-                      type="button"
-                      disabled={!desktopBridgeAvailable || selectedWallMoverItemId === null || selectedWallMoverLocation === null}
-                      onClick={() => void sendWallMoverMove(0, 0, "l")}
-                    >
-                      Face L
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!desktopBridgeAvailable || selectedWallMoverItemId === null || selectedWallMoverLocation === null}
-                      onClick={() => void sendWallMoverMove(0, 0, "r")}
-                    >
-                      Face R
-                    </button>
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Wall Items</h3>
-                  <div className="item-list">
-                    {wallMoverRows.slice(0, 14).map((row) => (
-                      <button
-                        className={`item-row ${selectedWallMoverRow?.key === row.key ? "active" : ""}`}
-                        key={row.key}
-                        type="button"
-                        onClick={() => setSelectedWallMoverKey(row.key)}
-                      >
-                        <span>Wall</span>
-                        <div>
-                          <strong>{itemRowTitle(row, furniMetadata)}</strong>
-                          <small>{wallObjectMeta(row.item)}</small>
-                        </div>
-                      </button>
-                    ))}
-                    {wallMoverRows.length === 0 ? (
-                      <div className="item-row empty">
-                        <span>-</span>
-                        <div>
-                          <strong>No wall items found</strong>
-                          <small>Enter a room with wall furni to populate this list.</small>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
+              <WallMoverPanel
+                engineUrl={engineUrl}
+                runtimeBusy={runtimeBusy}
+                desktopBridgeAvailable={desktopBridgeAvailable}
+                wallMoverMessage={wallMoverMessage}
+                rightsCount={selectedRuntimeSnapshot?.userState?.rightsCount ?? 0}
+                selectedItemId={selectedWallMoverItemId}
+                selectedClassName={compactValue(selectedWallMoverRow?.item.className ?? selectedWallMoverRow?.item.name)}
+                selectedOwnerName={compactValue(selectedWallMoverRow?.item.ownerName)}
+                selectedWallPos={compactValue(selectedWallMoverRow?.item.wall)}
+                selectedLocalPos={compactValue(selectedWallMoverRow?.item.local)}
+                selectedOrientation={compactValue(selectedWallMoverRow?.item.orientation ?? selectedWallMoverRow?.item.direction)}
+                wallMoverStep={wallMoverStep}
+                selectedLocation={selectedWallMoverLocation}
+                wallMoverRows={wallMoverRows}
+                selectedRow={selectedWallMoverRow}
+                itemTitle={(row) => itemRowTitle(row, furniMetadata)}
+                itemMeta={(item) => wallObjectMeta(item)}
+                onRefresh={() => void refreshRuntimeSnapshot()}
+                onSetStep={setWallMoverStep}
+                onPickup={() => void sendWallMoverPickup()}
+                onMove={(dx, dy, orientation) => void sendWallMoverMove(dx, dy, orientation)}
+                onSelectKey={setSelectedWallMoverKey}
+              />
             ) : null}
 
             {selectedPlugin.id === "injection" ? (
-              <div className="runtime-panel">
-                <div className="mini-section injection-editor">
-                  <h3>Command Editor</h3>
-                  <label className="field-stack">
-                    <span>Action</span>
-                    <select
-                      value={injectionDraft.actionKind}
-                      onChange={(event) => updateInjectionDraft("actionKind", event.currentTarget.value as InjectionActionKind)}
-                    >
-                      {injectionActionOptions.map((option) => (
-                        <option key={option.kind} value={option.kind}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  {injectionDraft.actionKind === "sendChat" ? (
-                    <label className="field-stack">
-                      <span>Chat Text</span>
-                      <textarea
-                        value={injectionDraft.chatMessage}
-                        onChange={(event) => updateInjectionDraft("chatMessage", event.currentTarget.value)}
-                        rows={3}
-                        placeholder="Message sent through the live room chat field"
-                      />
-                    </label>
-                  ) : null}
-
-                  {injectionDraft.actionKind === "stageClick" ? (
-                    <div className="inline-field-grid">
-                      <label className="field-stack">
-                        <span>Stage X</span>
-                        <input value={injectionDraft.stageX} onChange={(event) => updateInjectionDraft("stageX", event.currentTarget.value)} />
-                      </label>
-                      <label className="field-stack">
-                        <span>Stage Y</span>
-                        <input value={injectionDraft.stageY} onChange={(event) => updateInjectionDraft("stageY", event.currentTarget.value)} />
-                      </label>
-                    </div>
-                  ) : null}
-
-                  {injectionDraft.actionKind === "clickWindowElement" ? (
-                    <div className="inline-field-grid">
-                      <label className="field-stack">
-                        <span>Window Id</span>
-                        <input
-                          value={injectionDraft.windowId}
-                          onChange={(event) => updateInjectionDraft("windowId", event.currentTarget.value)}
-                          placeholder="Room_bar"
-                        />
-                      </label>
-                      <label className="field-stack">
-                        <span>Element Id</span>
-                        <input
-                          value={injectionDraft.elementId}
-                          onChange={(event) => updateInjectionDraft("elementId", event.currentTarget.value)}
-                          placeholder="int_hand_image"
-                        />
-                      </label>
-                    </div>
-                  ) : null}
-
-                  {injectionDraft.actionKind === "openNavigator" ? (
-                    <label className="field-stack">
-                      <span>Navigator View</span>
-                      <select value={injectionDraft.navigatorView} onChange={(event) => updateInjectionDraft("navigatorView", event.currentTarget.value)}>
-                        <option value="nav_pr">Public spaces</option>
-                        <option value="nav_gr0">Guest rooms</option>
-                      </select>
-                    </label>
-                  ) : null}
-
-                  {injectionDraft.actionKind === "enterPrivateRoom" ? (
-                    <label className="field-stack">
-                      <span>Flat Id</span>
-                      <input
-                        value={injectionDraft.flatId}
-                        onChange={(event) => updateInjectionDraft("flatId", event.currentTarget.value)}
-                        placeholder="empty uses current private room id"
-                      />
-                    </label>
-                  ) : null}
-
-                  {injectionDraft.actionKind === "enterPublicRoom" ? (
-                    <label className="field-stack">
-                      <span>Public Room</span>
-                      <input
-                        value={injectionDraft.publicRoomQuery}
-                        onChange={(event) => updateInjectionDraft("publicRoomQuery", event.currentTarget.value)}
-                        placeholder="empty uses first cached public room"
-                      />
-                    </label>
-                  ) : null}
-
-                  {injectionDraft.actionKind === "rawPacketBlocked" ? (
-                    <>
-                      <label className="field-stack">
-                        <span>Packet Text</span>
-                        <textarea
-                          value={injectionDraft.rawText}
-                          onChange={(event) => updateInjectionDraft("rawText", event.currentTarget.value)}
-                          rows={3}
-                          placeholder="{h:94} or :WAVE"
-                        />
-                      </label>
-                    </>
-                  ) : null}
-
-                  <div className="inline-field-grid repeat-grid">
-                    <label className="field-stack">
-                      <span>Repeat</span>
-                      <input value={injectionRepeatCount} onChange={(event) => setInjectionRepeatCount(event.currentTarget.value)} />
-                    </label>
-                    <label className="field-stack">
-                      <span>Interval ms</span>
-                      <input value={injectionRepeatInterval} onChange={(event) => setInjectionRepeatInterval(event.currentTarget.value)} />
-                    </label>
-                  </div>
-                  <div className="runtime-actions injection-actions">
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={runtimeBusy}
-                      onClick={() => void executeInjectionCommand(injectionDraft)}
-                    >
-                      Run
-                    </button>
-                    <button className="wide-action" type="button" onClick={addInjectionSnippet}>
-                      Add To Saved
-                    </button>
-                  </div>
-                  <div className="kv-grid">
-                    <span>Room Ready</span>
-                    <strong>{compactValue(roomReady)}</strong>
-                    <span>Windows</span>
-                    <strong>{compactValue(selectedRuntimeSnapshot?.windowIds.length)}</strong>
-                    <span>Fields</span>
-                    <strong>{compactValue(selectedRuntimeSnapshot?.editableFields.length)}</strong>
-                    <span>Repeat Cap</span>
-                    <strong>{compactValue(clampRepeatCount(injectionRepeatCount))}</strong>
-                  </div>
-                  {injectionMessage ? <p className="runtime-message">{injectionMessage}</p> : null}
-                </div>
-                <div className="mini-section">
-                  <h3>Saved Snippets</h3>
-                  <input
-                    ref={injectionFileInputRef}
-                    type="file"
-                    accept="application/json,.json"
-                    className="hidden-file-input"
-                    onChange={(event) => {
-                      const file = event.currentTarget.files?.[0];
-                      if (file) void importInjectionSnippets(file);
-                      event.currentTarget.value = "";
-                    }}
-                  />
-                  <div className="runtime-actions injection-actions">
-                    <button className="wide-action" type="button" onClick={() => injectionFileInputRef.current?.click()}>
-                      Load File
-                    </button>
-                    <button className="wide-action" type="button" onClick={exportInjectionSnippets}>
-                      Save File
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      onClick={() => {
-                        setInjectionSnippets([]);
-                        setSelectedInjectionSnippetId("");
-                        setInjectionMessage("Saved snippets cleared.");
-                      }}
-                    >
-                      Clear
-                    </button>
-                  </div>
-                  <div className="injection-list" aria-label="Saved injection snippets">
-                    {injectionSnippets.length > 0 ? (
-                      injectionSnippets.map((snippet) => (
-                        <button
-                          className={`injection-row ${snippet.id === selectedInjectionSnippetId ? "active" : ""}`}
-                          key={snippet.id}
-                          type="button"
-                          onClick={() => loadInjectionSnippet(snippet)}
-                        >
-                          <strong>{snippet.label}</strong>
-                        </button>
-                      ))
-                    ) : (
-                      <p className="empty-panel-note">No saved snippets yet.</p>
-                    )}
-                  </div>
-                  <div className="runtime-actions injection-actions">
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!selectedInjectionSnippet || runtimeBusy}
-                      onClick={() => {
-                        if (selectedInjectionSnippet) void executeInjectionCommand(selectedInjectionSnippet.command, selectedInjectionSnippet.label);
-                      }}
-                    >
-                      Send Selected
-                    </button>
-                    <button
-                      className="wide-action"
-                      type="button"
-                      disabled={!selectedInjectionSnippet}
-                      onClick={() => {
-                        if (!selectedInjectionSnippet) return;
-                        setInjectionSnippets((current) => current.filter((snippet) => snippet.id !== selectedInjectionSnippet.id));
-                        setSelectedInjectionSnippetId("");
-                        setInjectionMessage("Snippet removed.");
-                      }}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Recent Injections</h3>
-                  <div className="injection-history-list">
-                    {injectionHistory.length > 0 ? (
-                      injectionHistory.slice(0, 12).map((entry) => (
-                        <div className={`injection-history-row ${entry.status}`} key={entry.id}>
-                          <span>{entry.time}</span>
-                          <strong>{entry.label}</strong>
-                          <p>{entry.message}</p>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="empty-panel-note">No commands have run yet.</p>
-                    )}
-                  </div>
-                  <button
-                    className="wide-action"
-                    type="button"
-                    onClick={() => {
-                      setInjectionHistory([]);
-                      setInjectionMessage("Recent injection history cleared.");
-                    }}
-                  >
-                    Clear History
-                  </button>
-                </div>
-              </div>
+              <InjectionPanel
+                runtimeBusy={runtimeBusy}
+                roomReady={roomReady}
+                selectedRuntimeSnapshot={selectedRuntimeSnapshot}
+                injectionDraft={injectionDraft}
+                injectionRepeatCount={injectionRepeatCount}
+                injectionRepeatInterval={injectionRepeatInterval}
+                injectionMessage={injectionMessage}
+                injectionSnippets={injectionSnippets}
+                selectedInjectionSnippetId={selectedInjectionSnippetId}
+                selectedInjectionSnippet={selectedInjectionSnippet}
+                injectionHistory={injectionHistory}
+                injectionFileInputRef={injectionFileInputRef}
+                injectionActionOptions={injectionActionOptions}
+                onUpdateInjectionDraft={updateInjectionDraft}
+                onSetInjectionRepeatCount={setInjectionRepeatCount}
+                onSetInjectionRepeatInterval={setInjectionRepeatInterval}
+                onExecuteInjectionCommand={(command, label) => void executeInjectionCommand(command, label)}
+                onAddInjectionSnippet={addInjectionSnippet}
+                onImportInjectionSnippets={(file) => void importInjectionSnippets(file)}
+                onExportInjectionSnippets={exportInjectionSnippets}
+                onSetInjectionSnippets={setInjectionSnippets as any}
+                onSetSelectedInjectionSnippetId={setSelectedInjectionSnippetId}
+                onSetInjectionMessage={setInjectionMessage}
+                onLoadInjectionSnippet={loadInjectionSnippet}
+                onSetInjectionHistory={setInjectionHistory as any}
+              />
             ) : null}
 
             {selectedPlugin.id === "packet-log" ? (
-              <div className="runtime-panel">
-                <div className="runtime-actions">
-                  <button
-                    className="wide-action"
-                    type="button"
-                    disabled={!desktopBridgeAvailable}
-                    onClick={() => void refreshRelayLog()}
-                  >
-                    <RefreshCw size={14} />
-                    <span>Refresh Relay Log</span>
-                  </button>
-                  <button className="wide-action" type="button" onClick={exportVisiblePacketLog}>
-                    Export Visible
-                  </button>
-                  <button
-                    className="wide-action"
-                    type="button"
-                    onClick={() => {
-                      setPacketClearOffset(packetEntries.length);
-                      setSelectedPacketKey("");
-                      setPacketExportMessage("Display cleared; relay log kept intact.");
-                    }}
-                  >
-                    Clear Display
-                  </button>
-                </div>
-                <div className="chat-filter-row packet-filter-row" aria-label="Packet log filters">
-                  {(["client", "server", "relay"] as const).map((kind) => (
-                    <label key={kind}>
-                      <input
-                        type="checkbox"
-                        checked={packetFilters[kind]}
-                        onChange={(event) => {
-                          const checked = event.currentTarget.checked;
-                          setPacketFilters((current) => ({ ...current, [kind]: checked }));
-                        }}
-                      />
-                      <span>{labelCase(kind)}</span>
-                    </label>
-                  ))}
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={packetFilters.wrap}
-                      onChange={(event) => {
-                        const checked = event.currentTarget.checked;
-                        setPacketFilters((current) => ({ ...current, wrap: checked }));
-                      }}
-                    />
-                    <span>wrap</span>
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={packetFilters.autoscroll}
-                      onChange={(event) => {
-                        const checked = event.currentTarget.checked;
-                        setPacketFilters((current) => ({ ...current, autoscroll: checked }));
-                      }}
-                    />
-                    <span>auto</span>
-                  </label>
-                </div>
-                <div className="user-select-row packet-session-row">
-                  <input
-                    value={packetFilters.search}
-                    onChange={(event) => {
-                      const search = event.currentTarget.value;
-                      setPacketFilters((current) => ({ ...current, search }));
-                    }}
-                    placeholder="Search packets, body, fields"
-                    aria-label="Search packet log"
-                  />
-                  <select
-                    value={packetFilters.clientSession}
-                    onChange={(event) => {
-                      const clientSession = event.currentTarget.value;
-                      setPacketFilters((current) => ({ ...current, clientSession }));
-                    }}
-                    aria-label="Packet client filter"
-                  >
-                    {packetClientChoices.map((choice) => (
-                      <option key={choice.value} value={choice.value}>
-                        {choice.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={packetFilters.session}
-                    onChange={(event) => {
-                      const session = event.currentTarget.value;
-                      setPacketFilters((current) => ({ ...current, session }));
-                    }}
-                    aria-label="Packet session filter"
-                  >
-                    {packetSessionChoices.map((sessionId) => (
-                      <option key={sessionId} value={sessionId}>
-                        {sessionId === "All" ? "All sessions" : `session ${sessionId}`}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => setPacketFilters((current) => ({ ...current, client: true, server: true, relay: true, clientSession: "All", session: "All", search: "" }))}
-                    title="Reset packet filters"
-                    aria-label="Reset packet filters"
-                  >
-                    <RefreshCw size={13} />
-                  </button>
-                </div>
-                <div className="mini-section packet-list-section">
-                  <h3>Packet Log</h3>
-                  <div
-                    className={`packet-entry-list ${packetFilters.wrap ? "wrap" : ""}`}
-                    ref={packetListRef}
-                    onScroll={handlePacketListScroll}
-                  >
-                    {visiblePacketEntries.length > 0 ? (
-                      <div className="packet-entry-virtual-space" style={{ height: packetVirtualRange.height }}>
-                        <div
-                          className="packet-entry-virtual-window"
-                          style={{ transform: `translateY(${packetVirtualRange.top}px)` }}
-                        >
-                          {renderedPacketEntries.map((entry) => (
-                            <button
-                              className={`packet-entry ${selectedPacketEntry?.id === entry.id ? "active" : ""} packet-${entry.direction.toLowerCase()}`}
-                              key={entry.id}
-                              type="button"
-                              onClick={() => setSelectedPacketKey(entry.id)}
-                            >
-                              <span>{entry.header === null ? "RELAY" : relayEntryLabel(entry)}</span>
-                              <strong>{relayEntryV3Line(entry, relayLog?.updatedAt)}</strong>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="packet-entry empty">
-                        <span>Empty</span>
-                        <strong>{packetEntries.length === 0 ? "Start the embedded client to create relay log entries." : "No relay rows match the current filters."}</strong>
-                      </div>
-                    )}
-                    {visiblePacketEntries.length > renderedPacketEntries.length ? (
-                      <p className="packet-virtual-note">
-                        Rendering {packetVirtualRange.start + 1}-{packetVirtualRange.end} of {visiblePacketEntries.length} matching rows.
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="mini-section packet-detail-section">
-                  <h3>Selected Packet</h3>
-                  <div className="packet-detail-scroll">
-                    <div className="mini-table packet-detail-table">
-                      <p>
-                        <span>Line</span>
-                        <strong>{compactValue(selectedPacketEntry?.lineNumber)}</strong>
-                      </p>
-                      <p>
-                        <span>Client</span>
-                        <strong>
-                          {selectedPacketEntry?.clientId ? `client${selectedPacketEntry.clientId} ${selectedPacketEntry.clientLabel ?? ""}`.trim() : "-"}
-                        </strong>
-                      </p>
-                      <p>
-                        <span>Session</span>
-                        <strong>{compactValue(selectedPacketEntry?.sessionId)}</strong>
-                      </p>
-                      <p>
-                        <span>Direction</span>
-                        <strong>{compactValue(selectedPacketEntry?.direction)}</strong>
-                      </p>
-                      <p>
-                        <span>Name</span>
-                        <strong>{selectedPacketEntry ? relayEntryDisplayName(selectedPacketEntry) : "-"}</strong>
-                      </p>
-                      <p>
-                        <span>Header</span>
-                        <strong>{compactValue(selectedPacketEntry?.header)}</strong>
-                      </p>
-                      <p>
-                        <span>Size</span>
-                        <strong>{compactValue(selectedPacketEntry?.size)}</strong>
-                      </p>
-                      <p>
-                        <span>Payload</span>
-                        <strong>{selectedPacketEntry?.payloadBytes === null || selectedPacketEntry?.payloadBytes === undefined ? "-" : `${selectedPacketEntry.payloadBytes}B`}</strong>
-                      </p>
-                      <p>
-                        <span>v3 Line</span>
-                        <strong>{selectedPacketEntry ? relayEntryV3Line(selectedPacketEntry, relayLog?.updatedAt) : "-"}</strong>
-                      </p>
-                    </div>
-                    <h3 className="packet-subheading">Decrypted Body</h3>
-                    <div className="mini-table packet-detail-table">
-                      <p>
-                        <span>ASCII</span>
-                        <strong>{selectedPacketEntry?.bodyAscii ?? selectedPacketEntry?.bodyText ?? "-"}</strong>
-                      </p>
-                      <p>
-                        <span>Hex</span>
-                        <strong>{selectedPacketEntry?.bodyHex ?? "-"}</strong>
-                      </p>
-                      {(selectedPacketEntry?.decodedFields ?? []).map((field) => (
-                        <p key={`${field.label}:${field.value}`}>
-                          <span>{field.label}</span>
-                          <strong>{field.value}</strong>
-                        </p>
-                      ))}
-                      {selectedPacketEntry && selectedPacketEntry.decodedFields.length === 0 ? (
-                        <p>
-                          <span>Fields</span>
-                          <strong>No decoded fields.</strong>
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-                <div className="kv-grid packet-stats-grid">
-                  <span>Bridge</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.networkBridgeUrl)}</strong>
-                  <span>Log</span>
-                  <strong>{relayLog?.exists ? "Present" : "Missing"}</strong>
-                  <span>Packets</span>
-                  <strong>{compactValue(relayLog?.packetCount)}</strong>
-                  <span>Client</span>
-                  <strong>{compactValue(relayLog?.clientCount)}</strong>
-                  <span>Server</span>
-                  <strong>{compactValue(relayLog?.serverCount)}</strong>
-                  <span>Lines</span>
-                  <strong>{compactValue(relayLog?.totalLines)}</strong>
-                  <span>Client Filter</span>
-                  <strong>{packetFilters.clientSession === "All" ? "All clients" : `client${packetFilters.clientSession}`}</strong>
-                  <span>Visible</span>
-                  <strong>{compactValue(visiblePacketEntries.length)}</strong>
-                </div>
-                <p className="runtime-message">{packetExportMessage || relayLog?.message || "Relay log snapshot not loaded."}</p>
-              </div>
+              <PacketLogPanel
+                desktopBridgeAvailable={desktopBridgeAvailable}
+                packetFilters={packetFilters}
+                packetClientChoices={packetClientChoices}
+                packetSessionChoices={packetSessionChoices}
+                packetListRef={packetListRef}
+                handlePacketListScroll={handlePacketListScroll}
+                visiblePacketEntries={visiblePacketEntries}
+                renderedPacketEntries={renderedPacketEntries}
+                selectedPacketEntry={selectedPacketEntry}
+                packetVirtualRange={packetVirtualRange}
+                selectedRuntimeSnapshot={selectedRuntimeSnapshot}
+                relayLog={relayLog}
+                packetEntries={packetEntries}
+                packetExportMessage={packetExportMessage}
+                onRefreshRelayLog={() => void refreshRelayLog()}
+                onExportVisiblePacketLog={exportVisiblePacketLog}
+                onSetPacketClearOffset={setPacketClearOffset}
+                onSetSelectedPacketKey={setSelectedPacketKey}
+                onSetPacketExportMessage={setPacketExportMessage}
+                onSetPacketFilters={setPacketFilters as any}
+              />
             ) : null}
 
             {selectedPlugin.id === "dev-tools" ? (
-              <div className="runtime-panel">
-                <div className="runtime-actions">
-                  <button
-                    className="wide-action"
-                    type="button"
-                    onClick={() => void refreshRuntimeSnapshot()}
-                    disabled={!engineUrl || runtimeBusy}
-                  >
-                    <RefreshCw size={14} />
-                    <span>Refresh Diagnostics</span>
-                  </button>
-                </div>
-                <div className="kv-grid">
-                  <span>Frame</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.frame)}</strong>
-                  <span>Casts Loaded</span>
-                  <strong>{selectedRuntimeSnapshot ? `${selectedRuntimeSnapshot.loadedCastCount}${selectedRuntimeSnapshot.castLoaded ? " / complete" : ""}` : "-"}</strong>
-                  <span>FPS</span>
-                  <strong>{compactValue(runtimeFps(selectedRuntimeSnapshot))}</strong>
-                  <span>Tick Rate</span>
-                  <strong>{compactValue(runtimeTickRate(selectedRuntimeSnapshot))}</strong>
-                  <span>Worst RAF</span>
-                  <strong>{compactValue(finiteNumber(selectedRuntimeSnapshot?.performanceStats?.worstRafDeltaMs))}</strong>
-                  <span>Timeouts</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.performanceStats?.activeTimeoutCount)}</strong>
-                  <span>Errors</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.errors)}</strong>
-                  <span>Objects</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.objectCount)}</strong>
-                  <span>Windows</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.windowIds.length)}</strong>
-                  <span>Fields</span>
-                  <strong>{compactValue(selectedRuntimeSnapshot?.editableFields.length)}</strong>
-                </div>
-                <div className="mini-section">
-                  <h3>Script Bundle</h3>
-                  <p>
-                    {selectedRuntimeSnapshot?.scriptBundle
-                      ? `${selectedRuntimeSnapshot.scriptBundle.runtimeVersion ?? "-"} -> ${selectedRuntimeSnapshot.scriptBundle.executableVersion ?? "-"}`
-                      : "-"}
-                  </p>
-                </div>
-                <div className="mini-section">
-                  <h3>Runtime Windows</h3>
-                  <div className="chip-list">
-                    {(selectedRuntimeSnapshot?.windowIds ?? []).length > 0 ? (
-                      selectedRuntimeSnapshot?.windowIds.map((id) => <span key={id}>{id}</span>)
-                    ) : (
-                      <span>none</span>
-                    )}
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Editable Fields</h3>
-                  <div className="mini-table">
-                    {(selectedRuntimeSnapshot?.editableFields ?? []).slice(0, 6).map((field) => (
-                      <p key={field.n}>
-                        <span>#{field.n}</span>
-                        <strong>{field.member}</strong>
-                      </p>
-                    ))}
-                    {(selectedRuntimeSnapshot?.editableFields.length ?? 0) === 0 ? <p>No editable fields visible.</p> : null}
-                  </div>
-                </div>
-              </div>
+              <DevToolsPanel
+                engineUrl={engineUrl}
+                runtimeBusy={runtimeBusy}
+                runtimeSnapshot={selectedRuntimeSnapshot}
+                onRefresh={refreshRuntimeSnapshot}
+              />
             ) : null}
 
             {selectedPlugin.id === "about" ? (
-              <div className="runtime-panel about-panel">
-                <div className="kv-grid">
-                  <span>App</span>
-                  <strong>{appInfo?.name ?? "Habbpy v4"}</strong>
-                  <span>Version</span>
-                  <strong>{appInfo?.version ?? "-"}</strong>
-                  <span>Mode</span>
-                  <strong>{compactValue(appInfo?.mode)}</strong>
-                  <span>Profile</span>
-                  <strong>{selectedProfile?.label ?? "No profile selected"}</strong>
-                  <span>Build</span>
-                  <strong>{engineLaunch?.buildLabel ?? profileLine(selectedProfile)}</strong>
-                  <span>Storage</span>
-                  <strong>{selectedProfile?.storageMode ?? "-"}</strong>
-                </div>
-                <div className="mini-section">
-                  <h3>Project</h3>
-                  <p>
-                    Habbpy v4 is a local Electron and React companion shell for Shockless Engine. It embeds the playable
-                    Director-compatible client and ports Habbpy v3 features into compact plugins.
-                  </p>
-                </div>
-                <div className="mini-section">
-                  <h3>Credits</h3>
-                  <div className="chip-list">
-                    <span>dek</span>
-                    <span>cam</span>
-                    <span>jeff</span>
-                    <span>sonicmouse</span>
-                    <span>scott</span>
-                    <span>Jephyrr</span>
-                    <span>DarkStar</span>
-                    <span>G-Earth</span>
-                    <span>ProjectorRays</span>
-                    <span>Shockless Engine</span>
-                  </div>
-                </div>
-                <div className="mini-section">
-                  <h3>Links</h3>
-                  <div className="mini-table about-link-table">
-                    <p>
-                      <span>Site</span>
-                      <strong>https://dek.cx</strong>
-                    </p>
-                    <p>
-                      <span>Habbo</span>
-                      <strong>https://habbo.dek.cx</strong>
-                    </p>
-                    <p>
-                      <span>Social</span>
-                      <strong>https://x.com/dekHabbo</strong>
-                    </p>
-                    <p>
-                      <span>G-Earth</span>
-                      <strong>https://github.com/G-Realm/G-Earth</strong>
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <AboutPanel
+                appName={appInfo?.name ?? "Habbpy v4"}
+                appVersion={appInfo?.version ?? "-"}
+                appMode={compactValue(appInfo?.mode)}
+                profileLabel={selectedProfile?.label ?? "No profile selected"}
+                buildLabel={engineLaunch?.buildLabel ?? profileLine(selectedProfile)}
+                storageMode={selectedProfile?.storageMode ?? "-"}
+              />
             ) : null}
           </section>
         ) : null}

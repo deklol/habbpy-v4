@@ -3,3 +3,9 @@ artifacts/
 *.zip
 *.7z
 *.log
+
+# secrets / profile / dev artifacts (never publish)
+clients/
+multiclient-accounts.txt
+.private-premade-modules.json
+*.md
