@@ -701,19 +701,20 @@ function ancestorCandidates(startPath: string, ...parts: readonly string[]): str
 export function readShocklessSettings(appDataPath: string): ShocklessSettings {
   const settingsPath = join(appDataPath, "ShocklessEngine", "settings.json");
   if (!existsSync(settingsPath)) {
-    return { activeProfileId: null, resizablePresentation: null, customHotelView: null, entryView: null, versionCheckBuild: null };
+    return { activeProfileId: null, resizablePresentation: null, customHotelView: true, entryView: null, versionCheckBuild: null };
   }
   try {
     const parsed = JSON.parse(readFileSync(settingsPath, "utf8")) as Partial<ShocklessSettings>;
+    const entryView = typeof parsed.entryView === "string" ? parsed.entryView : null;
     return {
       activeProfileId: typeof parsed.activeProfileId === "string" ? parsed.activeProfileId : null,
       resizablePresentation: typeof parsed.resizablePresentation === "boolean" ? parsed.resizablePresentation : null,
-      customHotelView: typeof parsed.customHotelView === "boolean" ? parsed.customHotelView : null,
-      entryView: typeof parsed.entryView === "string" ? parsed.entryView : null,
+      customHotelView: typeof parsed.customHotelView === "boolean" ? parsed.customHotelView : entryView ? false : true,
+      entryView,
       versionCheckBuild: normalizeSettingsVersionCheckBuild(parsed.versionCheckBuild),
     };
   } catch {
-    return { activeProfileId: null, resizablePresentation: null, customHotelView: null, entryView: null, versionCheckBuild: null };
+    return { activeProfileId: null, resizablePresentation: null, customHotelView: true, entryView: null, versionCheckBuild: null };
   }
 }
 

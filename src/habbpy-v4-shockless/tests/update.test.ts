@@ -1,9 +1,16 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { UpdateManager, replaceableInstallerPath, validateStagedUpdatePayload } from "../src/main/updateService";
+import {
+  UpdateManager,
+  buildPowerShellInstallerLauncherScript,
+  replaceableInstallerPath,
+  validateStagedUpdatePayload,
+} from "../src/main/updateService";
 import {
   isNewerAppVersion,
   publicUpdatePathIsForbidden,
@@ -116,6 +123,59 @@ test("installer replacement rules preserve user plugin folders and manage bundle
   assert.equal(replaceableInstallerPath("plugins/my-private-addon/plugin.js"), false);
 });
 
+test("PowerShell update launcher starts installer from spaced paths", async (context) => {
+  if (process.platform !== "win32") {
+    context.skip("PowerShell launcher regression is Windows-specific.");
+    return;
+  }
+
+  const root = mkdtempSync(join(tmpdir(), "habbpy v4 update launcher "));
+  try {
+    const launcherPath = join(root, "launch update.ps1");
+    const installerPath = join(root, "install update.ps1");
+    const planPath = join(root, "install plan.json");
+    const logPath = join(root, "install log.txt");
+    writeFileSync(launcherPath, buildPowerShellInstallerLauncherScript(), "utf8");
+    writeFileSync(planPath, "{}", "utf8");
+    writeFileSync(
+      installerPath,
+      [
+        "param([string]$PlanPath,[string]$LogPath)",
+        'Add-Content -LiteralPath $LogPath -Value "External updater bootstrap started." -Encoding UTF8',
+        'Add-Content -LiteralPath $LogPath -Value "External updater installer ready." -Encoding UTF8',
+        'Add-Content -LiteralPath $LogPath -Value "Install complete." -Encoding UTF8',
+      ].join("\n"),
+      "utf8",
+    );
+
+    const code = await spawnPowerShell([
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      launcherPath,
+      "-InstallerScriptPath",
+      installerPath,
+      "-PlanPath",
+      planPath,
+      "-LogPath",
+      logPath,
+      "-WorkingDirectory",
+      root,
+    ]);
+    assert.equal(code, 0);
+
+    const log = await waitForTextFile(logPath, "Install complete.");
+    assert.match(log, /External updater launcher started\./);
+    assert.match(log, /External updater installer process launched\./);
+    assert.match(log, /External updater installer ready\./);
+    assert.match(log, /Install complete\./);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 function mockGitHubFetch(version: string): typeof fetch {
   const manifest = {
     schemaVersion: 1,
@@ -170,4 +230,22 @@ function writeStagedPayload(root: string): void {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, "ok", "utf8");
   }
+}
+
+function spawnPowerShell(args: string[]): Promise<number | null> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("powershell.exe", args, { stdio: "ignore", windowsHide: true });
+    child.once("error", reject);
+    child.once("exit", (code) => resolve(code));
+  });
+}
+
+async function waitForTextFile(filePath: string, needle: string): Promise<string> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < 5_000) {
+    const text = await readFile(filePath, "utf8").catch(() => "");
+    if (text.includes(needle)) return text;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`Timed out waiting for ${needle} in ${filePath}`);
 }

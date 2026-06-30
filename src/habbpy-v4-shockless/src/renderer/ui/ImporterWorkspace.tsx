@@ -128,7 +128,7 @@ export function ImporterWorkspace({
   const launchSettingsDisabled = !bridgeAvailable || settingsBusy || engineLaunch?.status === "running";
   const currentHotelView = engineLaunch?.settings?.customHotelView
     ? "custom"
-    : engineLaunch?.settings?.entryView ?? "hh_entry_uk";
+    : engineLaunch?.settings?.entryView ?? "custom";
   const showUpdateCallout =
     updateState?.status === "available" ||
     updateState?.status === "downloaded" ||

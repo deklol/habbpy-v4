@@ -3550,7 +3550,7 @@ export function App() {
   }, [appendTimeline, updateEngineLaunchSettings, versionCheckDraft]);
 
   const setHotelView = useCallback((value: string) => {
-    const normalized = value.trim() || "hh_entry_uk";
+    const normalized = value.trim() || "custom";
     if (normalized === "custom") {
       void updateEngineLaunchSettings({ customHotelView: true, entryView: null }, "Hotel view set to Shockless Custom.");
       return;
@@ -3560,7 +3560,7 @@ export function App() {
 
   const currentHotelView = engineLaunch?.settings?.customHotelView
     ? "custom"
-    : engineLaunch?.settings?.entryView ?? "hh_entry_uk";
+    : engineLaunch?.settings?.entryView ?? "custom";
 
   const appSettingsLayout = useMemo<readonly PluginUiElement[]>(() => [
     {
@@ -3579,7 +3579,7 @@ export function App() {
       title: "Engine",
       description: "Client launch and room-stage settings.",
       children: [
-        { type: "select", id: "hotelView", label: "Hotel View", defaultValue: "hh_entry_uk", action: "settings.hotelView", options: [
+        { type: "select", id: "hotelView", label: "Hotel View", defaultValue: "custom", action: "settings.hotelView", options: [
           { value: "custom", label: "Shockless Custom" },
           { value: "hh_entry_uk", label: "United Kingdom" },
           { value: "hh_entry_br", label: "Brazil" },

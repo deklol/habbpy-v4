@@ -30,6 +30,7 @@ import { errorMessage } from "../shared/errors.js";
 const GITHUB_API_RELEASE_URL = `https://api.github.com/repos/${UPDATE_REPOSITORY_OWNER}/${UPDATE_REPOSITORY_NAME}/releases/latest`;
 const REQUEST_TIMEOUT_MS = 10_000;
 const PROGRESS_EMIT_INTERVAL_MS = 150;
+const INSTALLER_START_TIMEOUT_MS = 5_000;
 const UPDATE_STATE_FILE = "update-state.json";
 const TEXT_EXTENSIONS = new Set([".cjs", ".css", ".html", ".js", ".json", ".md", ".mjs", ".txt", ".xml", ".yml", ".yaml"]);
 const FORBIDDEN_RELEASE_TEXT_PATTERNS = [
@@ -86,6 +87,11 @@ export interface UpdateInstallPlan {
   readonly parentPid: number;
   readonly relaunch: boolean;
   readonly managedPluginRoots: readonly string[];
+}
+
+interface InstallerLaunchResult {
+  readonly ok: boolean;
+  readonly message: string;
 }
 
 export class UpdateManager {
@@ -245,22 +251,47 @@ export class UpdateManager {
 
     const planPath = await this.writeInstallPlan(this.state.available, staged.payloadRoot);
     const installerScriptPath = await this.writeInstallerScript(this.state.available);
+    const installLogPath = join(this.updateRoot(this.state.available.version), "install.log");
     await appendFile(
-      join(this.updateRoot(this.state.available.version), "install.log"),
+      installLogPath,
       `${new Date().toISOString()} Launching external updater installer ${installerScriptPath}\n`,
       "utf8",
     );
 
+    const launcherScriptPath = await this.writeInstallerLauncherScript(this.state.available);
     const child = spawn(
       "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", installerScriptPath, "-PlanPath", planPath],
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        launcherScriptPath,
+        "-InstallerScriptPath",
+        installerScriptPath,
+        "-PlanPath",
+        planPath,
+        "-LogPath",
+        installLogPath,
+        "-WorkingDirectory",
+        this.updateRoot(this.state.available.version),
+      ],
       {
-      cwd: this.updateRoot(this.state.available.version),
-      detached: true,
-      stdio: "ignore",
-      windowsHide: true,
+        cwd: this.updateRoot(this.state.available.version),
+        stdio: "ignore",
+        windowsHide: true,
       },
     );
+    const launch = await waitForInstallerReady(child, installLogPath);
+    if (!launch.ok) {
+      this.setState({
+        status: "error",
+        error: launch.message,
+        message: `Updater installer did not start: ${launch.message}`,
+      });
+      return this.state;
+    }
     child.unref();
     this.setState({
       status: "installing",
@@ -412,6 +443,12 @@ export class UpdateManager {
     return scriptPath;
   }
 
+  private async writeInstallerLauncherScript(update: UpdateReleaseInfo): Promise<string> {
+    const scriptPath = join(this.updateRoot(update.version), "launch-update.ps1");
+    await writeFile(scriptPath, buildPowerShellInstallerLauncherScript(), "utf8");
+    return scriptPath;
+  }
+
   private updateRoot(version: string): string {
     return join(this.options.appDataPath, "HabbpyV4", "updates", safeVersionDir(version));
   }
@@ -419,6 +456,39 @@ export class UpdateManager {
   private statePath(): string {
     return join(this.options.appDataPath, "HabbpyV4", "updates", UPDATE_STATE_FILE);
   }
+}
+
+async function waitForInstallerReady(child: ReturnType<typeof spawn>, logPath: string): Promise<InstallerLaunchResult> {
+  let childError: string | null = null;
+  let childExitCode: number | null | undefined;
+  let childExitSignal: NodeJS.Signals | null | undefined;
+  child.once("error", (error) => {
+    childError = errorMessage(error);
+  });
+  child.once("exit", (code, signal) => {
+    childExitCode = code;
+    childExitSignal = signal;
+  });
+
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < INSTALLER_START_TIMEOUT_MS) {
+    const text = await readFile(logPath, "utf8").catch(() => "");
+    if (text.includes("External updater installer ready.")) return { ok: true, message: "Updater installer ready." };
+    const failedLine = text.split(/\r?\n/).find((line) => line.includes("FAILED:"));
+    if (failedLine) return { ok: false, message: failedLine };
+    if (childError) return { ok: false, message: childError };
+    if (childExitCode !== undefined && childExitCode !== 0) {
+      return { ok: false, message: `updater launcher exited before ready (code=${childExitCode ?? "-"} signal=${childExitSignal ?? "-"})` };
+    }
+    await delay(100);
+  }
+
+  const launcherStatus = childExitCode !== undefined ? " The launcher exited cleanly, but the installer did not report readiness." : "";
+  return { ok: false, message: `No ready marker was written to ${logPath} within ${INSTALLER_START_TIMEOUT_MS}ms.${launcherStatus}` };
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
 export async function validateStagedUpdatePayload(stageRoot: string): Promise<StagedUpdateValidation> {
@@ -482,10 +552,75 @@ try {
   await runPowershell(script);
 }
 
+export function buildPowerShellInstallerLauncherScript(): string {
+  return String.raw`param(
+  [Parameter(Mandatory = $true)]
+  [string]$InstallerScriptPath,
+
+  [Parameter(Mandatory = $true)]
+  [string]$PlanPath,
+
+  [Parameter(Mandatory = $true)]
+  [string]$LogPath,
+
+  [Parameter(Mandatory = $true)]
+  [string]$WorkingDirectory
+)
+
+$ErrorActionPreference = "Stop"
+
+function Write-LauncherLog([string]$Message) {
+  if ([string]::IsNullOrWhiteSpace($LogPath)) { return }
+  $logDir = [System.IO.Path]::GetDirectoryName($LogPath)
+  if (-not [string]::IsNullOrWhiteSpace($logDir)) {
+    New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+  }
+  Add-Content -LiteralPath $LogPath -Value "$((Get-Date).ToUniversalTime().ToString("o")) $Message" -Encoding UTF8
+}
+
+function ConvertTo-CommandLineArgument([string]$Value) {
+  if ($null -eq $Value) { return '""' }
+  $escaped = $Value.Replace('"', '\"')
+  if ($escaped.Length -eq 0 -or $escaped -match '\s') {
+    return '"' + $escaped + '"'
+  }
+  return $escaped
+}
+
+try {
+  Write-LauncherLog "External updater launcher started."
+  if (-not (Test-Path -LiteralPath $InstallerScriptPath -PathType Leaf)) { throw "Installer script is missing: $InstallerScriptPath" }
+  if (-not (Test-Path -LiteralPath $PlanPath -PathType Leaf)) { throw "Install plan is missing: $PlanPath" }
+  if (-not (Test-Path -LiteralPath $WorkingDirectory -PathType Container)) { throw "Working directory is missing: $WorkingDirectory" }
+  $arguments = @(
+    "-NoProfile",
+    "-NonInteractive",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    $InstallerScriptPath,
+    "-PlanPath",
+    $PlanPath,
+    "-LogPath",
+    $LogPath
+  )
+  $argumentText = ($arguments | ForEach-Object { ConvertTo-CommandLineArgument ([string]$_) }) -join " "
+  Start-Process -FilePath "powershell.exe" -ArgumentList $argumentText -WindowStyle Hidden -WorkingDirectory $WorkingDirectory | Out-Null
+  Write-LauncherLog "External updater installer process launched."
+} catch {
+  Write-LauncherLog "FAILED: updater launcher could not start installer: $($_.Exception.ToString())"
+  exit 1
+}
+exit 0
+`;
+}
+
 export function buildPowerShellInstallerScript(): string {
   return String.raw`param(
   [Parameter(Mandatory = $true)]
-  [string]$PlanPath
+  [string]$PlanPath,
+
+  [string]$LogPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -501,6 +636,14 @@ function Get-FullPath([string]$Path) {
 
 function Write-InstallLog([object]$Plan, [string]$Message) {
   $logPath = [string]$Plan.logPath
+  Write-LogPath $logPath $Message
+}
+
+function Write-BootstrapLog([string]$Message) {
+  Write-LogPath $LogPath $Message
+}
+
+function Write-LogPath([string]$logPath, [string]$Message) {
   if ([string]::IsNullOrWhiteSpace($logPath)) { return }
   $logDir = [System.IO.Path]::GetDirectoryName($logPath)
   if (-not [string]::IsNullOrWhiteSpace($logDir)) {
@@ -691,12 +834,34 @@ function Rollback-Install([object]$Plan, [string]$InstallDir, [string]$BackupDir
   }
 }
 
+function Test-PlanProcess([object]$Plan, [object]$ProcessInfo) {
+  if ($null -eq $ProcessInfo) { return $false }
+  $installDir = Get-FullPath ([string]$Plan.installDir)
+  $appExePath = Get-FullPath ([string]$Plan.appExePath)
+  $exe = [string]$ProcessInfo.ExecutablePath
+  $command = [string]$ProcessInfo.CommandLine
+  if (-not [string]::IsNullOrWhiteSpace($exe) -and [string]::Equals((Get-FullPath $exe), $appExePath, [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+  if (-not [string]::IsNullOrWhiteSpace($exe) -and $exe.StartsWith($installDir, [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+  if (-not [string]::IsNullOrWhiteSpace($command) -and $command.IndexOf($installDir, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true }
+  return $false
+}
+
 function Wait-ForProcessExit([object]$Plan, [int]$ProcessId, [int]$TimeoutMs) {
   if ($ProcessId -le 0) { return }
+  $first = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction SilentlyContinue
+  if ($null -eq $first) { return }
+  if (-not (Test-PlanProcess $Plan $first)) {
+    Write-InstallLog $Plan "Parent PID $ProcessId no longer belongs to this portable install; skipping parent wait."
+    return
+  }
   $startedAt = Get-Date
   while (((Get-Date) - $startedAt).TotalMilliseconds -lt $TimeoutMs) {
-    $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+    $process = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction SilentlyContinue
     if ($null -eq $process) { return }
+    if (-not (Test-PlanProcess $Plan $process)) {
+      Write-InstallLog $Plan "Parent PID $ProcessId was reused by another process; continuing install."
+      return
+    }
     Start-Sleep -Milliseconds 250
   }
   Write-InstallLog $Plan "Timed out waiting for parent process $ProcessId to exit."
@@ -782,9 +947,11 @@ function Restart-App([object]$Plan) {
 
 $plan = $null
 try {
+  Write-BootstrapLog "External updater bootstrap started."
   $plan = Get-Plan $PlanPath
   Write-InstallLog $plan "External updater installer started."
   Validate-Plan $plan
+  Write-InstallLog $plan "External updater installer ready."
   Wait-ForProcessExit $plan ([int]$plan.parentPid) $ParentWaitTimeoutMs
   Wait-ForInstallDirectoryProcesses $plan $ProcessDrainTimeoutMs
   Stop-InstallDirectoryProcesses $plan
@@ -795,6 +962,8 @@ try {
 } catch {
   if ($null -ne $plan) {
     Write-InstallLog $plan "FAILED: $($_.Exception.ToString())"
+  } else {
+    Write-BootstrapLog "FAILED before plan: $($_.Exception.ToString())"
   }
   exit 1
 }

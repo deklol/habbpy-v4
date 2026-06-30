@@ -439,6 +439,28 @@ test("external variables normalization forces official game and MUS endpoints ov
   assert.doesNotMatch(normalized, /connection\.mus\.host=127\.0\.0\.1/);
 });
 
+test("Shockless launch settings default to custom hotel view", () => {
+  const appData = mkdtempSync(join(tmpdir(), "habbpy-v4-default-hotel-view-"));
+  try {
+    const defaults = readShocklessSettings(appData);
+    assert.equal(defaults.customHotelView, true);
+    assert.equal(defaults.entryView, null);
+
+    const settingsRoot = join(appData, "ShocklessEngine");
+    mkdirSync(settingsRoot, { recursive: true });
+    writeFileSync(join(settingsRoot, "settings.json"), `${JSON.stringify({ entryView: "hh_entry_uk" })}\n`, "utf8");
+    const legacyCountryView = readShocklessSettings(appData);
+    assert.equal(legacyCountryView.customHotelView, false);
+    assert.equal(legacyCountryView.entryView, "hh_entry_uk");
+
+    const explicitCustom = writeShocklessSettings(appData, { customHotelView: true, entryView: null });
+    assert.equal(explicitCustom.customHotelView, true);
+    assert.equal(explicitCustom.entryView, null);
+  } finally {
+    rmSync(appData, { recursive: true, force: true });
+  }
+});
+
 test("Shockless launch settings drop stale VERSIONCHECK overrides", () => {
   const appData = mkdtempSync(join(tmpdir(), "habbpy-v4-stale-versioncheck-"));
   try {
