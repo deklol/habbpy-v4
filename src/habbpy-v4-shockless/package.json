@@ -1,6 +1,6 @@
 {
   "name": "habbpy-v4-shockless",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": false,
   "description": "Desktop companion shell for the Shockless engine",
   "type": "module",

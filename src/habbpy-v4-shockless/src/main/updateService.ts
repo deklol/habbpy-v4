@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream, existsSync, readFileSync } from "node:fs";
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -236,7 +236,7 @@ export class UpdateManager {
     }
 
     const planPath = await this.writeInstallPlan(this.state.available, this.state.stagedPath);
-    const helperPath = join(__dirname, "updateInstallerHelper.js");
+    const helperPath = this.installerHelperPath(this.state.stagedPath);
     if (!existsSync(helperPath)) {
       this.setState({
         status: "error",
@@ -245,11 +245,13 @@ export class UpdateManager {
       });
       return this.state;
     }
+    const helperRunnerPath = await this.writeHelperRunner(this.state.available.version);
 
-    const child = spawn(this.options.executablePath, [helperPath, planPath], {
+    const child = spawn(helperRunnerPath, [helperPath, planPath], {
       detached: true,
       stdio: "ignore",
       env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+      windowsHide: true,
     });
     child.unref();
     this.setState({
@@ -393,6 +395,21 @@ export class UpdateManager {
     const planPath = join(root, "install-plan.json");
     await writeFile(planPath, `${JSON.stringify(plan, null, 2)}\n`, "utf8");
     return planPath;
+  }
+
+  private installerHelperPath(stagedPayloadRoot: string): string {
+    const stagedHelper = join(stagedPayloadRoot, "resources", "app", "dist", "main", "main", "updateInstallerHelper.js");
+    if (existsSync(stagedHelper)) return stagedHelper;
+    return join(__dirname, "updateInstallerHelper.js");
+  }
+
+  private async writeHelperRunner(version: string): Promise<string> {
+    const root = this.updateRoot(version);
+    await mkdir(root, { recursive: true });
+    const helperRunnerPath = join(root, "updater-runner.exe");
+    await rm(helperRunnerPath, { force: true });
+    await copyFile(this.options.executablePath, helperRunnerPath);
+    return helperRunnerPath;
   }
 
   private updateRoot(version: string): string {
