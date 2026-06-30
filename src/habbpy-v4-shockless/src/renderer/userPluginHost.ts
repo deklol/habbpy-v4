@@ -44,6 +44,12 @@ export class RendererUserPluginHost {
     }
   }
 
+  dispatchPluginEvent(pluginId: string, name: string, payload: unknown): void {
+    const runtime = this.runtimes.get(pluginId);
+    if (!runtime || !canReceiveEvent(runtime.plugin, name)) return;
+    runtime.worker.postMessage({ type: "event", name, payload });
+  }
+
   dispose(): void {
     for (const pluginId of [...this.runtimes.keys()]) this.disposeRuntime(pluginId);
     this.loading.clear();
@@ -136,6 +142,7 @@ function permissionForEventName(name: string): PluginPermission | null {
   if (name === "packet" || name.startsWith("packet.")) return "events.packet";
   if (name.startsWith("chat.")) return "events.chat";
   if (name.startsWith("room.")) return "events.room";
+  if (name.startsWith("ui.")) return "ui.panel";
   if (name.startsWith("session.") || name.startsWith("client.")) return "events.session";
   if (name.startsWith("runtime.") || name.startsWith("engine.")) return "engine.snapshot";
   return null;
@@ -150,6 +157,49 @@ function normalizeHostRequest(message: Record<string, unknown>): UserPluginHostR
 
 function userPluginWorkerSource(): string {
   return `
+function blockedPluginCapability(name) {
+  return function () {
+    throw new Error("Plugin capability blocked: " + name + ". Use Habbpy host APIs instead.");
+  };
+}
+
+function installBlockedGlobal(name) {
+  const blocked = blockedPluginCapability(name);
+  try {
+    Object.defineProperty(globalThis, name, { configurable: false, writable: false, value: blocked });
+  } catch (_) {
+    try { globalThis[name] = blocked; } catch (_) {}
+  }
+}
+
+["fetch", "XMLHttpRequest", "WebSocket", "EventSource", "Worker", "SharedWorker", "BroadcastChannel", "importScripts", "eval", "Function"].forEach(installBlockedGlobal);
+try {
+  if (globalThis.navigator && "sendBeacon" in globalThis.navigator) Object.defineProperty(globalThis.navigator, "sendBeacon", { configurable: false, value: blockedPluginCapability("navigator.sendBeacon") });
+  if (globalThis.navigator && "clipboard" in globalThis.navigator) Object.defineProperty(globalThis.navigator, "clipboard", { configurable: false, value: undefined });
+} catch (_) {}
+try {
+  if ("localStorage" in globalThis) Object.defineProperty(globalThis, "localStorage", { configurable: false, value: undefined });
+  if ("sessionStorage" in globalThis) Object.defineProperty(globalThis, "sessionStorage", { configurable: false, value: undefined });
+  if ("indexedDB" in globalThis) Object.defineProperty(globalThis, "indexedDB", { configurable: false, value: undefined });
+  if ("caches" in globalThis) Object.defineProperty(globalThis, "caches", { configurable: false, value: undefined });
+} catch (_) {}
+const nativeAddEventListener = typeof globalThis.addEventListener === "function" ? globalThis.addEventListener.bind(globalThis) : null;
+if (nativeAddEventListener) {
+  try {
+    Object.defineProperty(globalThis, "addEventListener", {
+      configurable: false,
+      writable: false,
+      value(type, listener, options) {
+        const eventType = String(type || "").toLowerCase();
+        if (eventType === "keydown" || eventType === "keyup" || eventType === "keypress" || eventType === "beforeinput") {
+          throw new Error("Plugin keyboard event listeners are blocked. Use declared hotkeys or schema actions.");
+        }
+        return nativeAddEventListener(type, listener, options);
+      },
+    });
+  } catch (_) {}
+}
+
 const pending = new Map();
 const eventHandlers = new Map();
 let nextRequestId = 1;
@@ -250,6 +300,168 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, duration));
 }
 
+function createSubscriptionCollector() {
+  const disposers = [];
+  let disposed = false;
+  return {
+    add(disposer) {
+      if (typeof disposer !== "function") return disposer;
+      if (disposed) {
+        try { disposer(); } catch (_) {}
+      } else {
+        disposers.push(disposer);
+      }
+      return disposer;
+    },
+    addAll(...items) {
+      for (const item of items) this.add(item);
+      return items;
+    },
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      while (disposers.length > 0) {
+        const dispose = disposers.pop();
+        try { dispose(); } catch (error) { log("error", error?.message || error); }
+      }
+    },
+  };
+}
+
+function clientIdFromOptions(options) {
+  if (typeof options === "number") return options;
+  if (!options || typeof options !== "object") return undefined;
+  return options.clientId;
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function tileOf(entity) {
+  const x = Number(entity?.x);
+  const y = Number(entity?.y);
+  const direction = Number(entity?.direction ?? 0);
+  if (Number.isFinite(x) && Number.isFinite(y)) {
+    return { x: Math.trunc(x), y: Math.trunc(y), direction: Number.isFinite(direction) ? Math.trunc(direction) : 0 };
+  }
+  const match = String(entity?.position ?? "").match(/(-?\d+)\s*,\s*(-?\d+)/);
+  return match ? { x: Number.parseInt(match[1], 10), y: Number.parseInt(match[2], 10), direction: 0 } : null;
+}
+
+function objectIdOf(item) {
+  const value = Number(item?.objectId ?? item?.id ?? item?.itemId);
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+function itemKeyOf(item) {
+  return String(item?.key ?? item?.objectId ?? item?.itemId ?? item?.id ?? item?.name ?? Math.random());
+}
+
+function userKeyOf(user) {
+  return String(user?.accountId ?? user?.id ?? user?.name ?? "unknown").toLowerCase();
+}
+
+function itemSummaryOf(item) {
+  if (!item) return null;
+  const tile = item.tile ?? tileOf(item);
+  return {
+    key: item.key ?? null,
+    kind: item.kind ?? null,
+    id: objectIdOf(item),
+    objectId: item.objectId ?? null,
+    itemId: item.itemId ?? null,
+    className: item.className ?? item.name ?? null,
+    name: item.name ?? null,
+    ownerName: item.ownerName ?? null,
+    tile,
+    x: item.x ?? tile?.x ?? null,
+    y: item.y ?? tile?.y ?? null,
+    wallLocation: item.wallLocation ?? null,
+    wall: item.wall ?? null,
+    local: item.local ?? null,
+    orientation: item.orientation ?? item.direction ?? null,
+    state: item.state ?? null,
+  };
+}
+
+function itemSummaries(items) {
+  return (Array.isArray(items) ? items : []).map(itemSummaryOf).filter(Boolean);
+}
+
+function countRoomItems(event) {
+  return {
+    users: event?.counts?.users ?? (Array.isArray(event?.users) ? event.users.length : 0),
+    floor: (event?.floorItems ?? []).length,
+    wall: (event?.wallItems ?? []).length,
+    all: (event?.items ?? []).length,
+  };
+}
+
+function floorItemsFromSnapshot(snapshot) {
+  return [...(snapshot?.roomObjects?.activeObjects ?? []), ...(snapshot?.roomObjects?.passiveObjects ?? [])];
+}
+
+function wallItemsFromSnapshot(snapshot) {
+  return snapshot?.roomObjects?.wallItems ?? [];
+}
+
+function keepSelectedItem(selected, items) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const selectedId = objectIdOf(selected);
+  return selectedId ? items.find((item) => objectIdOf(item) === selectedId) ?? items[0] : items[0];
+}
+
+function parsePair(value) {
+  if (Array.isArray(value) && value.length >= 2) return value.map(Number).slice(0, 2);
+  const parts = String(value ?? "").match(/-?\d+/g)?.map(Number) ?? [];
+  return parts.length >= 2 ? parts.slice(0, 2) : null;
+}
+
+function wallMoveLocation(item, options = {}) {
+  const id = objectIdOf(item);
+  if (!id) return null;
+  const wall = parsePair(item?.wall);
+  const local = parsePair(item?.local);
+  if (!wall || !local) return null;
+  const deltaX = Number(options?.deltaX ?? 0);
+  const deltaY = Number(options?.deltaY ?? 0);
+  return {
+    kind: "wall",
+    itemId: id,
+    wallX: wall[0] + (Number.isFinite(deltaX) ? Math.trunc(deltaX) : 0),
+    wallY: wall[1] + (Number.isFinite(deltaY) ? Math.trunc(deltaY) : 0),
+    localX: local[0],
+    localY: local[1],
+    orientation: options?.orientation || item?.orientation || item?.direction || "l",
+    className: item?.className ?? item?.name,
+  };
+}
+
+function packetSummary(packet) {
+  return {
+    clientId: packet?.clientId ?? null,
+    direction: packet?.direction ?? null,
+    header: packet?.header ?? null,
+    packetName: packet?.packetName ?? "UNKNOWN_HEADER",
+    lineNumber: packet?.lineNumber ?? null,
+    fields: packet?.decodedFields ?? [],
+    bodyStatus: packet?.bodyStatus ?? null,
+  };
+}
+
+function packetHasName(packet, ...names) {
+  const packetName = String(packet?.packetName ?? "").toLowerCase();
+  return names.flat().map((name) => String(name).toLowerCase()).some((name) => packetName === name || packetName.includes(name));
+}
+
+function packetField(packet, matcher) {
+  const fields = packet?.decodedFields ?? [];
+  if (matcher instanceof RegExp) return fields.find((field) => matcher.test(String(field?.label ?? ""))) ?? null;
+  const wanted = String(matcher ?? "").toLowerCase();
+  return fields.find((field) => String(field?.label ?? "").toLowerCase() === wanted) ?? null;
+}
+
 function dispatchEvent(name, payload) {
   const exactName = String(name || "");
   const handlerGroups = [eventHandlers.get(exactName), exactName === "*" ? null : eventHandlers.get("*")].filter(Boolean);
@@ -274,6 +486,9 @@ function packetEvent(packet) {
 
 const api = {
   plugin: pluginInfo,
+  subscriptions: {
+    create: createSubscriptionCollector,
+  },
   log: {
     info: (message) => log("info", message),
     warn: (message) => log("warning", message),
@@ -282,6 +497,7 @@ const api = {
   events: {
     on: addHandler,
     once: waitForEvent,
+    waitFor: waitForEvent,
     emit: (name, payload = {}) => {
       dispatchEvent(name, payload);
       return true;
@@ -294,6 +510,9 @@ const api = {
       }),
   },
   packets: {
+    summary: packetSummary,
+    hasName: packetHasName,
+    field: packetField,
     on(direction, filter, handler) {
       const normalizedDirection = String(direction || "all").toLowerCase();
       const eventName = normalizedDirection === "all" || normalizedDirection === "*" ? "packet" : "packet." + normalizedDirection;
@@ -306,6 +525,7 @@ const api = {
       });
     },
     once: waitForPacket,
+    waitFor: waitForPacket,
     send: (clientId, packet) => request("packets.send", { clientId, packet }),
   },
   timers: {
@@ -313,6 +533,10 @@ const api = {
   },
   chat: {
     send: (message, options = {}) => request("chat.send", { message, options }),
+    say: (message, options = {}) => request("chat.send", { message, options }),
+    shout: (message, options = {}) => request("chat.shout", { message, options }),
+    whisper: (target, message, options = {}) => request("chat.whisper", { target, message, options }),
+    onMessage: (handler) => addHandler("chat.message", handler),
   },
   stage: {
     click: (x, y, options = {}) => request("stage.click", { x, y, options }),
@@ -320,12 +544,44 @@ const api = {
   rooms: {
     enterPrivateRoom: (flatId, options = {}) => request("rooms.enterPrivateRoom", { flatId, options }),
     enterPublicRoom: (query, options = {}) => request("rooms.enterPublicRoom", { query, options }),
+    leave: (options = {}) => request("rooms.leave", { options }),
   },
   navigator: {
     open: (view = "nav_pr", options = {}) => request("navigator.open", { view, options }),
   },
   windows: {
     clickElement: (windowId, elementId, options = {}) => request("windows.clickElement", { windowId, elementId, options }),
+  },
+  room: {
+    tileOf,
+    objectId: objectIdOf,
+    itemKey: itemKeyOf,
+    userKey: userKeyOf,
+    summarizeItem: itemSummaryOf,
+    summarizeItems: itemSummaries,
+    countItems: countRoomItems,
+    floorItemsFromSnapshot,
+    wallItemsFromSnapshot,
+    keepSelectedItem,
+    keepSelectedWallItem: keepSelectedItem,
+    getState: (options = {}) => request("engine.getSnapshot", { clientId: clientIdFromOptions(options) }),
+    onChanged: (handler) => addHandler("room.changed", handler),
+    onReady: (handler) => addHandler("room.ready", handler),
+    onUsers: (handler) => addHandler("room.users", handler),
+    onUserJoined: (handler) => addHandler("room.userJoined", handler),
+    onUserLeft: (handler) => addHandler("room.userLeft", handler),
+    onItems: (handler) => addHandler("room.items", handler),
+    onItemAdded: (handler) => addHandler("room.itemAdded", handler),
+    onItemUpdated: (handler) => addHandler("room.itemUpdated", handler),
+    onItemRemoved: (handler) => addHandler("room.itemRemoved", handler),
+    onFloorItems: (handler) => addHandler("room.floorItemsLoaded", handler),
+    onFloorItemAdded: (handler) => addHandler("room.floorItemAdded", handler),
+    onFloorItemUpdated: (handler) => addHandler("room.floorItemUpdated", handler),
+    onFloorItemRemoved: (handler) => addHandler("room.floorItemRemoved", handler),
+    onWallItems: (handler) => addHandler("room.wallItemsLoaded", handler),
+    onWallItemAdded: (handler) => addHandler("room.wallItemAdded", handler),
+    onWallItemUpdated: (handler) => addHandler("room.wallItemUpdated", handler),
+    onWallItemRemoved: (handler) => addHandler("room.wallItemRemoved", handler),
   },
   avatar: {
     walkTo: (x, y, furniId = 0, options = {}) => request("avatar.walkTo", { x, y, furniId, options }),
@@ -356,7 +612,11 @@ const api = {
     moveItem: (item, options = {}) => request("wallItems.moveItem", { item, options }),
     pickupItem: (itemId, options = {}) => request("wallItems.pickupItem", { itemId, options }),
   },
+  teleport: {
+    enter: (selector, options = {}) => request("teleport.enter", { selector, options }),
+  },
   furni: {
+    wallMoveLocation,
     findItems: (selector = {}, options = {}) => request("furni.findItems", { selector, options }),
     findItem: (selector = {}, options = {}) => request("furni.findItem", { selector, options }),
     moveFloorItem: (selector, x, y, direction = null, options = {}) => request("furni.moveFloorItem", { selector, x, y, direction, options }),
@@ -384,8 +644,15 @@ const api = {
     requestStats: (options = {}) => request("fishing.requestStats", { options }),
     requestFishopedia: (options = {}) => request("fishing.requestFishopedia", { options }),
   },
+  runtime: {
+    getSnapshot: (options = {}) => request("engine.getSnapshot", { clientId: clientIdFromOptions(options) }),
+    onSnapshot: (handler) => addHandler("runtime.snapshot", handler),
+  },
   engine: {
     getSnapshot: (clientId) => request("engine.getSnapshot", { clientId }),
+  },
+  notifications: {
+    showBulletin: (notification = {}) => request("notifications.showBulletin", notification),
   },
   client: {
     getRights: (options = {}) => request("client.getRights", { options }),
@@ -396,17 +663,23 @@ const api = {
   },
   session: {
     getClients: () => request("session.getClients", {}),
+    onSelected: (handler) => addHandler("session.selected", handler),
   },
   storage: {
     get: (key, fallbackValue = null) => request("storage.get", { key }).then((value) => value === null || value === undefined ? fallbackValue : value),
     set: (key, value) => request("storage.set", { key, value }),
+    remember: (key, value) => request("storage.set", { key, value: { value, updatedAt: nowIso() } }),
     delete: (key) => request("storage.delete", { key }),
   },
   console: {
     registerCommand: (command) => request("console.registerCommand", { command }),
   },
   ui: {
-    registerPanel: (surface) => request("ui.registerPanel", { surface }),
+    registerPanel: (surface) => request("ui.registerSurface", { surface }),
+    registerSurface: (surface) => request("ui.registerSurface", { surface }),
+    updateSurface: (surfaceId, layout) => request("ui.updateSurface", { surfaceId, layout }),
+    setValue: (key, value) => request("ui.setValue", { key, value }),
+    onAction: (handler) => addHandler("ui.action", handler),
   },
 };
 

@@ -1,4 +1,5 @@
-import { FolderInput, Play, RefreshCw } from "lucide-react";
+import { ChevronDown, FolderInput, Play, RefreshCw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { EngineLaunchState, ClientProfileSummary } from "../../shared/window-api";
 import {
   profileLine,
@@ -11,6 +12,82 @@ import {
   PROFILE_IMPORT_STAGE_LABELS,
   type ProfileImportUiState,
 } from "./helpers";
+
+/** Hotel-view choices for the pre-launch picker. "custom" maps to the Shockless
+ * custom hotel view; the rest swap the client's country entry cast (cast.entry). */
+const HOTEL_VIEW_OPTIONS: ReadonlyArray<{ readonly value: string; readonly label: string }> = [
+  { value: "custom", label: "Shockless Custom" },
+  { value: "hh_entry_uk", label: "United Kingdom" },
+  { value: "hh_entry_br", label: "Brazil" },
+  { value: "hh_entry_es", label: "Spain" },
+  { value: "hh_entry_ru", label: "Russia" },
+];
+
+/** Themed dropdown replacing the native <select> (whose OS popup mispositions in
+ * Electron and ignores the app theme). Closes on outside-click / Escape. */
+function HotelViewDropdown({
+  value, options, disabled, onSelect,
+}: {
+  readonly value: string;
+  readonly options: ReadonlyArray<{ readonly value: string; readonly label: string }>;
+  readonly disabled: boolean;
+  readonly onSelect: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
+  const current = options.find((option) => option.value === value) ?? options[0];
+  return (
+    <div className="importer-hotelview-dd" ref={containerRef}>
+      <button
+        type="button"
+        className="importer-hotelview-trigger"
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((previous) => !previous)}
+      >
+        <span>{current?.label ?? "Default"}</span>
+        <ChevronDown size={14} className={open ? "is-open" : ""} />
+      </button>
+      {open ? (
+        <ul className="importer-hotelview-menu" role="listbox">
+          {options.map((option) => (
+            <li key={option.value} role="option" aria-selected={option.value === value}>
+              <button
+                type="button"
+                className={`importer-hotelview-option ${option.value === value ? "active" : ""}`}
+                onClick={() => {
+                  onSelect(option.value);
+                  setOpen(false);
+                }}
+              >
+                {option.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
 
 interface ImporterWorkspaceProps {
   readonly bridgeAvailable: boolean;
@@ -25,7 +102,7 @@ interface ImporterWorkspaceProps {
   readonly onImport: () => void;
   readonly onRefresh: () => void;
   readonly onStart: () => void;
-  readonly onSetCustomHotelView: (enabled: boolean) => void;
+  readonly onSetHotelView: (value: string) => void;
   readonly onSetResizablePresentation: (enabled: boolean) => void;
   readonly onSetVersionCheckBuild: () => void;
   readonly versionCheckDraft: string;
@@ -36,7 +113,7 @@ export function ImporterWorkspace({
   bridgeAvailable, bridgeMessage, engineBusy, settingsBusy, engineLaunch,
   elapsedMs, importState, profiles, selectedProfile,
   onImport, onRefresh, onStart,
-  onSetCustomHotelView, onSetResizablePresentation, onSetVersionCheckBuild,
+  onSetHotelView, onSetResizablePresentation, onSetVersionCheckBuild,
   versionCheckDraft, onVersionCheckDraftChange,
 }: ImporterWorkspaceProps) {
   const latest = importState.latest;
@@ -45,6 +122,9 @@ export function ImporterWorkspace({
   const status = profileImportStatusLabel(importState);
   const message = importState.message || engineLaunch?.message || bridgeMessage;
   const launchSettingsDisabled = !bridgeAvailable || settingsBusy || engineLaunch?.status === "running";
+  const currentHotelView = engineLaunch?.settings?.customHotelView
+    ? "custom"
+    : engineLaunch?.settings?.entryView ?? "hh_entry_uk";
   return (
     <div className="importer-workspace" aria-label="Client importer">
       <section className="importer-hero">
@@ -110,15 +190,15 @@ export function ImporterWorkspace({
             <span>Selected</span><strong>{profileLine(selectedProfile)}</strong>
             <span>Engine</span><strong>{statusLabel(engineLaunch?.status)}</strong>
             <span>Stage</span><strong>{engineLaunch?.settings?.resizablePresentation ? "Responsive" : "Fixed Stage"}</strong>
-            <span>Hotel View</span><strong>{engineLaunch?.settings?.customHotelView ? "Custom" : "Default"}</strong>
+            <span>Hotel View</span><strong>{HOTEL_VIEW_OPTIONS.find((option) => option.value === currentHotelView)?.label ?? "Default"}</strong>
             <span>Version</span><strong>{compactValue(engineLaunch?.settings?.versionCheckBuild ?? selectedProfile?.versionCheckBuild ?? null)}</strong>
             <span>Log</span><strong>{compactValue(latest?.logPath ? latest.logPath.split(/[\\/]/).pop() : null)}</strong>
           </div>
           <div className="importer-launch-settings" aria-label="Launch settings">
-            <label className="toggle-row checkbox-first-row">
-              <input type="checkbox" checked={engineLaunch?.settings?.customHotelView === true} disabled={launchSettingsDisabled} onChange={(event) => onSetCustomHotelView(event.currentTarget.checked)} />
-              <span>Custom hotel view</span>
-            </label>
+            <div className="toggle-row importer-hotelview-row">
+              <span>Hotel view</span>
+              <HotelViewDropdown value={currentHotelView} options={HOTEL_VIEW_OPTIONS} disabled={launchSettingsDisabled} onSelect={onSetHotelView} />
+            </div>
             <label className="toggle-row checkbox-first-row">
               <input type="checkbox" checked={engineLaunch?.settings?.resizablePresentation !== false} disabled={launchSettingsDisabled} onChange={(event) => onSetResizablePresentation(event.currentTarget.checked)} />
               <span>Responsive stage resize</span>
@@ -142,6 +222,9 @@ export function ImporterWorkspace({
           </div>
         </div>
       </section>
+      <footer className="importer-disclaimer">
+        Shockless is not affiliated with, endorsed, or approved by Sulake Oy or Habbo Origins. Use at own risk.
+      </footer>
     </div>
   );
 }

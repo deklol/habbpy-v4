@@ -1,5 +1,5 @@
-import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+﻿import assert from "node:assert/strict";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
@@ -47,19 +47,44 @@ function writePluginFixture(root: string, id = "fixture-plugin"): void {
   writeFileSync(join(root, "plugin.js"), "export function activate() { return { dispose() {} }; }\n", "utf8");
 }
 
-test("plugin manager keeps core tabs pinned and enabled", () => {
+test("plugin manager keeps app-level tools out of the plugin registry and reserves their ids", () => {
   withTempAppData("habbpy-v4-plugin-core-", (appData) => {
     const manager = new PluginManager(appData);
     const state = manager.state();
 
-    assert.ok(state.pinnedPluginIds.includes("plugin-manager"));
-    assert.ok(state.pinnedPluginIds.includes("settings"));
-    assert.equal(state.enabledById["plugin-manager"], true);
-    assert.equal(state.enabledById.settings, true);
+    assert.equal(state.plugins.some((plugin) => plugin.id === "plugin-manager"), false);
+    assert.equal(state.plugins.some((plugin) => plugin.id === "settings"), false);
+    assert.equal(state.enabledById["plugin-manager"], undefined);
+    assert.equal(state.enabledById.settings, undefined);
 
-    const next = manager.setPluginEnabled("plugin-manager", false);
-    assert.equal(next.enabledById["plugin-manager"], true);
-    assert.match(next.message, /pinned/i);
+    const pluginManagerResult = manager.createFromTemplate({ id: "plugin-manager", name: "Plugin Manager" });
+    assert.equal(pluginManagerResult.ok, false);
+    assert.match(pluginManagerResult.message, /reserved/i);
+
+    const settingsResult = manager.createFromTemplate({ id: "settings", name: "Settings" });
+    assert.equal(settingsResult.ok, false);
+    assert.match(settingsResult.message, /reserved/i);
+  });
+});
+
+test("plugin manager refuses plugin sources with network or keyboard capture primitives", () => {
+  withTempAppData("habbpy-v4-plugin-security-", (appData) => {
+    const manager = new PluginManager(appData);
+    const networkRoot = join(appData, "network-plugin");
+    writePluginFixture(networkRoot, "network-plugin");
+    writeFileSync(join(networkRoot, "plugin.js"), `export function activate() { return fetch("https://example.test/collect"); }\n`, "utf8");
+
+    const networkResult = manager.installFromFolder(networkRoot);
+    assert.equal(networkResult.ok, false);
+    assert.match(networkResult.message, /blocked network APIs|external URL/i);
+
+    const keyRoot = join(appData, "key-plugin");
+    writePluginFixture(keyRoot, "key-plugin");
+    writeFileSync(join(keyRoot, "plugin.js"), `export function activate() { addEventListener("keydown", () => {}); }\n`, "utf8");
+
+    const keyResult = manager.installFromFolder(keyRoot);
+    assert.equal(keyResult.ok, false);
+    assert.match(keyResult.message, /keyboard event capture/i);
   });
 });
 
@@ -129,21 +154,6 @@ test("plugin manager installs the welcome message example plugin", () => {
   });
 });
 
-test("plugin manager installs the chooser/furni client rights example plugin", () => {
-  withTempAppData("habbpy-v4-plugin-chooser-rights-", (appData) => {
-    const manager = new PluginManager(appData);
-    const result = manager.installFromFolder(resolve("examples/plugins/chooser-furni-permissions"));
-
-    assert.equal(result.ok, true);
-    assert.equal(result.state.enabledById["chooser-furni-permissions"], true);
-    const plugin = result.state.plugins.find((entry) => entry.id === "chooser-furni-permissions");
-    assert.ok(plugin);
-    assert.equal(plugin.origin, "user");
-    assert.equal(plugin.permissions?.includes("client.rights"), true);
-    assert.equal(plugin.permissions?.includes("packet.inject"), false);
-    assert.deepEqual(plugin.managedRuntime?.clientRights, ["fuse_habbo_chooser", "fuse_furni_chooser"]);
-  });
-});
 
 test("plugin manager installs premade module source plugins", () => {
   withTempAppData("habbpy-v4-plugin-premade-", (appData) => {
@@ -183,14 +193,25 @@ test("generated premade modules use explicit host APIs instead of blanket action
   const wallMover = readFileSync(resolve("examples/premade-plugins/wall-mover/plugin.js"), "utf8");
   const social = readFileSync(resolve("examples/premade-plugins/social/plugin.js"), "utf8");
   const combined = [user, items, wallMover, social].join("\n");
+  const premadeRoot = resolve("examples/premade-plugins");
+  const allGenerated = readdirSync(premadeRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => readFileSync(join(premadeRoot, entry.name, "plugin.js"), "utf8"))
+    .join("\n");
 
   assert.match(user, /avatar\.walkToItem/);
   assert.match(items, /furni\.findItems/);
   assert.match(items, /furni\.pickupItem/);
+  assert.match(wallMover, /furni\.wallMoveLocation/);
   assert.match(wallMover, /furni\.moveWallItem/);
   assert.match(wallMover, /furni\.pickupWallItem/);
   assert.match(social, /social\.addUser/);
+  assert.match(combined, /ui\.onAction/);
+  assert.match(readFileSync(resolve("examples/premade-plugins/items/habbpy.plugin.json"), "utf8"), /"action": "items\.move"/);
+  assert.match(allGenerated, /storage\.remember/);
+  assert.match(allGenerated, /room\.summarizeItem|packets\.summary/);
   assert.doesNotMatch(combined, /habbpy\.|actions\.user|actions\.gardening|actions\.wallMover/);
+  assert.doesNotMatch(allGenerated, /function (?:tileOf|objectId|itemKey|itemSummary|countRoomItems|packetSummary|parsePair|wallMoveAction|wallItemActionShape|visitorKey)\b/);
 });
 
 test("plugin manager ignores underscored source-pack folders", () => {

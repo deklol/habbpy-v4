@@ -3,7 +3,11 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
@@ -13,11 +17,22 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "baseUrl": ".",
     "paths": {
-      "@director/*": ["src/director/*"]
+      "@director/*": [
+        "src/director/*"
+      ]
     }
   },
-  "include": ["src", "tools", "tests", "generated"]
+  "include": [
+    "src",
+    "tools",
+    "generated"
+  ],
+  "exclude": [
+    "tests"
+  ]
 }

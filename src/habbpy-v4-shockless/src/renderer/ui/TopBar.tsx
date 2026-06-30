@@ -1,4 +1,4 @@
-import { Plus, Play, RefreshCw, Square } from "lucide-react";
+import { Package, Plus, Play, RefreshCw, Settings, Square } from "lucide-react";
 import type { ClientSessionList, ClientSessionSummary, EngineLaunchState } from "../../shared/window-api";
 
 interface TopBarProps {
@@ -17,6 +17,8 @@ interface TopBarProps {
   readonly onRefresh: () => void;
   readonly onStop: () => void;
   readonly onStart: () => void;
+  readonly onOpenPlugins: () => void;
+  readonly onOpenSettings: () => void;
   readonly onSelectClientSession: (id: number) => void;
   readonly onAddManualVisibleClient: () => void;
 }
@@ -25,18 +27,24 @@ export function TopBar({
   desktopBridgeAvailable, engineBusy, profileImportRunning, engineUrl, engineLaunch,
   selectedProfile, clientSessions, selectedClientSession, selectedClientSnapshotLabel,
   engineLocation, engineEmbedded, clientSessionTitle,
-  onRefresh, onStop, onStart, onSelectClientSession, onAddManualVisibleClient,
+  onRefresh, onStop, onStart, onOpenPlugins, onOpenSettings, onSelectClientSession, onAddManualVisibleClient,
 }: TopBarProps) {
   return (
     <header className="top-bar">
       <div className="top-bar-copy">
         <img className="app-brand-sprite" src="./img/headicon.png" alt="" aria-hidden="true" />
         <div>
-          <div className="app-title">Habbpy v4</div>
-          <div className="app-subtitle">Shockless Engine companion shell</div>
+          <div className="app-title">Shockless Engine</div>
+          <div className="app-subtitle">Habbo Origins Companion App</div>
         </div>
       </div>
       <div className="engine-actions" aria-label="Embedded engine controls">
+        <button className="engine-action-button" type="button" onClick={() => void onOpenPlugins()} title="Plugins">
+          <Package size={14} /><span>Plugins</span>
+        </button>
+        <button className="engine-action-button" type="button" onClick={() => void onOpenSettings()} title="Settings">
+          <Settings size={14} /><span>Settings</span>
+        </button>
         <button className="engine-action-button" type="button" onClick={() => void onRefresh()} disabled={!desktopBridgeAvailable || engineBusy || profileImportRunning} title="Refresh">
           <RefreshCw size={14} /><span>Refresh</span>
         </button>

@@ -101,6 +101,7 @@ function isPluginPermission(value: unknown): value is PluginPermission {
     value === "console.commands" ||
     value === "engine.snapshot" ||
     value === "engine.control" ||
+    value === "notifications.show" ||
     value === "client.rights" ||
     value === "events.room" ||
     value === "events.chat" ||

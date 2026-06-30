@@ -26,7 +26,7 @@ export async function readFurniMetadataSnapshot(appDataPath: string): Promise<Fu
   if (existsSync(cachePath)) {
     text = readFileSync(cachePath, "utf8");
     source = "cache";
-    message = "Loaded furnidata from the local Habbpy v4 gamedata cache.";
+    message = "Loaded furnidata from the local Shockless gamedata cache.";
   } else {
     try {
       const response = await fetch(ORIGINS_FURNIDATA_URL);

@@ -20,4 +20,3 @@ describe("Director keyboard mapping", () => {
     expect(directorKeyForBrowserEvent({ key: "ArrowLeft", code: "ArrowLeft" })).toEqual({ key: String.fromCharCode(28), code: 123 });
   });
 });
-

@@ -192,4 +192,3 @@ export function directorKeyForTextKey(key: string): DirectorKeyMapping | null {
   const code = printableKeyCodeFor(key);
   return code === null ? null : { key, code };
 }
-

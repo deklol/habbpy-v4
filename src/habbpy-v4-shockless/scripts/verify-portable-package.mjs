@@ -1,10 +1,10 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+﻿import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, extname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const portableRoot = resolve(process.argv[2] ?? join(workspace, "dist", "portable", "HabbpyV4"));
-const textExtensions = new Set([".cjs", ".css", ".html", ".js", ".json", ".md", ".mjs", ".txt"]);
+const textExtensions = new Set([".cjs", ".css", ".html", ".js", ".json", ".mjs", ".txt"]);
 const premadeModuleIds = readPremadeModuleIds(join(portableRoot, "plugins", "_premade-modules"));
 const requiredFiles = [
   "Habbpy v4.exe",
@@ -15,15 +15,11 @@ const requiredFiles = [
   "resources/app/dist/main/main/shocklessEmbed.js",
   "resources/app/dist/plugins/template/habbpy.plugin.json",
   "resources/app/dist/plugins/template/plugin.js",
-  "resources/app/dist/plugins/template/README.md",
   "plugins/welcome-message/habbpy.plugin.json",
   "plugins/welcome-message/plugin.js",
-  "plugins/welcome-message/README.md",
-  "plugins/_premade-modules/README.md",
   ...premadeModuleIds.flatMap((id) => [
     `plugins/_premade-modules/${id}/habbpy.plugin.json`,
     `plugins/_premade-modules/${id}/plugin.js`,
-    `plugins/_premade-modules/${id}/README.md`,
   ]),
   "resources/engine/dist/index.html",
   "resources/engine/standalone/package.json",
@@ -37,7 +33,15 @@ const requiredFiles = [
   "resources/relay/shockwave-codec.mjs",
   "resources/relay/bobba-crypto.mjs",
 ];
+const requiredFileAlternatives = [
+  ["resources/app/dist/plugins/template/README.md", "resources/app/dist/plugins/template/README.txt"],
+  ["plugins/welcome-message/README.md", "plugins/welcome-message/README.txt"],
+  ["plugins/_premade-modules/README.md", "plugins/_premade-modules/README.txt"],
+  ...premadeModuleIds.map((id) => [`plugins/_premade-modules/${id}/README.md`, `plugins/_premade-modules/${id}/README.txt`]),
+];
 const forbiddenFileNames = new Set(["goal.md", "multiclient-accounts.txt"]);
+const forbiddenPluginPaths = [
+];
 const forbiddenTextPatterns = [
   /[A-Z]:[\\/](?:Users[\\/]dekky|habbo|habbpy|slopwave)/i,
   /C:[\\/]Users[\\/]dekky/i,
@@ -48,11 +52,17 @@ if (!existsSync(portableRoot) || !statSync(portableRoot).isDirectory()) {
   fail(`Portable root is missing: ${portableRoot}`);
 }
 
-const missing = requiredFiles.filter((file) => !fileExists(join(portableRoot, file)));
+const missing = [
+  ...requiredFiles.filter((file) => !fileExists(join(portableRoot, file))),
+  ...requiredFileAlternatives
+    .filter((alternatives) => !alternatives.some((file) => fileExists(join(portableRoot, file))))
+    .map((alternatives) => alternatives.join(" or ")),
+];
 if (missing.length > 0) {
   fail(`Portable package is missing required file(s): ${missing.join(", ")}`);
 }
 
+const copiedForbiddenPluginPaths = forbiddenPluginPaths.filter((entry) => pathExists(join(portableRoot, entry)));
 const copiedForbiddenFiles = [];
 const leakedText = [];
 let standaloneResourceFileCount = 0;
@@ -77,6 +87,9 @@ for (const filePath of walk(portableRoot)) {
   }
 }
 
+if (copiedForbiddenPluginPaths.length > 0) {
+  fail(`Portable package copied private/dev-only plugin path(s): ${copiedForbiddenPluginPaths.join(", ")}`);
+}
 if (copiedForbiddenFiles.length > 0) {
   fail(`Portable package copied private local file(s): ${copiedForbiddenFiles.join(", ")}`);
 }
@@ -92,9 +105,10 @@ console.log(
     {
       ok: true,
       portableRoot: relative(workspace, portableRoot),
-      requiredFiles: requiredFiles.length,
+      requiredFiles: requiredFiles.length + requiredFileAlternatives.length,
       standaloneResourceFileCount,
       standaloneResourceBytes,
+      forbiddenPluginPathsCopied: copiedForbiddenPluginPaths.length,
       forbiddenFilesCopied: copiedForbiddenFiles.length,
       localAbsolutePathNeedles: leakedText.length,
     },
@@ -102,6 +116,15 @@ console.log(
     2,
   ),
 );
+
+function pathExists(filePath) {
+  try {
+    statSync(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function fileExists(filePath) {
   try {

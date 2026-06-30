@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -106,8 +106,6 @@ test("plugin registry keeps required Habbpy v3 surfaces", () => {
     "items",
     "inventory",
     "automation",
-    "fishing",
-    "gardening",
     "wall-mover",
     "social",
     "visitors",
@@ -115,12 +113,13 @@ test("plugin registry keeps required Habbpy v3 surfaces", () => {
     "injection",
     "packet-log",
     "dev-tools",
-    "about",
   ];
   const ids = plugins.map((plugin) => plugin.id);
   for (const id of expected) {
     assert.ok(ids.includes(id), `missing plugin ${id}`);
   }
+
+  assert.equal(ids.includes("about"), false, "About must stay an app-level dialog, not a public built-in plugin");
 });
 
 test("built-in plugin definitions live in per-plugin source folders", () => {
@@ -143,6 +142,24 @@ test("every plugin declares source mapping and capabilities", () => {
     assert.ok(plugin.sourceMapping.shockless.length > 0, `${plugin.id} has no Shockless mapping`);
   }
 });
+test("plugins expose schema-rendered preview and surface layouts", () => {
+  for (const plugin of plugins) {
+    assert.ok(plugin.ui?.preview?.length, `${plugin.id} has no schema preview`);
+    for (const surface of plugin.uiSurfaces) {
+      assert.ok(surface.layout?.length, `${plugin.id}.${surface.id} has no schema layout`);
+    }
+  }
+});
+
+test("active renderer does not mount legacy custom plugin panels", () => {
+  const source = readFileSync(join(process.cwd(), "src", "renderer", "ui", "App.tsx"), "utf8");
+  assert.doesNotMatch(source, /\.\.\/\.\.\/plugins\/[^\"]+\/Panel/);
+  assert.doesNotMatch(source, /<\w+Panel\b/);
+  assert.match(source, /PluginStoreModal/);
+  assert.match(source, /PluginSchemaActionEvent/);
+  assert.match(source, /onShowAbout/);
+  assert.match(source, /AboutModal/);
+});
 
 test("plugin UI surfaces are modular and toggleable", () => {
   const enabledById = createInitialPluginEnabledState();
@@ -161,13 +178,23 @@ test("plugin UI surfaces are modular and toggleable", () => {
   }
 });
 
-test("default enabled plugins stay focused on recovery, connection, info, diagnostics, and about", () => {
+test("Social exposes private message notifications as a toggleable surface", () => {
+  const social = plugins.find((plugin) => plugin.id === "social");
+  assert.ok(social);
+  const surface = social.uiSurfaces.find((entry) => entry.id === "private-message-notifications");
+  assert.ok(surface);
+  assert.equal(surface.kind, "overlay");
+  assert.equal(surface.label, "Private Message Notifications");
+  assert.equal(surface.enabledByDefault, true);
+});
+
+test("default enabled plugins stay focused on recovery, connection, info, and diagnostics", () => {
   const enabledById = createInitialPluginEnabledState();
   const enabledIds = Object.entries(enabledById)
     .filter(([, enabled]) => enabled)
     .map(([id]) => id)
     .sort();
-  assert.deepEqual(enabledIds, ["about", "connection", "dev-tools", "info", "plugin-manager", "settings"].sort());
+  assert.deepEqual(enabledIds, ["connection", "dev-tools", "info"].sort());
 });
 
 test("shell reducer toggles plugins, surfaces, and dock without mutating source state", () => {
@@ -189,7 +216,7 @@ test("shell reducer toggles plugins, surfaces, and dock without mutating source 
   assert.equal(initialAppState.plugins.uiSurfaceEnabledByPluginId.room.overlay, true);
 
   const collapsed = shellReducer(overlayOff, { type: "toggleDockCollapsed" });
-  assert.equal(collapsed.ui.dockCollapsed, true);
+  assert.equal(collapsed.ui.dockCollapsed, !overlayOff.ui.dockCollapsed);
 
   const accountMerged = shellReducer(collapsed, {
     type: "mergeAccountSummary",
@@ -318,6 +345,7 @@ test("embedded Shockless launch URL is built from selected profile metadata", ()
       settings: {
         resizablePresentation: true,
         customHotelView: false,
+        entryView: null,
         versionCheckBuild: null,
       },
     }),

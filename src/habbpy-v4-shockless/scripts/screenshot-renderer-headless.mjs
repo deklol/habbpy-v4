@@ -12,7 +12,25 @@ const viewport = {
   width: readPositiveInt(process.env.HABBPY_V4_SCREENSHOT_VIEWPORT_WIDTH, 1365),
   height: readPositiveInt(process.env.HABBPY_V4_SCREENSHOT_VIEWPORT_HEIGHT, 768),
 };
-const defaultPlugins = ["Connection", "User", "Room", "Packet Log", "Gardening"];
+const defaultPlugins = [
+  "Connection",
+  "Multi Account",
+  "Info",
+  "Room",
+  "User",
+  "Social",
+  "Chat",
+  "Visitors",
+  "Items",
+  "Inventory",
+  "Automation",
+  "Wall Mover",
+  "Packet Log",
+  "Injection",
+  "Dev Tools",
+  "Plugin Manager",
+  "Sample Plugin",
+];
 const pluginsToCapture = (process.env.HABBPY_V4_SCREENSHOT_PLUGINS || defaultPlugins.join(","))
   .split(",")
   .map((plugin) => plugin.trim())
@@ -264,6 +282,21 @@ try {
           message: "Installed plugin 'Installed Fixture'.",
         };
         return { ok: true, message: "Installed plugin 'Installed Fixture'.", state: clone(pluginRegistry) };
+      },
+      uninstallPlugin: async (pluginId) => {
+        const id = String(pluginId || "");
+        const plugin = pluginRegistry.plugins.find((entry) => entry.id === id);
+        if (!plugin || plugin.origin !== "user") return { ok: false, message: "Only user plugins can be uninstalled.", state: clone(pluginRegistry) };
+        const { [id]: _enabled, ...enabledById } = pluginRegistry.enabledById;
+        const { [id]: _surfaces, ...uiSurfaceEnabledByPluginId } = pluginRegistry.uiSurfaceEnabledByPluginId;
+        pluginRegistry = {
+          ...pluginRegistry,
+          plugins: pluginRegistry.plugins.filter((entry) => entry.id !== id),
+          enabledById,
+          uiSurfaceEnabledByPluginId,
+          message: `Uninstalled plugin '${plugin.name}'.`,
+        };
+        return { ok: true, message: pluginRegistry.message, state: clone(pluginRegistry) };
       },
       readPluginEntrySource: async (pluginId) => ({
         ok: true,
@@ -678,17 +711,22 @@ try {
   await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
   await page.locator(".app-shell").waitFor({ state: "visible", timeout: 10000 });
   await page.waitForTimeout(5200);
-  await page.locator(".plugin-panel").waitFor({ state: "visible", timeout: 10000 });
+  const homePath = path.join(outDir, `home-importer-${runStamp}.png`);
+  await page.screenshot({ path: homePath, fullPage: true });
+  screenshots.push({ plugin: "Importer Home", path: homePath });
+  await page.getByLabel("Embedded engine controls").getByRole("button", { name: "Plugins", exact: true }).click();
+  await page.locator(".plugin-store-popout").waitFor({ state: "visible", timeout: 10000 });
+  await capturePluginSearchProof(page, outDir, runStamp, screenshots);
+  await capturePluginResizeProof(page, outDir, runStamp, screenshots);
 
   for (const pluginName of pluginsToCapture) {
-    const currentPluginName = (await page.locator(".panel-title h2").first().textContent().catch(() => "")).trim();
-    if (currentPluginName !== pluginName) {
-      await page.getByRole("button", { name: pluginName, exact: true }).click();
-    }
-    await page.locator(".plugin-panel").waitFor({ state: "visible", timeout: 10000 });
+    const row = page.locator(".plugin-store-list .plugin-store-row").filter({ hasText: pluginName }).first();
+    await row.waitFor({ state: "visible", timeout: 10000 });
+    await row.click();
+    await page.locator(".plugin-store-detail").waitFor({ state: "visible", timeout: 10000 });
     await page.waitForTimeout(pluginName === "Packet Log" ? 500 : 150);
     if (pluginName === "Packet Log") {
-      await page.getByText("SLIDEOBJECTBUNDLE", { exact: false }).first().waitFor({ timeout: 10000 });
+      await page.getByText("SLIDEOBJECTBUNDLE", { exact: false }).first().waitFor({ timeout: 3000 }).catch(() => undefined);
     }
 
     const fileName = `${slugify(pluginName)}-${runStamp}.png`;
@@ -697,14 +735,12 @@ try {
     screenshots.push({ plugin: pluginName, path: screenshotPath });
 
     if (scrollPlugins.has(pluginName)) {
-      await page.locator(".plugin-panel").evaluate((panel) => {
+      await page.locator(".plugin-store-detail").evaluate((panel) => {
         panel.scrollTop = panel.scrollHeight;
       });
-      if (pluginName === "Packet Log") {
-        await page.locator(".packet-detail-scroll").evaluate((panel) => {
-          panel.scrollTop = panel.scrollHeight;
-        });
-      }
+      await page.locator(".packet-detail-scroll").evaluate((panel) => {
+        panel.scrollTop = panel.scrollHeight;
+      }).catch(() => undefined);
       await page.waitForTimeout(150);
       const scrolledPath = path.join(outDir, `${slugify(pluginName)}-scrolled-${runStamp}.png`);
       await page.screenshot({ path: scrolledPath, fullPage: true });
@@ -712,15 +748,25 @@ try {
     }
   }
 
-  if (captureCollapsedDock) {
-    await page.getByRole("button", { name: "Collapse plugin dock", exact: true }).click();
-    await page.locator(".app-shell.dock-collapsed").waitFor({ state: "visible", timeout: 10000 });
-    await page.waitForTimeout(250);
-    const collapsedPath = path.join(outDir, `ui-collapsed-dock-${runStamp}.png`);
-    await page.screenshot({ path: collapsedPath, fullPage: true });
-    screenshots.push({ plugin: "Collapsed Dock", path: collapsedPath });
-  }
+  await page.getByRole("button", { name: "Close plugins", exact: true }).click();
+  await page.locator(".plugin-store-popout").waitFor({ state: "hidden", timeout: 10000 });
 
+  await page.getByLabel("Embedded engine controls").getByRole("button", { name: "Settings", exact: true }).click();
+  await page.locator(".settings-popout").waitFor({ state: "visible", timeout: 10000 });
+  await captureSettingsSearchProof(page, outDir, runStamp, screenshots);
+  await page.waitForTimeout(250);
+  const settingsPath = path.join(outDir, `settings-${runStamp}.png`);
+  await page.screenshot({ path: settingsPath, fullPage: true });
+  screenshots.push({ plugin: "Settings Popout", path: settingsPath });
+  await page.getByRole("button", { name: "Close settings", exact: true }).click();
+  await page.locator(".settings-popout").waitFor({ state: "hidden", timeout: 10000 });
+
+  if (captureCollapsedDock) {
+    await page.waitForTimeout(250);
+    const collapsedPath = path.join(outDir, `ui-plugin-rail-${runStamp}.png`);
+    await page.screenshot({ path: collapsedPath, fullPage: true });
+    screenshots.push({ plugin: "Plugin Rail", path: collapsedPath });
+  }
   if (consoleCommands.length > 0) {
     await page.keyboard.press("Backquote");
     const consoleInput = page.getByLabel("Packet console command");
@@ -1509,8 +1555,6 @@ function createPluginRegistryFixture() {
     pluginFixture("items", "Items", "room", "sofa", "Searchable floor and wall item inspector.", true),
     pluginFixture("inventory", "Inventory", "inventory", "package", "Hand inventory rows and item metadata.", true),
     pluginFixture("automation", "Automation", "automation", "bot", "Room automation controls.", true),
-    pluginFixture("fishing", "Fishing", "automation", "activity", "Fishing packet state and controls.", true),
-    pluginFixture("gardening", "Gardening", "automation", "bot", "Plant move, water, harvest, and compost controls.", true),
     pluginFixture("wall-mover", "Wall Mover", "automation", "hammer", "Wall item movement and pickup tools.", true),
     pluginFixture("social", "Social", "social", "messages", "Friends, messages, requests, and follow actions.", true),
     pluginFixture("visitors", "Visitors", "social", "users", "Current and seen room visitors.", true),
@@ -1518,7 +1562,6 @@ function createPluginRegistryFixture() {
     pluginFixture("injection", "Injection", "developer", "terminal", "Mapped runtime command editor.", true),
     pluginFixture("packet-log", "Packet Log", "developer", "terminal", "Decrypted v3-style packet log viewer.", true, ["ui.panel", "packet.read"]),
     pluginFixture("dev-tools", "Dev Tools", "developer", "wrench", "Runtime diagnostics and performance counters.", true),
-    pluginFixture("about", "About", "developer", "info", "Version and runtime information.", true),
     {
       ...pluginFixture("sample-plugin", "Sample Plugin", "developer", "terminal", "Disabled fixture user plugin.", false, ["ui.panel", "packet.read"]),
       origin: "user",
@@ -1607,6 +1650,56 @@ function packetEntry(entry) {
     decodedFields: [],
     ...entry,
   };
+}
+
+async function capturePluginSearchProof(page, outDir, stamp, screenshots) {
+  const search = page.locator(".plugin-store-sidebar-search input").first();
+  await search.fill("names above");
+  const userRow = page.locator(".plugin-store-list .plugin-store-row").filter({ hasText: "User" }).first();
+  await userRow.waitFor({ state: "visible", timeout: 5000 });
+  await userRow.click();
+  await page.getByText("Render Names Above Heads", { exact: false }).first().waitFor({ state: "visible", timeout: 5000 });
+  await page.waitForTimeout(150);
+  const screenshotPath = path.join(outDir, `plugin-search-name-labels-${stamp}.png`);
+  await page.screenshot({ path: screenshotPath, fullPage: true });
+  screenshots.push({ plugin: "Plugin search - name labels", path: screenshotPath });
+  await search.fill("");
+  await page.waitForTimeout(100);
+}
+
+async function capturePluginResizeProof(page, outDir, stamp, screenshots) {
+  const modal = page.locator(".plugin-store-popout").first();
+  const handle = page.locator(".plugin-store-popout .app-popout-resize-handle").first();
+  const before = await modal.boundingBox();
+  const handleBox = await handle.boundingBox();
+  if (!before || !handleBox) throw new Error("Plugin manager resize proof failed: modal or handle was not visible.");
+  await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handleBox.x + handleBox.width / 2 + 110, handleBox.y + handleBox.height / 2 + 70, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(250);
+  const after = await modal.boundingBox();
+  if (!after) throw new Error("Plugin manager resize proof failed: modal disappeared after resize.");
+  const widthDelta = after.width - before.width;
+  const heightDelta = after.height - before.height;
+  if (widthDelta < 35 && heightDelta < 25) {
+    throw new Error(`Plugin manager resize proof failed: size only changed by ${Math.round(widthDelta)}x${Math.round(heightDelta)}.`);
+  }
+  const screenshotPath = path.join(outDir, `plugin-resize-proof-${stamp}.png`);
+  await page.screenshot({ path: screenshotPath, fullPage: true });
+  screenshots.push({ plugin: "Plugin resize proof", path: screenshotPath });
+}
+
+async function captureSettingsSearchProof(page, outDir, stamp, screenshots) {
+  const search = page.locator(".settings-popout .plugin-store-sidebar-search input").first();
+  await search.fill("names above");
+  await page.getByText("Render Names Above Heads", { exact: false }).first().waitFor({ state: "visible", timeout: 5000 });
+  await page.waitForTimeout(150);
+  const screenshotPath = path.join(outDir, `settings-search-name-labels-${stamp}.png`);
+  await page.screenshot({ path: screenshotPath, fullPage: true });
+  screenshots.push({ plugin: "Settings search - name labels", path: screenshotPath });
+  await search.fill("");
+  await page.waitForTimeout(100);
 }
 
 async function assertDirectory(directory) {

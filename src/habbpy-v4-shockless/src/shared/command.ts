@@ -24,4 +24,3 @@ export interface CommandDefinition {
   readonly risk: CommandRisk;
   readonly route: CommandRoute;
 }
-

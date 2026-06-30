@@ -1,78 +1,59 @@
-const MODULE = {
-  "sourceModuleId": "user",
-  "name": "User",
-  "summary": "Room user/session state plus wave/dance controls.",
-  "capabilities": [
-    "Room user selector",
-    "Session username, room, owner, and rights",
-    "User position, direction, sprite, and appearance fields",
-    "Local copy/profile snapshot and parsed-look storage tools",
-    "Wave, dance, carry drink, and apply-look controls"
-  ],
-  "permissions": [
-    "ui.panel",
-    "ui.overlay",
-    "console.commands",
-    "events.room",
-    "engine.snapshot",
-    "actions.avatar",
-    "storage"
-  ],
-  "surfaces": [
-    {
-      "id": "panel",
-      "kind": "panel"
-    },
-    {
-      "id": "overlay",
-      "kind": "overlay"
-    },
-    {
-      "id": "commands",
-      "kind": "commands"
-    }
-  ]
-};
+// @name User Premade Module
+// @group user
+// @desc Readable user-plugin source reference for the built-in User module.
+// @runtime Habbpy v4 plugin API
 
 export async function activate(api) {
-  const { log, storage, events, avatar } = api;
-  const disposers = [];
-  const state = { activatedAt: new Date().toISOString() };
-  await remember(storage, 'module', MODULE);
-  await remember(storage, 'state', state);
-  log.info(MODULE.name + ' premade module ready.');
+  const { log, storage, subscriptions, avatar, room, ui } = api;
+  const cleanup = subscriptions.create();
+  log.info("User helper ready: tracking room users and routing avatar actions.");
 
+  const controls = { walkX: 0, walkY: 0, itemSelector: '', danceNumber: 1 };
   let selectedUser = null;
-  on(disposers, events, 'room.users', async (event) => {
-    selectedUser = Array.isArray(event?.users) ? event.users.find((user) => user?.isSelf) ?? event.users[0] ?? null : null;
-    await remember(storage, 'selectedUser', selectedUser);
-  });
-  async function walkTo(x, y, clientId) {
-    return avatar.walkTo(x, y, 0, { clientId });
-  }
-  async function walkToItem(selector, clientId) {
-    return avatar.walkToItem(selector, { clientId });
-  }
-  async function wave(clientId) {
-    return avatar.wave({ clientId });
-  }
-  async function dance(number = 1, clientId) {
-    return avatar.dance(number, { clientId });
-  }
-  async function carryDrink(clientId) {
-    return avatar.carryDrink({ clientId });
-  }
-  await remember(storage, 'availableActions', ['walkTo(x, y, clientId)', 'walkToItem(idOrName, clientId)', 'wave(clientId)', 'dance(number, clientId)', 'carryDrink(clientId)']);
+  cleanup.add(room.onUsers(async (event) => {
+    const users = event?.users ?? [];
+    selectedUser = users.find((user) => user?.isSelf) ?? users[0] ?? null;
+    await storage.remember('selectedUser', selectedUser);
+  }));
+  cleanup.add(ui.onAction(async (event) => {
+    rememberControlValue(controls, event);
+    switch (event?.action) {
+      case 'user.walkTile':
+        return rememberResult(storage, log, 'Walk To Tile', avatar.walkTo(numberValue(controls.walkX), numberValue(controls.walkY), 0));
+      case 'user.walkItem':
+        return rememberResult(storage, log, 'Walk To Item', avatar.walkToItem(textValue(controls.itemSelector)));
+      case 'user.wave':
+        return rememberResult(storage, log, 'Wave', avatar.wave());
+      case 'user.dance':
+        return rememberResult(storage, log, 'Dance', avatar.dance(numberValue(controls.danceNumber, 1)));
+      case 'user.carryDrink':
+        return rememberResult(storage, log, 'Carry Drink', avatar.carryDrink());
+      default:
+        return undefined;
+    }
+  }));
 
-  return () => {
-    for (const dispose of disposers) dispose();
-  };
+  return cleanup.dispose;
 }
 
-function on(disposers, events, eventName, handler) {
-  disposers.push(events.on(eventName, handler));
+function rememberControlValue(target, event) {
+  if (!event?.elementId || !("value" in event)) return;
+  target[event.elementId] = event.value;
 }
 
-async function remember(storage, key, value) {
-  await storage.set(key, { value, updatedAt: new Date().toISOString() });
+function textValue(value, fallback = '') {
+  const text = String(value ?? '').trim();
+  return text || fallback;
+}
+
+function numberValue(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.trunc(number) : fallback;
+}
+
+async function rememberResult(storage, log, action, task) {
+  const result = await task;
+  await storage.remember('lastAction', { action, result });
+  log.info(action + ': ' + (result?.message ?? 'done'));
+  return result;
 }

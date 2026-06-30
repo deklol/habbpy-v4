@@ -4,16 +4,20 @@ This folder is copied by Plugin Manager when a user creates a plugin.
 
 Files:
 
-- `habbpy.plugin.json`: plugin metadata, surfaces, and permissions.
-- `plugin.js`: JavaScript module entry point.
+- `habbpy.plugin.json`: plugin metadata, schema UI surfaces, commands, hotkeys, and permissions.
+- `plugin.js`: JavaScript module entry point running in the restricted Habbpy worker host.
 
-The Plugin Manager validates, installs, enables, disables, and displays this
-plugin from the manifest. Packet permissions are included in the relay policy
-when the plugin is enabled.
+The template demonstrates:
 
-Plugin entry execution must go through the restricted Habbpy host. Do not store
-account files, passwords, tokens, or webhook URLs in plugin folders.
+- `ui.preview`: plugin-store preview content.
+- `ui.settings`: plugin settings controls.
+- `surfaces[].layout`: the plugin rail/panel UI.
+- `ui.onAction()`: handling button/toggle/input changes.
+- `ui.setValue()`: updating host-rendered control values from plugin code.
+- `buttonGrid`: reusable grouped buttons rendered by the host.
+- `table.rowAction`: selectable rows that emit the clicked row key.
+- `commands` and `hotkeys`: declared command metadata.
 
-See `docs/plugin-authoring.md` in the Habbpy v4 source tree for the full
-create/install workflow, manifest schema, surface types, permissions, relay
-hook policy, validation rules, packaging notes, and example plugin manifests.
+Do not store account files, passwords, tokens, webhook URLs, or local test credentials in plugin folders.
+
+See `docs/plugin-authoring.md` and `docs/plugin-api-reference.md` in the Habbpy v4 source tree for the full schema and API reference.

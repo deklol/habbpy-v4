@@ -1,4 +1,4 @@
-import type { CommandDefinition } from "../shared/command";
+import type { CommandDefinition } from "../shared/command.js";
 
 export const commands: readonly CommandDefinition[] = [
   {
@@ -517,28 +517,10 @@ export const commands: readonly CommandDefinition[] = [
     },
   },
   {
-    id: "about.readBuildInfo",
-    pluginId: "about",
-    label: "Read Build Info",
-    summary: "Read Habbpy v4 app version, runtime mode, selected profile, and credit facts for the About panel.",
-    status: "ready",
-    risk: "read-only",
-    route: {
-      kind: "local-shell",
-      sourcePaths: [
-        "Habbpy v3 habbpy/tabs/about_tab.py",
-        "src/main/main.ts getAppInfo",
-        "src/main/clientLibrary.ts",
-        "src/renderer/ui/App.tsx",
-      ],
-      notes: "Read-only panel; no external links are opened automatically.",
-    },
-  },
-  {
-    id: "automation.fishing",
+    id: "automation.summary",
     pluginId: "automation",
     label: "Automation Group Summary",
-    summary: "Show split automation plugin status and helper coverage.",
+    summary: "Show comfort automation status and helper coverage.",
     status: "mapped",
     risk: "read-only",
     route: {
@@ -547,76 +529,7 @@ export const commands: readonly CommandDefinition[] = [
         "src/plugins/registry.ts",
         "src/renderer/ui/App.tsx",
       ],
-      notes: "Fishing, Gardening, and Wall Mover have first-class panels; this group tracks remaining automation helpers.",
-    },
-  },
-  {
-    id: "fishing.readSourceState",
-    pluginId: "fishing",
-    label: "Read Fishing State",
-    summary: "Read live room object candidates plus packet-backed catch, token, minigame, frenzy, and Fishopedia state.",
-    status: "mapped",
-    risk: "read-only",
-    route: {
-      kind: "shockless-dev-api",
-      sourcePaths: [
-        "Habbpy v3 habbpy/tabs/fishing_tab.py",
-        "Habbpy v3 habbpy/fishing.py",
-        "window.__engine.roomObjects()",
-      ],
-      notes: "Current v4 reads room prerequisites and parsed fishing relay fields from src/main/relayLog.ts.",
-    },
-  },
-  {
-    id: "fishing.autofish",
-    pluginId: "fishing",
-    label: "Start Autofish",
-    summary: "Start fishing against the selected live area and route derby/minigame/data requests through the scoped Fishing relay API.",
-    status: "mapped",
-    risk: "automation",
-    route: {
-      kind: "habbpy-v3-port",
-      sourcePaths: [
-        "Habbpy v3 habbpy/tabs/fishing_tab.py",
-        "Habbpy v3 habbpy/fishing.py",
-        "Habbpy v3 habbpy/autofish.py",
-        "src/shared/fishingRelayPackets.ts",
-      ],
-      notes: "Uses scoped local relay actions for v3 headers 1100 start fishing, 1101 minigame input, 1102/1105/1106/1107 data requests, and 1108 derby register.",
-    },
-  },
-  {
-    id: "gardening.readPlantCandidates",
-    pluginId: "gardening",
-    label: "Read Plant Candidates",
-    summary: "Read plant-like live room object rows for the Gardening panel.",
-    status: "mapped",
-    risk: "read-only",
-    route: {
-      kind: "shockless-dev-api",
-      sourcePaths: [
-        "Habbpy v3 habbpy/tabs/gardening_tab.py",
-        "Habbpy v3 habbpy/gardening.py",
-        "window.__engine.roomObjects()",
-      ],
-      notes: "Current v4 slice reads item candidates and feeds the Gardening move/action/return runner.",
-    },
-  },
-  {
-    id: "gardening.botActions",
-    pluginId: "gardening",
-    label: "Gardening Bot Actions",
-    summary: "Start, compost all, water, harvest, move out, and return use the v3 Gardening packet flow; room visits remain pending.",
-    status: "mapped",
-    risk: "automation",
-    route: {
-      kind: "shockless-dev-api",
-      sourcePaths: [
-        "Habbpy v3 habbpy/tabs/gardening_tab.py",
-        "Habbpy v3 habbpy/gardening.py",
-        "src/main/relay/originsRelayV4.ts",
-      ],
-      notes: "Uses scoped local relay actions for v3 headers 73 move, 540 water, 541 harvest, and 1115 compost. Room visit/cycle helpers remain pending.",
+      notes: "Public automation stays focused on comfort helpers and wall-item workflows; private dev modules are not bundled.",
     },
   },
   {

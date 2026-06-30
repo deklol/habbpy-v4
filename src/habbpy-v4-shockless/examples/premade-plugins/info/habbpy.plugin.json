@@ -40,6 +40,13 @@
       "summary": "Request friends/badges/preferences, comfort toggles, badge override, and minigames once mapped."
     }
   ],
-  "commands": [],
+  "commands": [
+    {
+      "name": "info.lookupPublicUser",
+      "label": "Lookup Public User",
+      "description": "Look up an explicit Habbo name through the official Origins public users API.",
+      "usage": "info.lookupPublicUser"
+    }
+  ],
   "hotkeys": []
 }

@@ -9,12 +9,17 @@ import type {
   PluginInstallResult,
   PluginLoadError,
   PluginManifest,
+  PluginCommandDefinition,
+  PluginHotkeyDefinition,
   PluginManagedRuntime,
   PluginPermission,
   PluginRegistryState,
+  PluginUiDefinition,
+  PluginUiElement,
   PluginUiSurface,
 } from "../shared/plugin.js";
 import { defaultSensitiveClientHeaders, type PluginRelayPolicy } from "../shared/pluginRelayHooks.js";
+import { withPluginSchemaDefaults } from "../shared/pluginSchemaDefaults.js";
 import { errorMessage } from "../shared/errors.js";
 
 const STORE_DIR = "HabbpyV4";
@@ -22,6 +27,11 @@ const PLUGIN_DIR = "plugins";
 const SETTINGS_FILE = "settings.json";
 const MANIFEST_FILE = "habbpy.plugin.json";
 const REGISTRY_VERSION = 1;
+const APP_TOOL_PLUGIN_IDS = new Set(["settings", "plugin-manager", "app-settings", "plugins"]);
+
+function reservedPluginIds(): Set<string> {
+  return new Set([...plugins.map((plugin) => plugin.id), ...APP_TOOL_PLUGIN_IDS]);
+}
 
 const allowedCategories = new Set(["session", "room", "user", "inventory", "automation", "social", "developer"]);
 const allowedPermissions = new Set<PluginPermission>([
@@ -31,6 +41,7 @@ const allowedPermissions = new Set<PluginPermission>([
   "console.commands",
   "engine.snapshot",
   "engine.control",
+  "notifications.show",
   "client.rights",
   "events.room",
   "events.chat",
@@ -51,8 +62,26 @@ const allowedPermissions = new Set<PluginPermission>([
 ]);
 const MAX_PLUGIN_ENTRY_BYTES = 512 * 1024;
 // Matches filenames that almost certainly contain local credentials or secrets.
-// Deliberately narrow — false positives would block legitimate plugin installs.
+// Deliberately narrow Ã¢â‚¬â€ false positives would block legitimate plugin installs.
 const obviousPrivateFilePattern = /(multiclient-accounts|password|credential|secret|token|webhook)/i;
+const forbiddenPluginSourceRules: readonly { readonly label: string; readonly pattern: RegExp }[] = [
+  { label: "external URL literals", pattern: /\b(?:https?|wss?):\/\//i },
+  { label: "network APIs", pattern: /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\b/ },
+  { label: "worker or broadcast APIs", pattern: /\b(?:Worker|SharedWorker|BroadcastChannel|importScripts)\b/ },
+  { label: "dynamic code execution", pattern: /\b(?:eval|Function)\s*\(/ },
+  { label: "dynamic imports", pattern: /\bimport\s*\(/ },
+  { label: "static imports", pattern: /^\s*import\s+(?:[\s\S]*?from\s+)?["']/m },
+  { label: "browser storage or clipboard globals", pattern: /\b(?:localStorage|sessionStorage|indexedDB|caches)\b|navigator\.clipboard/ },
+  { label: "keyboard event capture", pattern: /\b(?:keydown|keyup|keypress|beforeinput|KeyboardEvent)\b/ },
+  { label: "DOM globals", pattern: /\b(?:document|window)\b/ },
+];
+
+function validatePluginSourceSecurity(source: string): string | null {
+  for (const rule of forbiddenPluginSourceRules) {
+    if (rule.pattern.test(source)) return "Plugin source uses blocked " + rule.label + ". Use Habbpy host APIs instead.";
+  }
+  return null;
+}
 
 interface StoredPluginSettings {
   readonly version: number;
@@ -148,10 +177,13 @@ export class PluginManager {
     if (entryStats.size > MAX_PLUGIN_ENTRY_BYTES) {
       return { ok: false, pluginId: plugin.id, source: null, message: `${plugin.name} entry is larger than the 512 KB host limit.` };
     }
+    const source = readFileSync(entryPath, "utf8");
+    const securityError = validatePluginSourceSecurity(source);
+    if (securityError) return { ok: false, pluginId: plugin.id, source: null, message: `${plugin.name} blocked: ${securityError}` };
     return {
       ok: true,
       pluginId: plugin.id,
-      source: readFileSync(entryPath, "utf8"),
+      source,
       message: `${plugin.name} entry loaded.`,
     };
   }
@@ -176,8 +208,8 @@ export class PluginManager {
     const id = sanitizePluginId(request.id);
     const name = String(request.name ?? "").trim() || titleFromPluginId(id);
     if (!id) return { ok: false, message: "Plugin id must use lowercase letters, numbers, and hyphens.", state: this.state() };
-    const builtIn = plugins.some((plugin) => plugin.id === id);
-    if (builtIn) return { ok: false, message: `Plugin id '${id}' is reserved by a built-in plugin.`, state: this.state() };
+    const reserved = reservedPluginIds().has(id);
+    if (reserved) return { ok: false, message: `Plugin id '${id}' is reserved by Habbpy v4.`, state: this.state() };
     const targetRoot = join(this.userPluginRoot(), id);
     if (existsSync(targetRoot)) return { ok: false, message: `Plugin folder already exists: ${id}`, state: this.state() };
     const templateRoot = resolveTemplateRoot();
@@ -188,7 +220,7 @@ export class PluginManager {
     manifest.id = id;
     manifest.name = name;
     writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-    const validation = this.validateUserPluginRoot(targetRoot, new Set(plugins.map((plugin) => plugin.id)));
+    const validation = this.validateUserPluginRoot(targetRoot, reservedPluginIds());
     if (!validation.ok) {
       rmSync(targetRoot, { recursive: true, force: true });
       return { ok: false, message: validation.message, state: this.state() };
@@ -199,7 +231,7 @@ export class PluginManager {
 
   installFromFolder(sourceFolder: string): PluginInstallResult {
     const sourceRoot = resolve(String(sourceFolder ?? ""));
-    const validation = this.validateUserPluginRoot(sourceRoot, new Set(plugins.map((plugin) => plugin.id)));
+    const validation = this.validateUserPluginRoot(sourceRoot, reservedPluginIds());
     if (!validation.ok) return { ok: false, message: validation.message, state: this.state() };
     if (folderHasObviousPrivateFiles(sourceRoot)) {
       return { ok: false, message: "Plugin install refused because the folder contains obvious credential/webhook files.", state: this.state() };
@@ -211,6 +243,30 @@ export class PluginManager {
     cpSync(sourceRoot, targetRoot, { recursive: true, errorOnExist: true });
     this.enableNewPlugin(id);
     return { ok: true, message: `Installed plugin '${validation.plugin.name}'.`, state: this.state(`Installed plugin '${validation.plugin.name}'.`) };
+  }
+
+  uninstallPlugin(pluginId: string): PluginInstallResult {
+    const id = sanitizePluginId(pluginId);
+    if (!id) return { ok: false, message: "Plugin id is invalid.", state: this.state() };
+    const current = this.state();
+    const plugin = current.plugins.find((entry) => entry.id === id);
+    if (!plugin) return { ok: false, message: `Plugin not found: ${id}`, state: current };
+    if (plugin.origin !== "user" || !plugin.pluginRoot) {
+      return { ok: false, message: `${plugin.name} is built in and cannot be uninstalled.`, state: current };
+    }
+    const targetRoot = safeRemovablePluginRoot(plugin.pluginRoot, [this.userPluginRoot(), this.portablePluginRoot()].filter((entry): entry is string => Boolean(entry)));
+    if (!targetRoot) return { ok: false, message: `${plugin.name} is not inside a managed plugin folder.`, state: current };
+    if (!existsSync(targetRoot) || !statSync(targetRoot).isDirectory()) return { ok: false, message: `${plugin.name} folder no longer exists.`, state: this.state() };
+    rmSync(targetRoot, { recursive: true, force: true });
+    const stored = this.readSettings();
+    const enabledById = { ...stored.enabledById };
+    const uiSurfaceEnabledByPluginId = { ...stored.uiSurfaceEnabledByPluginId };
+    const permissionGrants = { ...stored.permissionGrants };
+    delete enabledById[id];
+    delete uiSurfaceEnabledByPluginId[id];
+    delete permissionGrants[id];
+    this.writeSettings({ ...stored, enabledById, uiSurfaceEnabledByPluginId, permissionGrants });
+    return { ok: true, message: `Uninstalled plugin '${plugin.name}'.`, state: this.state(`Uninstalled plugin '${plugin.name}'.`) };
   }
 
   userPluginRoot(): string {
@@ -226,7 +282,7 @@ export class PluginManager {
   private discoverUserPlugins(): DiscoveryResult {
     const errors: PluginLoadError[] = [];
     const accepted = new Map<string, PluginDefinition>();
-    const seenIds = new Set(plugins.map((plugin) => plugin.id));
+    const seenIds = reservedPluginIds();
     for (const root of [this.userPluginRoot(), this.portablePluginRoot()].filter((entry): entry is string => Boolean(entry))) {
       if (!existsSync(root)) continue;
       for (const entry of readdirSync(root, { withFileTypes: true })) {
@@ -266,9 +322,15 @@ export class PluginManager {
     if (!entryPath || !existsSync(entryPath) || !statSync(entryPath).isFile()) {
       return { ok: false, pluginId: manifest.id, message: `Plugin entry not found: ${manifest.entry}.` };
     }
+    const entryStats = statSync(entryPath);
+    if (entryStats.size > MAX_PLUGIN_ENTRY_BYTES) {
+      return { ok: false, pluginId: manifest.id, message: `Plugin entry is larger than the 512 KB host limit: ${manifest.entry}.` };
+    }
+    const securityError = validatePluginSourceSecurity(readFileSync(entryPath, "utf8"));
+    if (securityError) return { ok: false, pluginId: manifest.id, message: securityError };
     return {
       ok: true,
-      plugin: {
+      plugin: withPluginSchemaDefaults({
         id: manifest.id,
         name: manifest.name,
         version: manifest.version,
@@ -291,8 +353,11 @@ export class PluginManager {
         pluginRoot: root,
         permissions: manifest.permissions,
         managedRuntime: manifest.managedRuntime,
+        ui: manifest.ui,
+        commands: manifest.commands,
+        hotkeys: manifest.hotkeys,
         loadError: null,
-      },
+      }),
     };
   }
 
@@ -406,8 +471,9 @@ function normalizeManifest(value: unknown): PluginManifest {
     permissions: permissions as readonly PluginPermission[],
     surfaces,
     managedRuntime,
-    commands: Array.isArray(record.commands) ? record.commands : [],
-    hotkeys: Array.isArray(record.hotkeys) ? record.hotkeys : [],
+    ui: normalizeUiDefinition(record.ui),
+    commands: normalizeCommands(record.commands),
+    hotkeys: normalizeHotkeys(record.hotkeys),
   };
 }
 
@@ -432,7 +498,226 @@ function normalizeSurface(value: unknown): PluginUiSurface {
     label: cleanRequiredString(record.label, "Plugin surface label"),
     enabledByDefault: record.enabledByDefault !== false,
     summary: cleanRequiredString(record.summary, "Plugin surface summary"),
+    layout: Array.isArray(record.layout) ? normalizeUiElements(record.layout, 0) : undefined,
   };
+}
+
+function normalizeUiDefinition(value: unknown): PluginUiDefinition | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  const preview = Array.isArray(record.preview) ? normalizeUiElements(record.preview, 0) : undefined;
+  const settings = Array.isArray(record.settings) ? normalizeUiElements(record.settings, 0) : undefined;
+  return preview || settings ? { preview, settings } : undefined;
+}
+
+function normalizeCommands(value: unknown): readonly PluginCommandDefinition[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => {
+    if (!entry || typeof entry !== "object") throw new Error("Plugin command must be an object.");
+    const record = entry as Record<string, unknown>;
+    const name = cleanCommandName(record.name);
+    const aliases = Array.isArray(record.aliases) ? record.aliases.map(cleanCommandName).filter(Boolean) : [];
+    return {
+      name,
+      label: optionalShortString(record.label, 80),
+      description: cleanRequiredString(record.description, `Plugin command ${name} description`),
+      usage: typeof record.usage === "string" && record.usage.trim() ? record.usage.trim().slice(0, 160) : undefined,
+      aliases,
+    };
+  });
+}
+
+function normalizeHotkeys(value: unknown): readonly PluginHotkeyDefinition[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => {
+    if (!entry || typeof entry !== "object") throw new Error("Plugin hotkey must be an object.");
+    const record = entry as Record<string, unknown>;
+    const key = cleanRequiredString(record.key, "Plugin hotkey key").slice(0, 64);
+    const command = cleanRequiredString(record.command, "Plugin hotkey command").slice(0, 160);
+    return {
+      id: typeof record.id === "string" && record.id.trim() ? sanitizeSurfaceId(record.id) : undefined,
+      key,
+      command,
+      label: typeof record.label === "string" && record.label.trim() ? record.label.trim().slice(0, 80) : undefined,
+      enabledByDefault: record.enabledByDefault !== false,
+    };
+  });
+}
+
+function normalizeUiElements(value: readonly unknown[], depth: number): readonly PluginUiElement[] {
+  if (depth > 4) throw new Error("Plugin UI schema is nested too deeply.");
+  if (value.length > 100) throw new Error("Plugin UI schema has too many elements.");
+  return value.map((entry) => normalizeUiElement(entry, depth));
+}
+
+function normalizeUiElement(value: unknown, depth: number): PluginUiElement {
+  if (!value || typeof value !== "object") throw new Error("Plugin UI element must be an object.");
+  const record = value as Record<string, unknown>;
+  const type = cleanRequiredString(record.type, "Plugin UI element type");
+  const base = normalizeUiBase(record);
+  switch (type) {
+    case "header":
+      return { ...base, type, text: cleanRequiredString(record.text, "Header text"), level: normalizeHeaderLevel(record.level) };
+    case "text":
+      return { ...base, type, text: cleanRequiredString(record.text, "Text element text"), tone: normalizeTone(record.tone) };
+    case "divider":
+      return { ...base, type };
+    case "section":
+      return {
+        ...base,
+        type,
+        title: typeof record.title === "string" && record.title.trim() ? record.title.trim().slice(0, 80) : undefined,
+        children: Array.isArray(record.children) ? normalizeUiElements(record.children, depth + 1) : [],
+      };
+    case "notice":
+      return {
+        ...base,
+        type,
+        title: typeof record.title === "string" && record.title.trim() ? record.title.trim().slice(0, 80) : undefined,
+        text: cleanRequiredString(record.text, "Notice text"),
+        tone: normalizeTone(record.tone),
+      };
+    case "button":
+      return { ...base, ...normalizeUiAction(record), type, label: cleanRequiredString(record.label, "Button label"), variant: normalizeButtonVariant(record.variant) };
+    case "buttonGrid":
+      return {
+        ...base,
+        type,
+        columns: optionalFiniteNumber(record.columns),
+        buttons: normalizeButtonGridButtons(record.buttons, depth),
+      };
+    case "toggle":
+    case "checkbox":
+      return { ...base, ...normalizeUiAction(record), type, id: sanitizeSurfaceId(record.id), label: cleanRequiredString(record.label, "Control label"), defaultValue: record.defaultValue === true };
+    case "textInput":
+      return { ...base, ...normalizeUiAction(record), type, id: sanitizeSurfaceId(record.id), label: cleanRequiredString(record.label, "Input label"), placeholder: optionalShortString(record.placeholder, 100), defaultValue: optionalShortString(record.defaultValue, 500) ?? "" };
+    case "numberInput":
+      return { ...base, ...normalizeUiAction(record), type, id: sanitizeSurfaceId(record.id), label: cleanRequiredString(record.label, "Number input label"), min: optionalFiniteNumber(record.min), max: optionalFiniteNumber(record.max), step: optionalFiniteNumber(record.step), defaultValue: optionalFiniteNumber(record.defaultValue) ?? 0 };
+    case "select":
+      return { ...base, ...normalizeUiAction(record), type, id: sanitizeSurfaceId(record.id), label: cleanRequiredString(record.label, "Select label"), options: normalizeSelectOptions(record.options), defaultValue: optionalShortString(record.defaultValue, 120) };
+    case "keybind":
+      return { ...base, ...normalizeUiAction(record), type, id: sanitizeSurfaceId(record.id), label: cleanRequiredString(record.label, "Keybind label"), defaultValue: optionalShortString(record.defaultValue, 64) };
+    case "table":
+      return {
+        ...base,
+        type,
+        columns: normalizeTableColumns(record.columns),
+        rows: normalizeTableRows(record.rows),
+        rowKey: optionalSanitizedId(record.rowKey),
+        selectedRowKey: optionalShortString(record.selectedRowKey, 160),
+        rowAction: optionalShortString(record.rowAction, 80),
+        maxRows: optionalFiniteNumber(record.maxRows),
+      };
+    case "kv":
+      return { ...base, type, rows: normalizeKeyValueRows(record.rows) };
+    case "log":
+      return { ...base, type, rows: Array.isArray(record.rows) ? record.rows.map((row) => String(row ?? "").slice(0, 500)).slice(-200) : [] };
+    default:
+      throw new Error(`Invalid plugin UI element type: ${type}.`);
+  }
+}
+
+function normalizeUiBase(record: Record<string, unknown>): { readonly id?: string; readonly label?: string; readonly description?: string } {
+  return {
+    id: typeof record.id === "string" && record.id.trim() ? sanitizeSurfaceId(record.id) : undefined,
+    label: optionalShortString(record.label, 80),
+    description: optionalShortString(record.description, 240),
+  };
+}
+
+function normalizeUiAction(record: Record<string, unknown>): { readonly action?: string; readonly command?: string } {
+  return {
+    action: optionalShortString(record.action, 80),
+    command: optionalShortString(record.command, 200),
+  };
+}
+
+function normalizeButtonGridButtons(value: unknown, depth: number): readonly Extract<PluginUiElement, { readonly type: "button" }>[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 24).map((entry) => {
+    if (!entry || typeof entry !== "object") throw new Error("Button grid entry must be an object.");
+    const button = normalizeUiElement({ ...(entry as Record<string, unknown>), type: "button" }, depth + 1);
+    if (button.type !== "button") throw new Error("Button grid entries must be buttons.");
+    return button;
+  });
+}
+
+function normalizeHeaderLevel(value: unknown): 2 | 3 | 4 {
+  return value === 2 || value === 4 ? value : 3;
+}
+
+function normalizeTone(value: unknown): "default" | "info" | "success" | "warning" | "danger" | undefined {
+  return value === "info" || value === "success" || value === "warning" || value === "danger" ? value : undefined;
+}
+
+function normalizeButtonVariant(value: unknown): "default" | "primary" | "danger" | undefined {
+  return value === "primary" || value === "danger" ? value : undefined;
+}
+
+function normalizeSelectOptions(value: unknown): readonly { readonly value: string; readonly label: string }[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 80).map((entry) => {
+    if (!entry || typeof entry !== "object") throw new Error("Select option must be an object.");
+    const record = entry as Record<string, unknown>;
+    return { value: cleanRequiredString(record.value, "Select option value").slice(0, 120), label: cleanRequiredString(record.label, "Select option label").slice(0, 120) };
+  });
+}
+
+function normalizeTableColumns(value: unknown): readonly { readonly key: string; readonly label: string }[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 24).map((entry) => {
+    if (!entry || typeof entry !== "object") throw new Error("Table column must be an object.");
+    const record = entry as Record<string, unknown>;
+    return { key: sanitizeSurfaceId(record.key), label: cleanRequiredString(record.label, "Table column label").slice(0, 80) };
+  });
+}
+
+function normalizeTableRows(value: unknown): readonly Readonly<Record<string, string | number | boolean | null>>[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 200).map((entry) => {
+    if (!entry || typeof entry !== "object") return {};
+    return Object.fromEntries(
+      Object.entries(entry as Record<string, unknown>).slice(0, 48).map(([key, rowValue]) => [key, normalizePrimitive(rowValue)]),
+    );
+  });
+}
+
+function normalizeKeyValueRows(value: unknown): readonly { readonly key: string; readonly value: string | number | boolean | null }[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 100).map((entry) => {
+    if (!entry || typeof entry !== "object") throw new Error("Key/value row must be an object.");
+    const record = entry as Record<string, unknown>;
+    return { key: cleanRequiredString(record.key, "Key/value row key").slice(0, 80), value: normalizePrimitive(record.value) };
+  });
+}
+
+function normalizePrimitive(value: unknown): string | number | boolean | null {
+  if (value === null || typeof value === "boolean") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") return value.slice(0, 500);
+  return String(value ?? "").slice(0, 500);
+}
+
+function optionalFiniteNumber(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function optionalShortString(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const text = value.trim();
+  return text ? text.slice(0, maxLength) : undefined;
+}
+
+function optionalSanitizedId(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? sanitizeSurfaceId(value) : undefined;
+}
+
+function cleanCommandName(value: unknown): string {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (!/^[a-z][a-z0-9._:-]{1,63}$/.test(text)) throw new Error("Plugin command name is invalid.");
+  return text;
 }
 
 function safePluginPath(root: string, requestedPath: string): string | null {
@@ -442,6 +727,17 @@ function safePluginPath(root: string, requestedPath: string): string | null {
   const offset = relative(resolvedRoot, resolvedPath);
   if (offset.startsWith("..") || isAbsolute(offset)) return null;
   return resolvedPath;
+}
+
+function safeRemovablePluginRoot(pluginRoot: string, allowedRoots: readonly string[]): string | null {
+  const resolvedPluginRoot = resolve(pluginRoot);
+  for (const allowedRoot of allowedRoots) {
+    const resolvedAllowedRoot = resolve(allowedRoot);
+    const offset = relative(resolvedAllowedRoot, resolvedPluginRoot);
+    if (!offset || offset.startsWith("..") || isAbsolute(offset)) continue;
+    return resolvedPluginRoot;
+  }
+  return null;
 }
 
 function folderHasObviousPrivateFiles(root: string): boolean {
@@ -548,4 +844,3 @@ function titleFromPluginId(id: string): string {
     .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
     .join(" ");
 }
-

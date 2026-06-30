@@ -38,6 +38,31 @@
       "summary": "Launch and stop controls once embed plumbing is available."
     }
   ],
-  "commands": [],
+  "commands": [
+    {
+      "name": "shell.togglePluginDock",
+      "label": "Toggle Plugin Dock",
+      "description": "Collapse or expand the Habbpy v4 plugin dock without touching game input.",
+      "usage": "shell.togglePluginDock"
+    },
+    {
+      "name": "engine.launchEmbedded",
+      "label": "Launch Embedded Shockless",
+      "description": "Attach the selected ready Shockless client profile inside the Habbpy GameHost.",
+      "usage": "engine.launchEmbedded"
+    },
+    {
+      "name": "engine.consoleStart",
+      "label": "Console Start Client",
+      "description": "Start the selected or targeted client through the backtick console command bus.",
+      "usage": "engine.consoleStart"
+    },
+    {
+      "name": "client.importReference",
+      "label": "Import Or Build Client Profile",
+      "description": "Register an existing Shockless profile folder, or build a playable profile from a compiled client folder when no matching cache exists.",
+      "usage": "client.importReference"
+    }
+  ],
   "hotkeys": []
 }

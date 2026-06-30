@@ -1,4 +1,4 @@
-import { createRequire } from "node:module";
+﻿import { createRequire } from "node:module";
 import { cp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -39,23 +39,32 @@ async function pathExists(path) {
 }
 
 async function resolveShocklessEngineRoot() {
+  if (process.env.HABBPY_V4_SHOCKLESS_ENGINE_ROOT) {
+    const override = resolve(process.env.HABBPY_V4_SHOCKLESS_ENGINE_ROOT);
+    if (await isShocklessEngineBuildRoot(override)) return override;
+    throw new Error(
+      `HABBPY_V4_SHOCKLESS_ENGINE_ROOT points at ${override}, but that folder does not contain the built Shockless engine renderer and standalone importer.`,
+    );
+  }
   const candidates = [
-    process.env.HABBPY_V4_SHOCKLESS_ENGINE_ROOT,
+    join(workspace, "engine"),
     resolve(workspace, "..", "habbo-origins-engine"),
     ...ancestorSiblingCandidates("habbo-origins-engine"),
   ].filter(Boolean);
   for (const candidate of candidates) {
     const resolved = resolve(candidate);
-    if (
-      (await pathExists(join(resolved, "dist", "index.html"))) &&
-      (await pathExists(join(resolved, "standalone", "dist", "main", "cli", "profile-import.js"))) &&
-      (await pathExists(join(resolved, "standalone", "resources", "projectorrays", "projectorrays-0.2.0.exe")))
-    ) {
-      return resolved;
-    }
+    if (await isShocklessEngineBuildRoot(resolved)) return resolved;
   }
   throw new Error(
-    "Shockless engine build/importer was not found. Set HABBPY_V4_SHOCKLESS_ENGINE_ROOT or run npm --prefix ../habbo-origins-engine/standalone run compile from the Habbpy v4 app folder.",
+    "Shockless engine build/importer was not found. Build the local engine folder first, or set HABBPY_V4_SHOCKLESS_ENGINE_ROOT to the intended engine root.",
+  );
+}
+
+async function isShocklessEngineBuildRoot(root) {
+  return (
+    (await pathExists(join(root, "dist", "index.html"))) &&
+    (await pathExists(join(root, "standalone", "dist", "main", "cli", "profile-import.js"))) &&
+    (await pathExists(join(root, "standalone", "resources", "projectorrays", "projectorrays-0.2.0.exe")))
   );
 }
 
@@ -72,11 +81,11 @@ const electronDist = dirname(electronExecutable);
 const builtMain = join(workspace, "dist", "main");
 const builtRenderer = join(workspace, "dist", "renderer");
 const pluginTemplateRoot = join(workspace, "src", "plugins", "template");
+const pluginSourceRoot = join(workspace, "src", "plugins");
 const bundledPluginsRoot = join(workspace, "examples", "plugins");
 const premadePluginsRoot = join(workspace, "examples", "premade-plugins");
 const shocklessEngineRoot = await resolveShocklessEngineRoot();
 const shocklessStandaloneRoot = join(shocklessEngineRoot, "standalone");
-const privatePremadePluginIds = await readPrivatePremadePluginIds();
 
 assertInside(resolve(workspace, "dist"), portableRoot);
 await assertPathExists(join(builtMain, "main", "main.js"), "Built main process");
@@ -85,19 +94,19 @@ await assertPathExists(join(pluginTemplateRoot, "habbpy.plugin.json"), "Plugin t
 await assertPathExists(join(pluginTemplateRoot, "plugin.js"), "Plugin template entry");
 await assertPathExists(join(bundledPluginsRoot, "welcome-message", "habbpy.plugin.json"), "Bundled Welcome Message plugin manifest");
 await assertPathExists(join(bundledPluginsRoot, "welcome-message", "plugin.js"), "Bundled Welcome Message plugin entry");
-await assertPathExists(join(premadePluginsRoot, "README.md"), "Premade plugin source README");
+await assertPathExists(join(premadePluginsRoot, "README.txt"), "Premade plugin source README");
 await assertPathExists(join(premadePluginsRoot, "room", "habbpy.plugin.json"), "Premade Room plugin manifest");
 await assertPathExists(join(premadePluginsRoot, "packet-log", "plugin.js"), "Premade Packet Log plugin entry");
-await assertPathExists(join(shocklessEngineRoot, "dist", "index.html"), "Shockless engine renderer build", "run npm --prefix ../habbo-origins-engine run build first");
+await assertPathExists(join(shocklessEngineRoot, "dist", "index.html"), "Shockless engine renderer build", "run npm --prefix engine run build first");
 await assertPathExists(
   join(shocklessStandaloneRoot, "dist", "main", "cli", "profile-import.js"),
   "Shockless standalone profile importer",
-  "run npm --prefix ../habbo-origins-engine/standalone run compile first",
+  "run npm --prefix engine/standalone run compile first",
 );
 await assertPathExists(
   join(shocklessStandaloneRoot, "resources", "compiler", "profile-script-compiler.mjs"),
   "Shockless profile script compiler",
-  "run npm --prefix ../habbo-origins-engine/standalone run compile first",
+  "run npm --prefix engine/standalone run compile first",
 );
 
 await cleanupPreserveTempDirs();
@@ -114,11 +123,11 @@ if (copiedElectron !== appExecutable) {
 
 await mkdir(appRoot, { recursive: true });
 await cp(builtMain, join(appRoot, "dist", "main"), { recursive: true, force: true });
+await removeUnbackedBuiltPluginDirectories(join(appRoot, "dist", "main", "plugins"), pluginSourceRoot);
 await cp(builtRenderer, join(appRoot, "dist", "renderer"), { recursive: true, force: true });
 await cp(pluginTemplateRoot, join(appRoot, "dist", "plugins", "template"), { recursive: true, force: true });
 await cp(bundledPluginsRoot, join(portableRoot, "plugins"), { recursive: true, force: true });
 await cp(premadePluginsRoot, join(portableRoot, "plugins", "_premade-modules"), { recursive: true, force: true });
-await removePrivatePremadePlugins(join(portableRoot, "plugins", "_premade-modules"));
 await cp(join(shocklessEngineRoot, "dist"), join(packagedEngineRoot, "dist"), { recursive: true, force: true });
 await cp(join(shocklessStandaloneRoot, "dist", "main"), join(packagedEngineRoot, "standalone", "dist", "main"), {
   recursive: true,
@@ -175,6 +184,7 @@ const summary = {
   pluginTemplate: relative(workspace, join(appRoot, "dist", "plugins", "template", "habbpy.plugin.json")),
   bundledPlugins: relative(workspace, join(portableRoot, "plugins")),
   premadePlugins: relative(workspace, join(portableRoot, "plugins", "_premade-modules")),
+  shocklessEngineRoot: relative(workspace, shocklessEngineRoot),
   engine: relative(workspace, join(packagedEngineRoot, "dist", "index.html")),
   importer: relative(workspace, join(packagedEngineRoot, "standalone", "dist", "main", "cli", "profile-import.js")),
   relayResources: relative(workspace, join(portableRoot, "resources", "relay")),
@@ -201,17 +211,15 @@ async function cleanupPreserveTempDirs() {
   );
 }
 
-async function readPrivatePremadePluginIds() {
-  const filePath = join(workspace, ".private-premade-modules.json");
-  if (!(await pathExists(filePath))) return [];
-  const parsed = JSON.parse(await readFile(filePath, "utf8"));
-  if (!Array.isArray(parsed)) return [];
-  return parsed
-    .map((entry) => String(entry ?? "").trim())
-    .filter((entry) => /^[a-z0-9-]{1,64}$/.test(entry));
-}
-
-async function removePrivatePremadePlugins(root) {
-  if (privatePremadePluginIds.length === 0) return;
-  await Promise.all(privatePremadePluginIds.map((id) => rm(join(root, id), { recursive: true, force: true })));
+async function removeUnbackedBuiltPluginDirectories(builtPluginRoot, sourcePluginRoot) {
+  if (!(await pathExists(builtPluginRoot))) return;
+  const entries = await readdir(builtPluginRoot, { withFileTypes: true });
+  await Promise.all(
+    entries
+      .filter((entry) => entry.isDirectory())
+      .map(async (entry) => {
+        if (await pathExists(join(sourcePluginRoot, entry.name))) return;
+        await rm(join(builtPluginRoot, entry.name), { recursive: true, force: true });
+      }),
+  );
 }

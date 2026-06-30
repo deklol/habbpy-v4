@@ -52,6 +52,7 @@ export interface ShocklessSettings {
   readonly activeProfileId: string | null;
   readonly resizablePresentation: boolean | null;
   readonly customHotelView: boolean | null;
+  readonly entryView: string | null;
   readonly versionCheckBuild: number | null;
 }
 
@@ -59,6 +60,7 @@ export interface ShocklessSettingsPatch {
   readonly activeProfileId?: string | null;
   readonly resizablePresentation?: boolean | null;
   readonly customHotelView?: boolean | null;
+  readonly entryView?: string | null;
   readonly versionCheckBuild?: number | null;
 }
 
@@ -71,6 +73,7 @@ interface LaunchContext {
   readonly settings: {
     readonly resizablePresentation: boolean;
     readonly customHotelView: boolean;
+    readonly entryView: string | null;
     readonly versionCheckBuild: number | null;
   };
 }
@@ -188,6 +191,7 @@ export class ShocklessEmbedController {
         settings: {
           resizablePresentation,
           customHotelView: (settingApplies ? shocklessSettings.customHotelView : null) ?? profile.customHotelView === true,
+          entryView: (settingApplies ? shocklessSettings.entryView : null) ?? null,
           versionCheckBuild:
             positiveInteger(process.env.HABBPY_V4_VERSION_CHECK_BUILD) ??
             (versionSettingApplies ? shocklessSettings.versionCheckBuild : profile.versionCheckBuild),
@@ -227,6 +231,7 @@ export function buildShocklessEmbedUrl(baseUrl: string, context: LaunchContext):
   }
   if (context.settings.resizablePresentation) url.searchParams.set("resizablePresentation", "1");
   if (context.settings.customHotelView) url.searchParams.set("customHotelView", "1");
+  else if (context.settings.entryView) url.searchParams.set("entryView", context.settings.entryView);
   url.searchParams.set("bridgeHost", RELAY_HOST);
   url.searchParams.set("bridgePort", String(context.relayWsPort));
   return url.toString();
@@ -378,10 +383,10 @@ class EmbeddedRelayController {
   async start(launch: RelayLaunch): Promise<void> {
     if (this.child && !this.child.killed && this.child.exitCode === null) return;
     if (await isTcpOpen(RELAY_HOST, this.wsPort, 150)) {
-      throw new Error(`Shockless relay port ws://${RELAY_HOST}:${this.wsPort} is already in use by another process. Close the stale relay/client before starting Habbpy v4.`);
+      throw new Error(`Shockless relay port ws://${RELAY_HOST}:${this.wsPort} is already in use by another process. Close the stale relay/client before starting Shockless.`);
     }
     if (await isTcpOpen(RELAY_HOST, this.controlPort, 150)) {
-      throw new Error(`Shockless relay control port tcp://${RELAY_HOST}:${this.controlPort} is already in use by another process. Close the stale relay/client before starting Habbpy v4.`);
+      throw new Error(`Shockless relay control port tcp://${RELAY_HOST}:${this.controlPort} is already in use by another process. Close the stale relay/client before starting Shockless.`);
     }
     const logRoot = join(this.cacheRoot, "logs");
     mkdirSync(logRoot, { recursive: true });
@@ -644,7 +649,7 @@ function ancestorCandidates(startPath: string, ...parts: readonly string[]): str
 export function readShocklessSettings(appDataPath: string): ShocklessSettings {
   const settingsPath = join(appDataPath, "ShocklessEngine", "settings.json");
   if (!existsSync(settingsPath)) {
-    return { activeProfileId: null, resizablePresentation: null, customHotelView: null, versionCheckBuild: null };
+    return { activeProfileId: null, resizablePresentation: null, customHotelView: null, entryView: null, versionCheckBuild: null };
   }
   try {
     const parsed = JSON.parse(readFileSync(settingsPath, "utf8")) as Partial<ShocklessSettings>;
@@ -652,10 +657,11 @@ export function readShocklessSettings(appDataPath: string): ShocklessSettings {
       activeProfileId: typeof parsed.activeProfileId === "string" ? parsed.activeProfileId : null,
       resizablePresentation: typeof parsed.resizablePresentation === "boolean" ? parsed.resizablePresentation : null,
       customHotelView: typeof parsed.customHotelView === "boolean" ? parsed.customHotelView : null,
+      entryView: typeof parsed.entryView === "string" ? parsed.entryView : null,
       versionCheckBuild: normalizeSettingsVersionCheckBuild(parsed.versionCheckBuild),
     };
   } catch {
-    return { activeProfileId: null, resizablePresentation: null, customHotelView: null, versionCheckBuild: null };
+    return { activeProfileId: null, resizablePresentation: null, customHotelView: null, entryView: null, versionCheckBuild: null };
   }
 }
 
@@ -664,6 +670,7 @@ function pendingLaunchSettings(appDataPath: string): EngineLaunchState["settings
   return {
     resizablePresentation: embeddedResizablePresentation(settings.resizablePresentation, true),
     customHotelView: settings.customHotelView === true,
+    entryView: settings.entryView ?? null,
     versionCheckBuild: null,
   };
 }
@@ -688,6 +695,12 @@ export function writeShocklessSettings(appDataPath: string, patch: ShocklessSett
         ? current.customHotelView
         : typeof patch.customHotelView === "boolean"
           ? patch.customHotelView
+          : null,
+    entryView:
+      patch.entryView === undefined
+        ? current.entryView
+        : typeof patch.entryView === "string" && patch.entryView.trim()
+          ? patch.entryView.trim()
           : null,
     versionCheckBuild:
       patch.versionCheckBuild === undefined
@@ -816,4 +829,3 @@ function normalizeSettingsVersionCheckBuild(value: unknown): number | null {
   const parsed = positiveInteger(value);
   return parsed !== null && !STALE_VERSION_CHECK_BUILDS.has(parsed) ? parsed : null;
 }
-

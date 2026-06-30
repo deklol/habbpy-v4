@@ -1,4 +1,4 @@
-import type { ConsoleCommandResult } from "./consoleCommand.js";
+﻿import type { ConsoleCommandResult } from "./consoleCommand.js";
 import type { PluginCreateRequest, PluginEntrySourceResult, PluginInstallResult, PluginRegistryState } from "./plugin.js";
 import type { PluginPacketInput } from "./shockwavePluginPacketBuilder.js";
 
@@ -90,6 +90,7 @@ export interface EngineLaunchState {
   readonly settings: {
     readonly resizablePresentation: boolean;
     readonly customHotelView: boolean;
+    readonly entryView: string | null;
     readonly versionCheckBuild: number | null;
   } | null;
 }
@@ -97,6 +98,7 @@ export interface EngineLaunchState {
 export interface EngineLaunchSettingsPatch {
   readonly resizablePresentation?: boolean;
   readonly customHotelView?: boolean;
+  readonly entryView?: string | null;
   readonly versionCheckBuild?: number | null;
 }
 
@@ -304,6 +306,9 @@ export type RoomRelayAction =
       readonly furniId?: number;
     }
   | {
+      readonly action: "leave";
+    }
+  | {
       readonly action: "visitPrivateRoom";
       readonly roomId?: number;
       readonly flatId?: number;
@@ -403,6 +408,7 @@ export interface HabbpyV4Api {
   openPluginsFolder(): Promise<PluginInstallResult>;
   createPluginFromTemplate(request: PluginCreateRequest): Promise<PluginInstallResult>;
   installPluginFromFolder(): Promise<PluginInstallResult>;
+  uninstallPlugin(pluginId: string): Promise<PluginInstallResult>;
   readPluginEntrySource(pluginId: string): Promise<PluginEntrySourceResult>;
   getClientLibraryState(): Promise<ClientLibraryState>;
   getClientSessions(): Promise<ClientSessionList>;
@@ -416,6 +422,7 @@ export interface HabbpyV4Api {
   getMimicState(): Promise<MimicStateSnapshot>;
   importClientReference(): Promise<ClientLibraryState>;
   onProfileImportProgress(listener: (progress: ProfileImportProgress) => void): () => void;
+  onShowAbout(listener: () => void): () => void;
   setActiveClientProfile(profileRoot: string): Promise<ClientLibraryState>;
   getEngineLaunchState(): Promise<EngineLaunchState>;
   setEngineLaunchSettings(patch: EngineLaunchSettingsPatch): Promise<EngineLaunchState>;

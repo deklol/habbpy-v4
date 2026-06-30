@@ -11,8 +11,6 @@ import {
   Map,
   MessageSquare,
   Package,
-  PanelLeftClose,
-  PanelLeftOpen,
   Play,
   Plug,
   Plus,
@@ -58,7 +56,7 @@ import {
 } from "../engineRuntime";
 import { RendererUserPluginHost, type UserPluginHostRequest } from "../userPluginHost";
 import { getPluginById, plugins } from "../../plugins/registry";
-import type { PluginDefinition, PluginPermission, PluginRegistryState } from "../../shared/plugin";
+import type { PluginDefinition, PluginPermission, PluginRegistryState, PluginUiElement } from "../../shared/plugin";
 import { parseConsoleCommand, redactConsoleCommandInput, type ConsoleRendererAction } from "../../shared/consoleCommand";
 import {
   PluginIcon,
@@ -92,30 +90,12 @@ import {
   objectMeta,
   wallObjectMeta,
   objectSearchText,
-  isPlantLikeObject,
-  isFishingAreaObject,
-  isPresentCatcherHammerObject,
-  isPresentCatcherPresentObject,
-  isPresentCatcherGiftItem,
-  presentCatcherPacketHeaders,
   objectNumericId,
   signedPair,
   wallOrientation,
   wallMoverLocation,
-  itemRowTile,
-  userTile,
-  gardeningFacingTilePriority,
-  gardeningFallbackTilePriority,
   tileKey,
   objectIdText,
-  occupiedGardeningTiles,
-  workingTileNearSelf,
-  findCurrentPlantRow,
-  adjacentTileForItem,
-  latin1ByteArray,
-  shockwaveVl64ByteArray,
-  shockwaveOutgoingStringByteArray,
-  decodeShockwaveVl64Text,
   injectionActionOptions,
   defaultInjectionDraft,
   injectionSnippetStorageKey,
@@ -289,8 +269,6 @@ import {
   type GameWebviewMount,
   type ItemRow,
   type WallMoverLocation,
-  type GardeningPhase,
-  type GardeningJobState,
   type InjectionActionKind,
   type InjectionCommandDraft,
   type InjectionSnippet,
@@ -343,28 +321,10 @@ import {
   updateClientRightOwners,
   removeClientRightOwners,
 } from "./helpers";
-import { AboutPanel } from "../../plugins/about/Panel";
-import { DevToolsPanel } from "../../plugins/dev-tools/Panel";
-import { AutomationPanel } from "../../plugins/automation/Panel";
-import { InventoryPanel } from "../../plugins/inventory/Panel";
-import { VisitorsPanel } from "../../plugins/visitors/Panel";
-import { ChatPanel } from "../../plugins/chat/Panel";
-import { WallMoverPanel } from "../../plugins/wall-mover/Panel";
-import { RoomPanel } from "../../plugins/room/Panel";
-import { ItemsPanel } from "../../plugins/items/Panel";
-import { InfoPanel } from "../../plugins/info/Panel";
-import { SocialPanel } from "../../plugins/social/Panel";
-import { FishingPanel } from "../../plugins/fishing/Panel";
-import { GardeningPanel } from "../../plugins/gardening/Panel";
-import { ConnectionPanel } from "../../plugins/connection/Panel";
-import { PluginManagerPanel } from "../../plugins/plugin-manager/Panel";
-import { SettingsPanel } from "../../plugins/settings/Panel";
-import { UserPanel } from "../../plugins/user/Panel";
-import { MultiAccountPanel } from "../../plugins/multi-account/Panel";
-import { PresentCatcherPanel } from "../../plugins/present-catcher/Panel";
-import { InjectionPanel } from "../../plugins/injection/Panel";
-import { PacketLogPanel } from "../../plugins/packet-log/Panel";
-import { UserPluginPanel } from "./UserPluginPanel";
+import { PluginStoreModal } from "./PluginStoreModal";
+import { SettingsModal } from "./SettingsModal";
+import type { RuntimePluginUiState } from "./UserPluginPanel";
+import type { PluginSchemaActionEvent } from "./PluginSchemaSurface";
 import { TopBar } from "./TopBar";
 import { BootSplash } from "./BootSplash";
 import { IconRail } from "./IconRail";
@@ -405,8 +365,6 @@ import type {
 export type {
   GameWebviewMount,
   WallMoverLocation,
-  GardeningPhase,
-  GardeningJobState,
   InjectionActionKind,
   InjectionCommandDraft,
   InjectionSnippet,
@@ -455,17 +413,78 @@ export {
   PROFILE_IMPORT_STAGE_LABELS,
 } from "./helpers";
 
+type SchemaButtonVariant = "default" | "primary" | "danger";
+type SchemaButton = Extract<PluginUiElement, { readonly type: "button" }>;
+
+function schemaButton(label: string, action: string, variant?: SchemaButtonVariant): SchemaButton {
+  return { type: "button", label, action, variant };
+}
+
+function schemaButtonGrid(buttons: readonly SchemaButton[], columns = 2): PluginUiElement {
+  return { type: "buttonGrid", columns, buttons };
+}
+
+function schemaSection(title: string, children: readonly PluginUiElement[], description?: string): PluginUiElement {
+  return { type: "section", title, description, children };
+}
+
+function schemaKv(rows: readonly (readonly [string, unknown])[]): PluginUiElement {
+  return {
+    type: "kv",
+    rows: rows.map(([key, value]) => ({ key, value: schemaPrimitive(value) })),
+  };
+}
+
+function schemaTable(
+  label: string,
+  columns: readonly (readonly [string, string])[],
+  rows: readonly Readonly<Record<string, unknown>>[],
+  options: {
+    readonly rowKey?: string;
+    readonly selectedRowKey?: string | null;
+    readonly rowAction?: string;
+    readonly maxRows?: number;
+  } = {},
+): PluginUiElement {
+  return {
+    type: "table",
+    label,
+    columns: columns.map(([key, columnLabel]) => ({ key, label: columnLabel })),
+    rows: rows.map((row) =>
+      Object.fromEntries(Object.entries(row).map(([key, value]) => [key, schemaPrimitive(value)])),
+    ),
+    rowKey: options.rowKey,
+    selectedRowKey: options.selectedRowKey ?? undefined,
+    rowAction: options.rowAction,
+    maxRows: options.maxRows,
+  };
+}
+
+function schemaLog(label: string, rows: readonly string[]): PluginUiElement {
+  return { type: "log", label, rows: rows.length > 0 ? rows : ["-"] };
+}
+
+function schemaPrimitive(value: unknown): string | number | boolean | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
+  return String(value);
+}
+
 
 export function App() {
   const [state, dispatch] = useReducer(shellReducer, initialAppState);
   const [booting, setBooting] = useState(true);
   const [query, setQuery] = useState("");
   const [appInfo, setAppInfo] = useState<{ readonly name: string; readonly version: string; readonly mode: "desktop" | "browser-preview" } | null>(null);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [appPreferences, setAppPreferences] = useState<AppPreferencesState | null>(null);
   const [pluginRegistryState, setPluginRegistryState] = useState<PluginRegistryState | null>(null);
   const [pluginManagerMessage, setPluginManagerMessage] = useState("");
   const [newPluginId, setNewPluginId] = useState("my-plugin");
   const [newPluginName, setNewPluginName] = useState("My Plugin");
+  const [pluginStoreOpen, setPluginStoreOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [pluginRuntimeUiById, setPluginRuntimeUiById] = useState<Readonly<Record<string, RuntimePluginUiState | undefined>>>({});
   const [settingsBindKey, setSettingsBindKey] = useState("F1");
   const [settingsBindCommand, setSettingsBindCommand] = useState("mimic status");
   const [libraryState, setLibraryState] = useState<ClientLibraryState | null>(null);
@@ -541,33 +560,6 @@ export function App() {
   const [publicRoomQuery, setPublicRoomQuery] = useState("");
   const [roomStageClickX, setRoomStageClickX] = useState("480");
   const [roomStageClickY, setRoomStageClickY] = useState("270");
-  const [selectedPlantKey, setSelectedPlantKey] = useState("");
-  const [gardeningCycleSec, setGardeningCycleSec] = useState("600");
-  const [gardeningJob, setGardeningJob] = useState<GardeningJobState | null>(null);
-  const [gardeningRunning, setGardeningRunning] = useState(false);
-  const [fishingMessage, setFishingMessage] = useState("");
-  const [gardeningMessage, setGardeningMessage] = useState("");
-  const [presentCatcherRunning, setPresentCatcherRunning] = useState(false);
-  const [presentCatcherMessage, setPresentCatcherMessage] = useState("");
-  const [presentCatcherTab, setPresentCatcherTab] = useState<"catcher" | "gifts" | "fragments">("catcher");
-  const [presentCatcherPanicDraft, setPresentCatcherPanicDraft] = useState("");
-  const [presentCatcherPanicNames, setPresentCatcherPanicNames] = useState<string[]>(() => {
-    try {
-      const parsed = JSON.parse(localStorage.getItem("habbpy-v4:present-catcher:panic-names") ?? "[]");
-      return Array.isArray(parsed) ? parsed.map((entry) => String(entry).trim()).filter(Boolean) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [presentCatcherGiftClass, setPresentCatcherGiftClass] = useState("balloon");
-  const [selectedPresentGiftKey, setSelectedPresentGiftKey] = useState("");
-  const [presentPlaceX, setPresentPlaceX] = useState("");
-  const [presentPlaceY, setPresentPlaceY] = useState("");
-  const [presentPlaceDirection, setPresentPlaceDirection] = useState("2");
-  const [presentOpenObjectId, setPresentOpenObjectId] = useState("");
-  const [presentFragmentEvent, setPresentFragmentEvent] = useState("second_anniversary");
-  const [presentFragmentSlotId, setPresentFragmentSlotId] = useState("");
-  const [presentFragmentTradeTarget, setPresentFragmentTradeTarget] = useState("");
   const [selectedWallMoverKey, setSelectedWallMoverKey] = useState("");
   const [wallMoverStep, setWallMoverStep] = useState("1");
   const [wallMoverMessage, setWallMoverMessage] = useState("");
@@ -579,6 +571,8 @@ export function App() {
   const [automationPrefs, setAutomationPrefs] = useState(loadAutomationPrefs);
   const [automationMessage, setAutomationMessage] = useState("");
   const [socialMessage, setSocialMessage] = useState("");
+  const [socialTarget, setSocialTarget] = useState("");
+  const [socialDraft, setSocialDraft] = useState("");
   const [publicLookupName, setPublicLookupName] = useState("");
   const [publicLookupBusy, setPublicLookupBusy] = useState(false);
   const [publicLookupResult, setPublicLookupResult] = useState<OriginsUserLookupResult | null>(null);
@@ -617,7 +611,6 @@ export function App() {
   const injectionFileInputRef = useRef<HTMLInputElement | null>(null);
   const lastChatRoomMarkerKeyRef = useRef("");
   const lastAutoHideBulletinKeyRef = useRef("");
-  const presentCatcherActionInFlightRef = useRef(false);
   const visibleLoginSubmittedRef = useRef<Set<string>>(new Set());
   const visibleLoginInFlightRef = useRef<Set<string>>(new Set());
   const visibleLoginWarnedRef = useRef<Set<string>>(new Set());
@@ -641,7 +634,11 @@ export function App() {
   );
 
   const railPlugins = useMemo(() => {
-    return availablePlugins.filter((plugin) => pinnedPluginIds.has(plugin.id) || pluginEnabledById[plugin.id] !== false);
+    return availablePlugins.filter((plugin) =>
+      plugin.id !== "plugin-manager" &&
+      plugin.id !== "settings" &&
+      (pinnedPluginIds.has(plugin.id) || pluginEnabledById[plugin.id] !== false),
+    );
   }, [availablePlugins, pinnedPluginIds, pluginEnabledById]);
 
   const filteredPlugins = useMemo(() => {
@@ -653,9 +650,7 @@ export function App() {
     });
   }, [query, railPlugins]);
   const savedSelectedPlugin = availablePlugins.find((plugin) => plugin.id === state.selectedPluginId) ?? getPluginById(state.selectedPluginId) ?? availablePlugins[0] ?? plugins[0];
-  const selectedPlugin = filteredPlugins.some((plugin) => plugin.id === savedSelectedPlugin.id)
-    ? savedSelectedPlugin
-    : filteredPlugins[0] ?? savedSelectedPlugin;
+  const selectedPlugin = savedSelectedPlugin;
   const selectedProfile =
     libraryState?.profiles.find((profile) => profile.profileRoot === libraryState.selectedProfileRoot) ??
     engineLaunch?.profile ??
@@ -749,7 +744,6 @@ export function App() {
   const packetInfoState = selectedClientPluginSnapshot?.packetInfo ?? emptyPacketInfoState;
   const packetInventoryState = selectedClientPluginSnapshot?.packetInventory ?? emptyPacketInventoryState;
   const packetWallItemState = selectedClientPluginSnapshot?.packetWallItems ?? emptyPacketWallItemState;
-  const packetFishingState = selectedClientPluginSnapshot?.packetFishing ?? emptyPacketFishingState;
   const latestClientPacket = relayDerivedState.latestClientPacket;
   const latestServerPacket = relayDerivedState.latestServerPacket;
   const relaySessionId = compactValue(relayDerivedState.latestSessionId);
@@ -900,24 +894,6 @@ export function App() {
     runtimeWallItemRows.length > 0
       ? selectedRuntimeSnapshot?.roomObjects?.counts.wallItems ?? runtimeWallItemRows.length
       : packetWallItemState.itemCount;
-  const fishingAreaRows = useMemo(() => itemRows.filter((row) => row.kind !== "wall" && isFishingAreaObject(row.item)), [itemRows]);
-  const selectedFishingAreaRow = fishingAreaRows[0] ?? null;
-  const plantRows = useMemo(() => itemRows.filter((row) => row.kind !== "wall" && isPlantLikeObject(row.item)), [itemRows]);
-  const selectedPlantRow = plantRows.find((row) => row.key === selectedPlantKey) ?? plantRows[0] ?? null;
-  const presentHammerRows = useMemo(() => itemRows.filter((row) => row.kind !== "wall" && isPresentCatcherHammerObject(row.item)), [itemRows]);
-  const presentRows = useMemo(() => itemRows.filter((row) => row.kind !== "wall" && isPresentCatcherPresentObject(row.item)), [itemRows]);
-  const presentGiftRows = useMemo(
-    () => (selectedRuntimeSnapshot?.inventory?.items ?? []).filter((row) => isPresentCatcherGiftItem(row, presentCatcherGiftClass)),
-    [presentCatcherGiftClass, selectedRuntimeSnapshot?.inventory?.items],
-  );
-  const selectedPresentGiftRow = presentGiftRows.find((row) => row.rowId === selectedPresentGiftKey) ?? presentGiftRows[0] ?? null;
-  const presentCatcherPacketRows = useMemo(
-    () =>
-      (relayLog?.entries ?? [])
-        .filter((entry) => (entry.clientId === null || entry.clientId === selectedClientId) && entry.header !== null && presentCatcherPacketHeaders.has(entry.header))
-        .slice(-14),
-    [relayLog?.entries, selectedClientId],
-  );
   const wallMoverRows = useMemo(() => itemRows.filter((row) => row.kind === "wall"), [itemRows]);
   const selectedWallMoverRow = wallMoverRows.find((row) => row.key === selectedWallMoverKey) ?? wallMoverRows[0] ?? null;
   const selectedWallMoverLocation = wallMoverLocation(selectedWallMoverRow?.item);
@@ -1094,10 +1070,10 @@ export function App() {
 
   const openMultiAccountPanel = useCallback(() => {
     dispatch({ type: "selectPlugin", pluginId: "multi-account" });
-    if (state.ui.dockCollapsed) dispatch({ type: "toggleDockCollapsed" });
+    setPluginStoreOpen(true);
     setMultiAccountMessage("Choose Load Visible to start another switchable client, or Load Headless for background clients.");
     appendTimeline("info", "Opened Multi Account controls.");
-  }, [appendTimeline, state.ui.dockCollapsed]);
+  }, [appendTimeline]);
 
   const refreshClientSessions = useCallback(async () => {
     if (!window.habbpyV4) return null;
@@ -1267,6 +1243,9 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    return window.habbpyV4?.onShowAbout?.(() => setAboutOpen(true));
+  }, []);
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
       if (event.code !== "Backquote" && event.key !== "`") return;
@@ -1286,10 +1265,6 @@ export function App() {
   useEffect(() => {
     void refreshMimicState();
   }, [refreshMimicState]);
-
-  useEffect(() => {
-    localStorage.setItem("habbpy-v4:present-catcher:panic-names", JSON.stringify(presentCatcherPanicNames));
-  }, [presentCatcherPanicNames]);
 
   useEffect(() => {
     if (!desktopBridgeAvailable) return;
@@ -1386,259 +1361,6 @@ export function App() {
   useEffect(() => {
     if (!privateRoomReady && gameZoom !== 1) void setEmbeddedRoomZoom(1);
   }, [gameZoom, privateRoomReady, setEmbeddedRoomZoom]);
-
-  const sendGardeningAction = useCallback(
-    async (action: GardeningRelayAction, label: string, clientId?: number) => {
-      if (!window.habbpyV4) {
-        const message = "Run the Electron shell before sending Gardening packets.";
-        setGardeningMessage(message);
-        return { ok: false, message };
-      }
-      const targetClientId = clientId ?? selectedClientId;
-      const result = await window.habbpyV4.sendGardeningRelayAction(action, targetClientId);
-      setGardeningMessage(result.message);
-      appendTimeline(result.ok ? "success" : "warning", `${label}: ${result.message}`);
-      await Promise.all([refreshRuntimeSnapshot().catch(() => null), refreshRelayLog().catch(() => null)]);
-      return result;
-    },
-    [appendTimeline, refreshRelayLog, refreshRuntimeSnapshot, selectedClientId],
-  );
-
-  const sendFishingAction = useCallback(
-    async (action: FishingRelayAction, label: string, clientId?: number) => {
-      if (!window.habbpyV4) {
-        const message = "Run the Electron shell before sending Fishing packets.";
-        setFishingMessage(message);
-        appendTimeline("warning", message);
-        return { ok: false, message };
-      }
-      const targetClientId = clientId ?? selectedClientId;
-      const result = await window.habbpyV4.sendFishingRelayAction(action, targetClientId);
-      setFishingMessage(result.message);
-      appendTimeline(result.ok ? "success" : "warning", `${label}: ${result.message}`);
-      await Promise.all([refreshRuntimeSnapshot().catch(() => null), refreshRelayLog().catch(() => null)]);
-      return result;
-    },
-    [appendTimeline, refreshRelayLog, refreshRuntimeSnapshot, selectedClientId],
-  );
-
-  const sendFishingStart = useCallback(async () => {
-    const areaId = objectNumericId(selectedFishingAreaRow?.item);
-    if (areaId === null) {
-      const message = "Enter a fishing room and select a parsed fishing area first.";
-      setFishingMessage(message);
-      appendTimeline("warning", message);
-      return;
-    }
-    await sendFishingAction({ action: "startFishing", areaId }, `Fishing start ${areaId}`);
-  }, [appendTimeline, selectedFishingAreaRow, sendFishingAction]);
-
-  const sendPresentCatcherPacket = useCallback(
-    async (packet: PluginPacketInput, label: string) => {
-      if (!window.habbpyV4) {
-        const message = "Run the Electron shell before sending Present Catcher packets.";
-        setPresentCatcherMessage(message);
-        appendTimeline("warning", message);
-        return { ok: false, message };
-      }
-      const result = await window.habbpyV4.sendPluginPacket(packet, selectedClientId);
-      setPresentCatcherMessage(result.message);
-      appendTimeline(result.ok ? "success" : "warning", `${label}: ${result.message}`);
-      await Promise.all([refreshRuntimeSnapshot(["core", "room", "inventory"]).catch(() => null), refreshRelayLog().catch(() => null)]);
-      return result;
-    },
-    [appendTimeline, refreshRelayLog, refreshRuntimeSnapshot, selectedClientId],
-  );
-
-  const usePresentCatcherFloorItem = useCallback(
-    async (row: ItemRow, mode: "hammer" | "present") => {
-      if (!window.habbpyV4) {
-        const message = "Run the Electron shell before using Present Catcher actions.";
-        setPresentCatcherMessage(message);
-        appendTimeline("warning", message);
-        return { ok: false, message };
-      }
-      const objectId = objectNumericId(row.item);
-      const tile = itemRowTile(row);
-      if (objectId === null || !tile) {
-        const message = "Selected target is missing a numeric object id or tile.";
-        setPresentCatcherMessage(message);
-        appendTimeline("warning", message);
-        return { ok: false, message };
-      }
-
-      const moveTarget = mode === "hammer"
-        ? { x: tile.x, y: tile.y, furniId: objectId }
-        : { ...(adjacentTileForItem(row, itemRows, userRows, selfUser) ?? { x: tile.x, y: tile.y + 1 }), furniId: 0 };
-      const move = await window.habbpyV4.sendRoomRelayAction(
-        { action: "move", x: moveTarget.x, y: moveTarget.y, furniId: moveTarget.furniId },
-        selectedClientId,
-      );
-      appendTimeline(move.ok ? "success" : "warning", `Present Catcher move: ${move.message}`);
-      if (!move.ok) {
-        setPresentCatcherMessage(move.message);
-        await refreshRelayLog().catch(() => null);
-        return move;
-      }
-
-      await new Promise((resolve) => window.setTimeout(resolve, 350));
-      const used = await window.habbpyV4.sendFurniRelayAction({ action: "useFloorItem", objectId, value: "0" }, selectedClientId);
-      setPresentCatcherMessage(used.message);
-      appendTimeline(used.ok ? "success" : "warning", `${mode === "hammer" ? "Collect Hammer" : "Use Present"}: ${used.message}`);
-      await Promise.all([refreshRuntimeSnapshot(["core", "room", "inventory"]).catch(() => null), refreshRelayLog().catch(() => null)]);
-      return used;
-    },
-    [appendTimeline, itemRows, refreshRelayLog, refreshRuntimeSnapshot, selectedClientId, selfUser, userRows],
-  );
-
-  const runPresentCatcherStep = useCallback(
-    async (auto = false) => {
-      if (presentCatcherActionInFlightRef.current) return;
-      const panicSet = new Set(presentCatcherPanicNames.map((name) => name.trim().toLowerCase()).filter(Boolean));
-      const panicHit = userRows.find((user) => panicSet.has(userDisplayName(user, selectedRuntimeSnapshot?.userState?.sessionUserName).trim().toLowerCase()));
-      if (panicHit) {
-        setPresentCatcherRunning(false);
-        const name = userDisplayName(panicHit, selectedRuntimeSnapshot?.userState?.sessionUserName);
-        await sendPresentCatcherPacket({ header: 53 }, `Panic leave for ${name}`);
-        setPresentCatcherMessage(`Stopped because panic user ${name} is in the room.`);
-        return;
-      }
-      const target = presentHammerRows[0] ? { row: presentHammerRows[0], mode: "hammer" as const } : presentRows[0] ? { row: presentRows[0], mode: "present" as const } : null;
-      if (!target) {
-        setPresentCatcherMessage(auto ? "Watching current room; no hammers or event presents parsed." : "No hammers or event presents parsed in this room.");
-        return;
-      }
-      presentCatcherActionInFlightRef.current = true;
-      try {
-        await usePresentCatcherFloorItem(target.row, target.mode);
-      } finally {
-        presentCatcherActionInFlightRef.current = false;
-      }
-    },
-    [
-      presentCatcherPanicNames,
-      presentHammerRows,
-      presentRows,
-      selectedRuntimeSnapshot?.userState?.sessionUserName,
-      sendPresentCatcherPacket,
-      usePresentCatcherFloorItem,
-      userRows,
-    ],
-  );
-
-  useEffect(() => {
-    if (!presentCatcherRunning) return;
-    let cancelled = false;
-    let timer = 0;
-    const tick = async () => {
-      if (cancelled) return;
-      await runPresentCatcherStep(true).catch((error) => {
-        setPresentCatcherMessage(error instanceof Error ? error.message : String(error));
-        appendTimeline("warning", `Present Catcher: ${error instanceof Error ? error.message : String(error)}`);
-      });
-      if (!cancelled) timer = window.setTimeout(tick, 1800);
-    };
-    void tick();
-    return () => {
-      cancelled = true;
-      if (timer) window.clearTimeout(timer);
-    };
-  }, [appendTimeline, presentCatcherRunning, runPresentCatcherStep]);
-
-  const requestPresentCatcherInventory = useCallback(async () => {
-    await runRuntimeAction({ kind: "requestInventory" });
-    await refreshRuntimeSnapshot(["core", "inventory"]).catch(() => null);
-  }, [refreshRuntimeSnapshot, runRuntimeAction]);
-
-  const placeSelectedPresentGift = useCallback(async () => {
-    const item = selectedPresentGiftRow;
-    const token = compactValue(item?.itemId ?? item?.rowId).trim();
-    if (!item || !token || token === "-") {
-      const message = "Select an inventory gift token first.";
-      setPresentCatcherMessage(message);
-      appendTimeline("warning", message);
-      return;
-    }
-    try {
-      const selfTile = userTile(selfUser);
-      const x = cleanInteger(presentPlaceX, selfTile ? selfTile.x + 1 : 0);
-      const y = cleanInteger(presentPlaceY, selfTile ? selfTile.y : 0);
-      const direction = cleanInteger(presentPlaceDirection, 2);
-      setPresentPlaceX(String(x));
-      setPresentPlaceY(String(y));
-      setPresentPlaceDirection(String(direction));
-      const bodyBytes = [...latin1ByteArray(token), ...shockwaveVl64ByteArray(x), ...shockwaveVl64ByteArray(y), ...shockwaveVl64ByteArray(direction)];
-      const result = await sendPresentCatcherPacket({ header: 90, bodyBytes }, `Place gift ${token}`);
-      const decodedId = decodeShockwaveVl64Text(token);
-      const fallbackId = finiteNumber(item.objectId ?? item.slotId ?? item.itemId);
-      const openId = decodedId !== null ? Math.abs(decodedId) : fallbackId !== null ? Math.trunc(Math.abs(fallbackId)) : null;
-      if (result.ok && openId) setPresentOpenObjectId(String(openId));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setPresentCatcherMessage(message);
-      appendTimeline("warning", `Present gift place: ${message}`);
-    }
-  }, [
-    appendTimeline,
-    presentPlaceDirection,
-    presentPlaceX,
-    presentPlaceY,
-    selectedPresentGiftRow,
-    selfUser,
-    sendPresentCatcherPacket,
-  ]);
-
-  const openPresentObject = useCallback(async () => {
-    const objectId = cleanPositiveInt(presentOpenObjectId, 0);
-    if (!objectId) {
-      const message = "Enter a placed present object id first.";
-      setPresentCatcherMessage(message);
-      appendTimeline("warning", message);
-      return;
-    }
-    await sendPresentCatcherPacket({ header: 78, bodyText: String(objectId) }, `Open present ${objectId}`);
-  }, [appendTimeline, presentOpenObjectId, sendPresentCatcherPacket]);
-
-  const sendPresentFragmentPacket = useCallback(
-    async (kind: "request" | "backpack" | "trade" | "add" | "accept" | "cancel") => {
-      const eventName = presentFragmentEvent.trim() || "second_anniversary";
-      if (kind === "request") {
-        await sendPresentCatcherPacket({ header: 3400, bodyBytes: shockwaveOutgoingStringByteArray(eventName) }, `Request fragments ${eventName}`);
-        return;
-      }
-      if (kind === "backpack") {
-        await sendPresentCatcherPacket({ header: 1240 }, "Request backpack");
-        return;
-      }
-      if (kind === "trade") {
-        const target = presentFragmentTradeTarget.trim();
-        if (!target) {
-          setPresentCatcherMessage("Enter a receiver room index before opening a fragment trade.");
-          return;
-        }
-        await sendPresentCatcherPacket(
-          { header: 3403, bodyBytes: [...shockwaveOutgoingStringByteArray(eventName), ...shockwaveOutgoingStringByteArray(target)] },
-          `Trade fragments with ${target}`,
-        );
-        return;
-      }
-      if (kind === "add") {
-        const slotId = cleanPositiveInt(presentFragmentSlotId, 0);
-        if (!slotId) {
-          setPresentCatcherMessage("Enter a fragment slot id before adding a fragment.");
-          return;
-        }
-        await sendPresentCatcherPacket({ header: 3404, bodyBytes: shockwaveVl64ByteArray(slotId) }, `Add fragment slot ${slotId}`);
-        return;
-      }
-      if (kind === "accept") {
-        await sendPresentCatcherPacket({ header: 3402, bodyBytes: shockwaveVl64ByteArray(1) }, "Accept fragment trade");
-        return;
-      }
-      await sendPresentCatcherPacket({ header: 3401 }, "Cancel fragment trade");
-    },
-    [presentFragmentEvent, presentFragmentSlotId, presentFragmentTradeTarget, sendPresentCatcherPacket],
-  );
 
   const sendUserAction = useCallback(
     async (action: UserRelayAction, label: string, clientId?: number) => {
@@ -1744,260 +1466,6 @@ export function App() {
       `Wall pickup item ${itemId}`,
     );
   }, [appendTimeline, selectedWallMoverRow, sendWallMoverAction]);
-
-  const startGardeningJobForRow = useCallback(
-    async (row: ItemRow, queue: readonly string[], mode: "cycle" | "compost", completed: number) => {
-      const objectId = objectNumericId(row.item);
-      const tile = itemRowTile(row);
-      const working = workingTileNearSelf(selfUser, row, itemRows, userRows);
-      if (objectId === null || !tile || !working) {
-        setGardeningJob({
-          plantKey: row.key,
-          objectId: objectId ?? -1,
-          originalX: tile?.x ?? 0,
-          originalY: tile?.y ?? 0,
-          originalDirection: tile?.direction ?? 0,
-          workingX: working?.x ?? 0,
-          workingY: working?.y ?? 0,
-          phase: "failed",
-          mode,
-          queue,
-          sentAt: Date.now(),
-          moveAttempts: 0,
-          actionAttempts: 0,
-          completed,
-          note: "Plant id, current tile, or avatar tile is missing from room data.",
-          baselineState: compactValue(row.item.state),
-        });
-        return;
-      }
-      const sent = await sendGardeningAction(
-        { action: "move", objectId, x: working.x, y: working.y, direction: tile.direction },
-        `Move plant ${objectId}`,
-      );
-      setGardeningJob({
-        plantKey: row.key,
-        objectId,
-        originalX: tile.x,
-        originalY: tile.y,
-        originalDirection: tile.direction,
-        workingX: working.x,
-        workingY: working.y,
-        phase: sent.ok ? "move_out" : "failed",
-        mode,
-        queue,
-        sentAt: Date.now(),
-        moveAttempts: 1,
-        actionAttempts: 0,
-        completed,
-        note: sent.ok ? `Moving ${objectId} to ${working.x},${working.y}.` : sent.message,
-        baselineState: compactValue(row.item.state),
-      });
-      setGardeningRunning(sent.ok);
-    },
-    [itemRows, selfUser, sendGardeningAction, userRows],
-  );
-
-  const startGardening = useCallback(
-    async (mode: "cycle" | "compost") => {
-      if (!roomReady) {
-        setGardeningMessage("Enter Codex Test Lab before starting Gardening.");
-        return;
-      }
-      const ordered = selectedPlantRow ? [selectedPlantRow, ...plantRows.filter((row) => row.key !== selectedPlantRow.key)] : plantRows;
-      const first = ordered[0];
-      if (!first) {
-        setGardeningMessage("No plant-like room objects are available.");
-        return;
-      }
-      setGardeningRunning(true);
-      const cycleSec = Math.max(30, Math.trunc(finiteNumber(gardeningCycleSec) ?? 600));
-      setGardeningCycleSec(String(cycleSec));
-      setGardeningMessage(`${mode === "compost" ? "Compost All" : "Gardening"} started for ${ordered.length} plant(s).`);
-      await startGardeningJobForRow(first, ordered.slice(1).map((row) => row.key), mode, 0);
-    },
-    [gardeningCycleSec, plantRows, roomReady, selectedPlantRow, startGardeningJobForRow],
-  );
-
-  const stopGardening = useCallback(() => {
-    setGardeningRunning(false);
-    setGardeningJob((current) => (current ? { ...current, phase: "idle", note: "Stopped by user." } : null));
-    setGardeningMessage("Gardening stopped.");
-  }, []);
-
-  useEffect(() => {
-    if (!gardeningRunning || !gardeningJob || gardeningJob.phase === "idle" || gardeningJob.phase === "failed") return;
-    const timeout = window.setTimeout(() => {
-      void (async () => {
-        const now = Date.now();
-        const elapsed = now - gardeningJob.sentAt;
-        const currentRow = findCurrentPlantRow(plantRows, gardeningJob.objectId);
-        const currentTile = itemRowTile(currentRow);
-        const currentState = compactValue(currentRow?.item.state);
-        const atWorking = currentTile?.x === gardeningJob.workingX && currentTile?.y === gardeningJob.workingY;
-        const atOriginal = currentTile?.x === gardeningJob.originalX && currentTile?.y === gardeningJob.originalY;
-
-        if (!currentRow || !currentTile) {
-          setGardeningJob((current) => current && current.objectId === gardeningJob.objectId ? { ...current, phase: "failed", note: "Plant disappeared from room objects." } : current);
-          setGardeningRunning(false);
-          return;
-        }
-
-        if (gardeningJob.phase === "move_out") {
-          if (atWorking && elapsed >= 350) {
-            const nextAction = gardeningJob.mode === "compost" ? "compost" : "water";
-            const sent = await sendGardeningAction({ action: nextAction, objectId: gardeningJob.objectId }, `${nextAction} plant ${gardeningJob.objectId}`);
-            setGardeningJob((current) =>
-              current && current.objectId === gardeningJob.objectId
-                ? {
-                    ...current,
-                    phase: sent.ok ? nextAction : "failed",
-                    sentAt: Date.now(),
-                    actionAttempts: 1,
-                    baselineState: currentState,
-                    note: sent.ok ? `${nextAction} sent for ${gardeningJob.objectId}.` : sent.message,
-                  }
-                : current,
-            );
-            if (!sent.ok) setGardeningRunning(false);
-            return;
-          }
-          if (elapsed >= 3000) {
-            if (gardeningJob.moveAttempts >= 3) {
-              setGardeningJob((current) => current && current.objectId === gardeningJob.objectId ? { ...current, phase: "failed", note: "Move out failed after 3 attempts." } : current);
-              setGardeningRunning(false);
-              return;
-            }
-            const sent = await sendGardeningAction(
-              { action: "move", objectId: gardeningJob.objectId, x: gardeningJob.workingX, y: gardeningJob.workingY, direction: gardeningJob.originalDirection },
-              `Retry move plant ${gardeningJob.objectId}`,
-            );
-            setGardeningJob((current) =>
-              current && current.objectId === gardeningJob.objectId
-                ? { ...current, sentAt: Date.now(), moveAttempts: current.moveAttempts + 1, note: sent.message }
-                : current,
-            );
-          }
-          return;
-        }
-
-        if (gardeningJob.phase === "compost" || gardeningJob.phase === "water" || gardeningJob.phase === "harvest") {
-          const changed = currentState !== gardeningJob.baselineState;
-          const actionTimeout = gardeningJob.phase === "compost" ? 2000 : 2500;
-          const shouldProceed =
-            changed ||
-            (gardeningJob.phase === "compost" && elapsed >= actionTimeout) ||
-            (gardeningJob.phase === "water" && elapsed >= actionTimeout && gardeningJob.actionAttempts >= 2) ||
-            (gardeningJob.phase === "harvest" && elapsed >= actionTimeout && gardeningJob.actionAttempts >= 2);
-
-          if (gardeningJob.phase === "water" && (changed || elapsed >= actionTimeout)) {
-            if (!changed && gardeningJob.actionAttempts < 2) {
-              const sent = await sendGardeningAction({ action: "water", objectId: gardeningJob.objectId }, `Retry water plant ${gardeningJob.objectId}`);
-              setGardeningJob((current) =>
-                current && current.objectId === gardeningJob.objectId
-                  ? { ...current, sentAt: Date.now(), actionAttempts: current.actionAttempts + 1, note: sent.message }
-                  : current,
-              );
-              return;
-            }
-            const sent = await sendGardeningAction({ action: "harvest", objectId: gardeningJob.objectId }, `Harvest plant ${gardeningJob.objectId}`);
-            setGardeningJob((current) =>
-              current && current.objectId === gardeningJob.objectId
-                ? {
-                    ...current,
-                    phase: sent.ok ? "harvest" : "failed",
-                    sentAt: Date.now(),
-                    actionAttempts: 1,
-                    baselineState: currentState,
-                    note: sent.ok ? `Harvest sent for ${gardeningJob.objectId}.` : sent.message,
-                  }
-                : current,
-            );
-            if (!sent.ok) setGardeningRunning(false);
-            return;
-          }
-
-          if (shouldProceed) {
-            const sent = await sendGardeningAction(
-              {
-                action: "move",
-                objectId: gardeningJob.objectId,
-                x: gardeningJob.originalX,
-                y: gardeningJob.originalY,
-                direction: gardeningJob.originalDirection,
-              },
-              `Return plant ${gardeningJob.objectId}`,
-            );
-            setGardeningJob((current) =>
-              current && current.objectId === gardeningJob.objectId
-                ? {
-                    ...current,
-                    phase: sent.ok ? "return" : "failed",
-                    sentAt: Date.now(),
-                    moveAttempts: 1,
-                    note: sent.ok ? `Returning ${gardeningJob.objectId} to ${gardeningJob.originalX},${gardeningJob.originalY}.` : sent.message,
-                  }
-                : current,
-            );
-            if (!sent.ok) setGardeningRunning(false);
-          } else if (elapsed >= actionTimeout && gardeningJob.actionAttempts < 2) {
-            const sent = await sendGardeningAction(
-              { action: gardeningJob.phase, objectId: gardeningJob.objectId },
-              `Retry ${gardeningJob.phase} plant ${gardeningJob.objectId}`,
-            );
-            setGardeningJob((current) =>
-              current && current.objectId === gardeningJob.objectId
-                ? { ...current, sentAt: Date.now(), actionAttempts: current.actionAttempts + 1, note: sent.message }
-                : current,
-            );
-          }
-          return;
-        }
-
-        if (gardeningJob.phase === "return") {
-          if (atOriginal) {
-            const nextKey = gardeningJob.queue[0];
-            const nextRow = nextKey ? plantRows.find((row) => row.key === nextKey) : null;
-            if (nextRow) {
-              await startGardeningJobForRow(nextRow, gardeningJob.queue.slice(1), gardeningJob.mode, gardeningJob.completed + 1);
-            } else {
-              setGardeningJob((current) =>
-                current && current.objectId === gardeningJob.objectId
-                  ? { ...current, phase: "complete", completed: current.completed + 1, note: "Cycle complete; all queued plants returned." }
-                  : current,
-              );
-              setGardeningRunning(false);
-              setGardeningMessage(`Gardening cycle complete. Completed ${gardeningJob.completed + 1} plant(s).`);
-            }
-            return;
-          }
-          if (elapsed >= 3000) {
-            if (gardeningJob.moveAttempts >= 3) {
-              setGardeningJob((current) => current && current.objectId === gardeningJob.objectId ? { ...current, phase: "failed", note: "Return failed after 3 attempts." } : current);
-              setGardeningRunning(false);
-              return;
-            }
-            const sent = await sendGardeningAction(
-              {
-                action: "move",
-                objectId: gardeningJob.objectId,
-                x: gardeningJob.originalX,
-                y: gardeningJob.originalY,
-                direction: gardeningJob.originalDirection,
-              },
-              `Retry return plant ${gardeningJob.objectId}`,
-            );
-            setGardeningJob((current) =>
-              current && current.objectId === gardeningJob.objectId
-                ? { ...current, sentAt: Date.now(), moveAttempts: current.moveAttempts + 1, note: sent.message }
-                : current,
-            );
-          }
-        }
-      })();
-    }, 500);
-    return () => window.clearTimeout(timeout);
-  }, [gardeningJob, gardeningRunning, plantRows, sendGardeningAction, startGardeningJobForRow]);
 
   const appendPacketConsole = useCallback((kind: PacketConsoleEntry["kind"], text: string) => {
     setPacketConsoleEntries((current) => {
@@ -2271,16 +1739,33 @@ export function App() {
       if (mode !== "get") await refreshRuntimeSnapshot().catch(() => null);
       return result;
     }
-    if (request.api === "chat.send") {
+    if (request.api === "chat.send" || request.api === "chat.shout" || request.api === "chat.whisper") {
       requirePluginPermission(plugin, ["chat.send"]);
-      const message = String(args.message ?? "").trim();
-      if (!message) throw new Error("chat.send requires a non-empty message.");
-      if (message.length > 240) throw new Error("chat.send messages are limited to 240 characters.");
       const targetClientId = requestedPluginClientId(args, selectedClientIdRef.current);
-      if (targetClientId !== selectedClientIdRef.current) {
-        throw new Error("chat.send can only target the selected visible client until validated relay chat packets are enabled.");
+      const rawMessage = String(args.message ?? "").trim();
+      if (!rawMessage) throw new Error(`${request.api} requires a non-empty message.`);
+      if (rawMessage.length > 240) throw new Error(`${request.api} messages are limited to 240 characters.`);
+
+      if (request.api === "chat.send" && targetClientId === selectedClientIdRef.current) {
+        const result = await runConsoleRuntimeAction({ kind: "sendChat", message: rawMessage });
+        if (!result.ok) throw new Error(result.message);
+        return result;
       }
-      const result = await runConsoleRuntimeAction({ kind: "sendChat", message });
+
+      if (!window.habbpyV4) throw new Error("Desktop bridge unavailable for chat relay.");
+      let packet: PluginPacketInput;
+      if (request.api === "chat.send") {
+        packet = { header: 52, bodyText: rawMessage };
+      } else if (request.api === "chat.shout") {
+        packet = { header: 55, bodyText: rawMessage };
+      } else {
+        const target = String(args.target ?? "").trim();
+        if (!target) throw new Error("chat.whisper requires a target user name.");
+        if (target.length > 64 || /[\x00-\x1f]/.test(target)) throw new Error("chat.whisper target name is invalid.");
+        packet = { header: 56, bodyText: `${target} ${rawMessage}` };
+      }
+      const result = await window.habbpyV4.sendPluginPacket(packet, targetClientId);
+      await Promise.all([refreshRuntimeSnapshot().catch(() => null), refreshRelayLog().catch(() => null)]);
       if (!result.ok) throw new Error(result.message);
       return result;
     }
@@ -2329,6 +1814,35 @@ export function App() {
       await Promise.all([refreshRuntimeSnapshot().catch(() => null), refreshRelayLog().catch(() => null)]);
       return { ...result, target };
     }
+    if (request.api === "teleport.enter") {
+      requirePluginPermission(plugin, ["actions.furni"]);
+      requirePluginPermission(plugin, ["engine.snapshot"]);
+      if (!window.habbpyV4) throw new Error("Desktop bridge unavailable for teleport entry.");
+      const options = args.options && typeof args.options === "object" ? (args.options as Record<string, unknown>) : {};
+      if (options.walk !== false) requirePluginPermission(plugin, ["actions.avatar"]);
+      const targetClientId = requestedPluginClientId(args, selectedClientIdRef.current);
+      const snapshot = await fullSnapshotForClient(targetClientId);
+      const resolved = pluginResolveFloorItem(snapshot, args.selector, furniMetadata);
+      if (!resolved) throw new Error("teleport.enter could not resolve a floor teleport item by id, name, class, or search text.");
+      let walk: Awaited<ReturnType<NonNullable<typeof window.habbpyV4>["sendRoomRelayAction"]>> | null = null;
+      if (options.walk !== false) {
+        const furniId = options.useFurniId === false ? 0 : cleanInteger(options.furniId, resolved.id);
+        walk = await window.habbpyV4.sendRoomRelayAction(
+          { action: "move", x: resolved.tile.x, y: resolved.tile.y, furniId },
+          targetClientId,
+        );
+        if (!walk.ok && options.requireWalk !== false) {
+          await Promise.all([refreshRuntimeSnapshot().catch(() => null), refreshRelayLog().catch(() => null)]);
+          return { ...walk, item: pluginRuntimeItemPayload(resolved.row, furniMetadata), walk };
+        }
+      }
+      const result = await window.habbpyV4.sendFurniRelayAction(
+        { action: "useFloorItem", objectId: resolved.id, value: String(options.value ?? "0"), className: compactValue(resolved.row.item.className) },
+        targetClientId,
+      );
+      await Promise.all([refreshRuntimeSnapshot().catch(() => null), refreshRelayLog().catch(() => null)]);
+      return { ...result, item: pluginRuntimeItemPayload(resolved.row, furniMetadata), walk };
+    }
     if (request.api === "rooms.enterPrivateRoom") {
       requirePluginPermission(plugin, ["engine.control"]);
       const targetClientId = requestedPluginClientId(args, selectedClientIdRef.current);
@@ -2347,6 +1861,16 @@ export function App() {
         throw new Error("Public room entry through plugin engine control can only target the selected visible client.");
       }
       const result = await runConsoleRuntimeAction({ kind: "enterPublicRoom", query: String(args.query ?? "").trim() || undefined });
+      await Promise.all([refreshRuntimeSnapshot().catch(() => null), refreshRelayLog().catch(() => null)]);
+      return result;
+    }
+    if (request.api === "rooms.leave") {
+      requirePluginPermission(plugin, ["engine.control"]);
+      if (!window.habbpyV4) throw new Error("Desktop bridge unavailable for room leave.");
+      const result = await window.habbpyV4.sendRoomRelayAction(
+        { action: "leave" },
+        requestedPluginClientId(args, selectedClientIdRef.current),
+      );
       await Promise.all([refreshRuntimeSnapshot().catch(() => null), refreshRelayLog().catch(() => null)]);
       return result;
     }
@@ -2768,9 +2292,49 @@ export function App() {
       requirePluginPermission(plugin, ["console.commands"]);
       return { ok: false, message: "Plugin console command registration is reserved for the command registry phase." };
     }
-    if (request.api === "ui.registerPanel") {
+    if (request.api === "ui.registerPanel" || request.api === "ui.registerSurface" || request.api === "ui.updateSurface") {
       requirePluginPermission(plugin, ["ui.panel"]);
-      return { ok: false, message: "Plugin-rendered custom panels are reserved for the panel renderer phase." };
+      const args = (request.args && typeof request.args === "object" ? request.args : {}) as Record<string, unknown>;
+      const surface = (args.surface && typeof args.surface === "object" ? args.surface : {}) as Record<string, unknown>;
+      const surfaceId = String(args.surfaceId ?? surface.id ?? "panel").trim() || "panel";
+      const layoutValue = args.layout ?? surface.layout;
+      const layout = Array.isArray(layoutValue) ? layoutValue as readonly PluginUiElement[] : [];
+      if (layout.length === 0) return { ok: false, message: `${request.api} requires a non-empty schema layout.` };
+      setPluginRuntimeUiById((current) => {
+        const existing = current[plugin.id] ?? {};
+        return {
+          ...current,
+          [plugin.id]: {
+            ...existing,
+            surfaces: {
+              ...(existing.surfaces ?? {}),
+              [surfaceId]: layout,
+            },
+          },
+        };
+      });
+      return { ok: true, message: `${plugin.name} updated ${surfaceId}.` };
+    }
+    if (request.api === "ui.setValue") {
+      requirePluginPermission(plugin, ["ui.panel"]);
+      const args = (request.args && typeof request.args === "object" ? request.args : {}) as Record<string, unknown>;
+      const key = String(args.key ?? "").trim();
+      if (!key) return { ok: false, message: "ui.setValue requires a key." };
+      const value = ["string", "number", "boolean"].includes(typeof args.value) || args.value === null ? args.value as string | number | boolean | null : String(args.value ?? "");
+      setPluginRuntimeUiById((current) => {
+        const existing = current[plugin.id] ?? {};
+        return {
+          ...current,
+          [plugin.id]: {
+            ...existing,
+            values: {
+              ...(existing.values ?? {}),
+              [key]: value,
+            },
+          },
+        };
+      });
+      return { ok: true, message: `${plugin.name} set ${key}.` };
     }
     throw new Error(`Unknown plugin host API: ${request.api}`);
   };
@@ -3831,6 +3395,21 @@ export function App() {
     appendTimeline(result.ok ? "success" : "warning", result.message);
   }, [appendTimeline]);
 
+  const uninstallPlugin = useCallback(async (plugin: PluginDefinition) => {
+    if (!window.habbpyV4?.uninstallPlugin) return;
+    const confirmed = window.confirm(`Remove ${plugin.name}? This deletes the installed addon folder.`);
+    if (!confirmed) return;
+    const result = await window.habbpyV4.uninstallPlugin(plugin.id);
+    setPluginRegistryState(result.state);
+    setPluginManagerMessage(result.message);
+    appendTimeline(result.ok ? "success" : "warning", result.message);
+    if (result.ok) setPluginRuntimeUiById((current) => {
+      const next = { ...current };
+      delete next[plugin.id];
+      return next;
+    });
+  }, [appendTimeline]);
+
   const importClientReference = useCallback(async () => {
     if (!window.habbpyV4) return;
     setProfileImportUi(pendingProfileImportUiState());
@@ -3920,15 +3499,1022 @@ export function App() {
     void updateEngineLaunchSettings({ versionCheckBuild: parsed }, `Version check override set to ${parsed}.`);
   }, [appendTimeline, updateEngineLaunchSettings, versionCheckDraft]);
 
+  const setHotelView = useCallback((value: string) => {
+    const normalized = value.trim() || "hh_entry_uk";
+    if (normalized === "custom") {
+      void updateEngineLaunchSettings({ customHotelView: true, entryView: null }, "Hotel view set to Shockless Custom.");
+      return;
+    }
+    void updateEngineLaunchSettings({ customHotelView: false, entryView: normalized }, `Hotel view set to ${normalized}.`);
+  }, [updateEngineLaunchSettings]);
+
+  const currentHotelView = engineLaunch?.settings?.customHotelView
+    ? "custom"
+    : engineLaunch?.settings?.entryView ?? "hh_entry_uk";
+
+  const appSettingsLayout = useMemo<readonly PluginUiElement[]>(() => [
+    {
+      type: "section",
+      id: "interface",
+      title: "Interface",
+      description: "Global app behaviour.",
+      children: [
+        { type: "toggle", id: "autoHideBulletin", label: "Auto Hide Bulletin On Login", description: "Hide the initial in-game bulletin when a room snapshot is available.", defaultValue: true, action: "settings.autoHideBulletin" },
+        { type: "toggle", id: "engineUserNameLabels", label: "Render Names Above Heads", description: "Draw 9px Goldfish username labels in the engine view when a room is loaded.", defaultValue: false, action: "settings.engineUserNameLabels" },
+      ],
+    },
+    {
+      type: "section",
+      id: "engine",
+      title: "Engine",
+      description: "Client launch and room-stage settings.",
+      children: [
+        { type: "select", id: "hotelView", label: "Hotel View", defaultValue: "hh_entry_uk", action: "settings.hotelView", options: [
+          { value: "custom", label: "Shockless Custom" },
+          { value: "hh_entry_uk", label: "United Kingdom" },
+          { value: "hh_entry_br", label: "Brazil" },
+          { value: "hh_entry_es", label: "Spain" },
+          { value: "hh_entry_ru", label: "Russia" },
+        ] },
+        { type: "toggle", id: "resizablePresentation", label: "Responsive Stage Resize", defaultValue: true, action: "settings.resizablePresentation" },
+        { type: "textInput", id: "versionCheckBuild", label: "Version Check Build", placeholder: "auto", action: "settings.versionCheckBuild" },
+        { type: "button", id: "applyVersionCheckBuild", label: "Apply Version", action: "settings.applyVersionCheckBuild", variant: "primary" },
+      ],
+    },
+    {
+      type: "section",
+      id: "performance",
+      title: "Performance",
+      description: "Renderer and launch performance preferences.",
+      children: [
+        { type: "toggle", id: "hardwareAcceleration", label: "Hardware Acceleration", description: "Requires an app restart when changed after launch.", defaultValue: true, action: "settings.hardwareAcceleration" },
+      ],
+    },
+    {
+      type: "section",
+      id: "console",
+      title: "Console",
+      description: "Backtick console and packet output defaults.",
+      children: [
+        { type: "toggle", id: "packetOutputWrap", label: "Wrap Packet Output", defaultValue: true, action: "settings.packetOutputWrap" },
+        { type: "toggle", id: "packetOutputAutoScroll", label: "Auto Scroll Packet Output", defaultValue: true, action: "settings.packetOutputAutoScroll" },
+      ],
+    },
+    {
+      type: "section",
+      id: "hotkeys",
+      title: "Hotkeys",
+      description: "Bind a keyboard shortcut to a console command.",
+      children: [
+        { type: "keybind", id: "settingsBindKey", label: "Key", defaultValue: "F1", action: "settings.bindKey" },
+        { type: "textInput", id: "settingsBindCommand", label: "Command", defaultValue: "mimic status", action: "settings.bindCommand" },
+        { type: "button", id: "bindHotkey", label: "Bind Hotkey", action: "settings.bindHotkey", variant: "primary" },
+      ],
+    },
+    {
+      type: "section",
+      id: "sessions",
+      title: "Sessions",
+      description: "Default multi-client load settings.",
+      children: [
+        { type: "textInput", id: "defaultAccountFile", label: "Account File", defaultValue: "multiclient-accounts.txt", action: "settings.defaultAccountFile" },
+        { type: "numberInput", id: "defaultAccountCount", label: "Default Count", min: 1, max: 50, step: 1, defaultValue: 3, action: "settings.defaultAccountCount" },
+        { type: "numberInput", id: "defaultAccountConcurrency", label: "Concurrency", min: 1, max: 8, step: 1, defaultValue: 2, action: "settings.defaultAccountConcurrency" },
+        { type: "textInput", id: "defaultAccountKeyEnv", label: "Account Store Key Env", defaultValue: "HABBPY_V4_ACCOUNT_STORE_KEY", action: "settings.defaultAccountKeyEnv" },
+        { type: "select", id: "defaultSummonTarget", label: "Summon Target", defaultValue: "headless", action: "settings.defaultSummonTarget", options: [
+          { value: "headless", label: "Headless" },
+          { value: "visible", label: "Visible" },
+        ] },
+        { type: "select", id: "defaultLoadMode", label: "Load Mode", defaultValue: "headless", action: "settings.defaultLoadMode", options: [
+          { value: "headless", label: "Headless" },
+          { value: "visible", label: "Visible" },
+        ] },
+        { type: "toggle", id: "autoSubmitVisibleLogin", label: "Auto Submit Visible Login", defaultValue: true, action: "settings.autoSubmitVisibleLogin" },
+        { type: "button", id: "saveSessionDefaults", label: "Save Session Defaults", action: "settings.saveSessionDefaults", variant: "primary" },
+      ],
+    },
+  ], []);
+
+  const appSettingsValues = useMemo<Readonly<Record<string, string | number | boolean | null>>>(() => ({
+    autoHideBulletin: automationPrefs.autoHideBulletin,
+    engineUserNameLabels,
+    hotelView: currentHotelView,
+    resizablePresentation: engineLaunch?.settings?.resizablePresentation !== false,
+    versionCheckBuild: versionCheckDraft,
+    hardwareAcceleration: appPreferences?.hardwareAcceleration ?? true,
+    packetOutputWrap: packetFilters.wrap,
+    packetOutputAutoScroll: packetFilters.autoscroll,
+    settingsBindKey,
+    settingsBindCommand,
+    defaultAccountFile: multiAccountFile,
+    defaultAccountCount: Number.parseInt(multiAccountCount, 10) || 3,
+    defaultAccountConcurrency: Number.parseInt(multiAccountConcurrency, 10) || 2,
+    defaultAccountKeyEnv: multiAccountKeyEnv,
+    defaultSummonTarget: multiAccountSummonTarget,
+    defaultLoadMode: multiAccountLoadMode,
+    autoSubmitVisibleLogin: appPreferences?.autoSubmitVisibleLogin !== false,
+  }), [
+    appPreferences?.autoSubmitVisibleLogin,
+    appPreferences?.hardwareAcceleration,
+    automationPrefs.autoHideBulletin,
+    engineUserNameLabels,
+    currentHotelView,
+    engineLaunch?.settings?.resizablePresentation,
+    multiAccountConcurrency,
+    multiAccountCount,
+    multiAccountFile,
+    multiAccountKeyEnv,
+    multiAccountLoadMode,
+    multiAccountSummonTarget,
+    packetFilters.autoscroll,
+    packetFilters.wrap,
+    settingsBindCommand,
+    settingsBindKey,
+    versionCheckDraft,
+  ]);
+
+  const builtInRuntimeUiById: Readonly<Record<string, RuntimePluginUiState>> = {
+    connection: {
+      values: {},
+      surfaces: {
+        panel: [
+          schemaSection("Session", [
+            schemaKv([
+              ["Selected", `client${selectedClientId} ${selectedClientSession?.label ?? "-"}`],
+              ["Mode", selectedClientSession?.headless ? "Headless" : selectedClientIsVisible ? "Visible" : "Hidden"],
+              ["State", selectedClientSession?.status ?? engineLaunch?.status ?? "-"],
+              ["Profile", selectedProfile ? profileLine(selectedProfile) : state.engine.profileLabel],
+              ["Room", runtimeRoomName(selectedRuntimeSnapshot)],
+              ["Relay", relayLog?.exists ? `${packetEntries.length} rows` : "No relay log"],
+              ["Crypto", relayEncryptionState],
+            ]),
+            schemaButtonGrid([
+              schemaButton("Refresh", "connection.refresh"),
+              schemaButton("Start", "connection.start", "primary"),
+              schemaButton("Stop", "connection.stop", "danger"),
+              schemaButton("Import / Build Client", "connection.import"),
+            ], 4),
+          ]),
+          schemaTable(
+            "Clients",
+            [
+              ["id", "ID"],
+              ["label", "Label"],
+              ["state", "State"],
+              ["mode", "Mode"],
+              ["room", "Room"],
+            ],
+            (clientSessions?.sessions ?? []).map((session) => ({
+              id: String(session.id),
+              label: session.label,
+              state: session.selected ? "Selected" : statusLabel(session.status),
+              mode: session.headless ? "Headless" : session.visible ? "Visible" : "Hidden",
+              room: compactValue(session.roomName ?? session.profileLabel),
+            })),
+            { rowKey: "id", selectedRowKey: String(selectedClientId), rowAction: "multi.selectClient", maxRows: 18 },
+          ),
+        ],
+      },
+    },
+    "multi-account": {
+      values: {
+        multiAccountFile,
+        multiAccountCount: clampMultiAccountCount(multiAccountCount),
+        multiAccountConcurrency: clampMultiAccountConcurrency(multiAccountConcurrency),
+        multiAccountLoadMode,
+        multiAccountSummonTarget,
+      },
+      surfaces: {
+        panel: [
+          schemaSection("Load Clients", [
+            { type: "textInput", id: "multiAccountFile", label: "Account File", defaultValue: multiAccountFile, action: "multi.file" },
+            { type: "numberInput", id: "multiAccountCount", label: "Count", min: 1, max: 50, step: 1, defaultValue: clampMultiAccountCount(multiAccountCount), action: "multi.count" },
+            { type: "numberInput", id: "multiAccountConcurrency", label: "Concurrency", min: 1, max: 8, step: 1, defaultValue: clampMultiAccountConcurrency(multiAccountConcurrency), action: "multi.concurrency" },
+            { type: "select", id: "multiAccountLoadMode", label: "Load Mode", defaultValue: multiAccountLoadMode, action: "multi.loadMode", options: [{ value: "headless", label: "Headless" }, { value: "visible", label: "Visible" }] },
+            schemaButtonGrid([
+              schemaButton("Load Headless", "multi.loadHeadless", "primary"),
+              schemaButton("Load Visible", "multi.loadVisible", "primary"),
+              schemaButton("New Visible", "multi.newVisible"),
+              schemaButton("Summon All", "multi.summonAll"),
+            ], 4),
+          ]),
+          schemaSection("Mimic", [
+            schemaKv([
+              ["Enabled", mimicState?.enabled ? "Yes" : "No"],
+              ["Source", mimicState?.sourceClientId ? `client${mimicState.sourceClientId}` : "-"],
+              ["Targets", mimicState?.targetClientIds.length ? mimicState.targetClientIds.map((id) => `client${id}`).join(", ") : "-"],
+              ["Categories", mimicCategoryOptions.filter((option) => mimicState?.categories[option.id]).map((option) => option.label).join(", ") || "-"],
+            ]),
+            schemaButtonGrid([
+              schemaButton("Mimic On", "multi.mimicOn", "primary"),
+              schemaButton("Mimic Off", "multi.mimicOff", "danger"),
+              schemaButton("Mimic Status", "multi.mimicStatus"),
+              schemaButton("Set Main", "multi.setMain"),
+            ], 4),
+          ]),
+          schemaTable("Sessions", [["id", "ID"], ["label", "Label"], ["status", "Status"], ["room", "Room"], ["main", "Main"]], (clientSessions?.sessions ?? []).map((session) => ({
+            id: String(session.id),
+            label: session.label,
+            status: `${session.headless ? "Headless" : session.visible ? "Visible" : "Hidden"} / ${statusLabel(session.status)}`,
+            room: compactValue(session.roomName ?? session.profileLabel),
+            main: session.main ? "Yes" : "",
+          })), { rowKey: "id", selectedRowKey: String(selectedClientId), rowAction: "multi.selectClient", maxRows: 30 }),
+          schemaLog("Last Result", multiAccountMessage ? multiAccountMessage.split(/\r?\n/).slice(-8) : ["No multi-account action has run this session."]),
+        ],
+      },
+    },
+    info: {
+      values: { publicLookupName },
+      surfaces: {
+        panel: [
+          schemaSection("Summary", [
+            schemaKv([
+              ["Account", selectedRuntimeSnapshot?.userState?.sessionUserName ?? selectedClientSession?.username ?? "-"],
+              ["Room", runtimeRoomName(selectedRuntimeSnapshot)],
+              ["Owner", runtimeRoomOwner(selectedRuntimeSnapshot)],
+              ["Layout", runtimeRoomProp(selectedRuntimeSnapshot, "layout")],
+              ["Friends", packetInfoState.friends.length],
+              ["Badges", packetInfoState.badges.length],
+              ["Inventory", inventoryTotalCount],
+              ["Rights", selectedRuntimeSnapshot?.userState?.rightsCount ?? 0],
+              ["Effects", packetInfoState.statusEffects.length],
+            ]),
+          ]),
+          schemaSection("Lookup", [
+            { type: "textInput", id: "publicLookupName", label: "Habbo Name", defaultValue: publicLookupName || selectedUserName, action: "info.lookupName" },
+            schemaButtonGrid([schemaButton(publicLookupBusy ? "Looking Up..." : "Lookup User", "info.lookup", "primary")], 1),
+            schemaLog("Lookup Result", publicLookupResult ? [originsLookupLine(publicLookupResult, publicLookupName || selectedUserName)] : ["No public lookup result yet."]),
+          ]),
+          schemaTable("Friends", [["name", "Name"], ["id", "ID"], ["state", "State"]], filteredPacketFriends.slice(0, 40).map((friend) => ({
+            name: packetFriendTitle(friend),
+            id: compactValue(friend.accountId),
+            state: packetFriendMeta(friend),
+          })), { maxRows: 40 }),
+          schemaTable("Badges", [["badge", "Badge"]], packetInfoState.badges.slice(0, 80).map((badge) => ({ badge })), { maxRows: 80 }),
+        ],
+      },
+    },
+    room: {
+      values: { publicRoomQuery, roomStageClickX, roomStageClickY },
+      surfaces: {
+        panel: [
+          schemaSection("Room", [
+            schemaKv([
+              ["Name", runtimeRoomName(selectedRuntimeSnapshot)],
+              ["ID", runtimeRoomId(selectedRuntimeSnapshot)],
+              ["Type", runtimeRoomType(selectedRuntimeSnapshot)],
+              ["Owner", runtimeRoomOwner(selectedRuntimeSnapshot)],
+              ["Users", selectedRuntimeSnapshot?.userState?.roomUserCount ?? userRows.length],
+              ["Items", itemRows.length],
+              ["Floor", itemRows.filter((row) => row.kind !== "wall").length],
+              ["Wall", itemWallCount],
+            ]),
+            schemaButtonGrid([
+              schemaButton("Refresh Room", "room.refresh"),
+              schemaButton("Open Navigator", "room.navigator"),
+              schemaButton("Hotel View", "room.hotelView"),
+              schemaButton(gameZoom === 2 ? "Zoom 100%" : "Zoom 200%", "room.toggleZoom"),
+            ], 4),
+          ]),
+          schemaSection("Entry / Walk", [
+            { type: "textInput", id: "publicRoomQuery", label: "Room Query / ID", defaultValue: publicRoomQuery, action: "room.query" },
+            { type: "textInput", id: "roomStageClickX", label: "Stage X", defaultValue: roomStageClickX, action: "room.stageX" },
+            { type: "textInput", id: "roomStageClickY", label: "Stage Y", defaultValue: roomStageClickY, action: "room.stageY" },
+            schemaButtonGrid([
+              schemaButton("Enter Private", "room.enterPrivate", "primary"),
+              schemaButton("Enter Public", "room.enterPublic"),
+              schemaButton("Stage Click", "room.stageClick"),
+            ], 3),
+          ]),
+          schemaTable("Users", [["name", "Name"], ["id", "ID"], ["tile", "Tile"], ["activity", "Activity"]], userRows.map((user) => ({
+            key: user.rowId,
+            name: userDisplayName(user, selectedRuntimeSnapshot?.userState?.sessionUserName),
+            id: compactValue(user.accountId),
+            tile: userPosition(user),
+            activity: compactValue(user.activity ?? user.lastAction),
+          })), { rowKey: "key", selectedRowKey: selectedUser?.rowId, rowAction: "user.select", maxRows: 40 }),
+          schemaTable("Room Items", [["name", "Item"], ["kind", "Kind"], ["id", "ID"], ["pos", "Position"]], filteredItemRows.slice(0, 80).map((row) => ({
+            key: row.key,
+            name: itemRowTitle(row, furniMetadata),
+            kind: labelCase(row.kind),
+            id: objectIdText(row.item),
+            pos: row.kind === "wall" ? wallObjectMeta(row.item) : objectMeta(row.item),
+          })), { rowKey: "key", selectedRowKey: selectedItemRow?.key, rowAction: "items.select", maxRows: 80 }),
+        ],
+      },
+    },
+    user: {
+      values: {
+        engineUserNameLabels,
+        selectedStoredUserLook: activeStoredUserLook,
+      },
+      surfaces: {
+        panel: [
+          schemaSection("Selected User", [
+            schemaKv([
+              ["Name", selectedUserName],
+              ["Account ID", selectedUserAccountId],
+              ["Room Index", selectedUserIndex],
+              ["Gender", selectedUserGender],
+              ["Badge", selectedUserBadgeCode],
+              ["Motto", selectedUserMotto],
+              ["Position", selectedUserPosition],
+              ["Direction", compactValue(selectedUser?.direction)],
+              ["Figure", selectedUserFigure],
+            ]),
+            { type: "toggle", id: "engineUserNameLabels", label: "Render Names Above Heads", defaultValue: engineUserNameLabels, action: "user.nameLabels" },
+            schemaButtonGrid([
+              schemaButton("Wave", "user.wave", "primary"),
+              schemaButton("Dance 1", "user.dance1"),
+              schemaButton("Dance 2", "user.dance2"),
+              schemaButton("Dance 3", "user.dance3"),
+              schemaButton("Dance 4", "user.dance4"),
+              schemaButton("Stop Dance", "user.stopDance"),
+              schemaButton("Carry Drink", "user.carryDrink"),
+              schemaButton("Copy Profile", "user.copyProfile"),
+            ], 4),
+          ]),
+          schemaTable("Room Users", [["name", "Name"], ["id", "ID"], ["idx", "Index"], ["tile", "Tile"], ["state", "State"]], userRows.map((user) => ({
+            key: user.rowId,
+            name: userDisplayName(user, selectedRuntimeSnapshot?.userState?.sessionUserName),
+            id: profileValue(user.accountId, packetProfileForRuntimeUser(packetProfileIndex, user, selectedRuntimeSnapshot?.userState?.sessionUserName)?.accountId),
+            idx: compactValue(user.roomIndex ?? user.rowId),
+            tile: userPosition(user),
+            state: userRowMeta(user),
+          })), { rowKey: "key", selectedRowKey: selectedUser?.rowId, rowAction: "user.select", maxRows: 50 }),
+          schemaSection("Looks", [
+            { type: "select", id: "selectedStoredUserLook", label: "Stored Look", defaultValue: activeStoredUserLook, action: "user.selectStoredLook", options: userStoredLooks.length ? userStoredLooks.map((look) => ({ value: look, label: look.slice(0, 80) })) : [{ value: "", label: "No stored looks" }] },
+            schemaButtonGrid([
+              schemaButton("Store Selected Look", "user.storeLook"),
+              schemaButton("Apply Stored Look", "user.applyStoredLook", "primary"),
+              schemaButton("Copy Stored Look", "user.copyStoredLook"),
+              schemaButton("Clear Stored Looks", "user.clearStoredLooks", "danger"),
+            ], 4),
+            schemaLog("Status", userToolMessage ? [userToolMessage] : ["No user action has run this session."]),
+          ]),
+        ],
+      },
+    },
+    social: {
+      values: { socialTarget, socialDraft, socialFriendFilter },
+      surfaces: {
+        panel: [
+          schemaSection("Messages / Requests", [
+            schemaKv([
+              ["Friends", `${onlinePacketFriends}/${packetInfoState.friends.length} online`],
+              ["Private Messages", socialMessageCount],
+              ["Friend Requests", socialRequestCount],
+              ["Unread", packetInfoState.messengerUnreadMessageCount],
+              ["Status", socialMessage || "-"],
+            ]),
+            { type: "textInput", id: "socialTarget", label: "User / ID", defaultValue: socialTarget, action: "social.target" },
+            { type: "textInput", id: "socialDraft", label: "Message", defaultValue: socialDraft, action: "social.messageText" },
+            schemaButtonGrid([
+              schemaButton("Send Message", "social.sendMessage", "primary"),
+              schemaButton("Add Friend", "social.addUser"),
+              schemaButton("Refresh Requests", "social.refreshRequests"),
+              schemaButton("Lookup Target", "social.lookupTarget"),
+            ], 4),
+          ]),
+          { type: "textInput", id: "socialFriendFilter", label: "Friend Search", defaultValue: socialFriendFilter, action: "social.friendFilter" },
+          schemaTable("Friends", [["name", "Name"], ["id", "ID"], ["meta", "Status"]], filteredPacketFriends.slice(0, 80).map((friend) => ({
+            name: packetFriendTitle(friend),
+            id: compactValue(friend.accountId),
+            meta: packetFriendMeta(friend),
+          })), { maxRows: 80 }),
+          schemaTable("Friend Requests", [["name", "Name"], ["id", "ID"], ["line", "Line"]], visibleFriendRequests.map((request) => ({
+            name: compactValue(request.name),
+            id: compactValue(request.accountId),
+            line: request.sourceLine,
+          })), { maxRows: 20 }),
+          schemaLog("Private Messages", visiblePrivateMessages.length ? visiblePrivateMessages.map((message) => `${message.senderAccountId}: ${message.text}`) : ["No private messages parsed yet."]),
+        ],
+      },
+    },
+    chat: {
+      values: {
+        chatDraft,
+        chatFilterTalk: chatFilters.talk,
+        chatFilterWhisper: chatFilters.whisper,
+        chatFilterShout: chatFilters.shout,
+        chatFilterSystem: chatFilters.system,
+        chatAutoscroll: chatFilters.autoscroll,
+      },
+      surfaces: {
+        panel: [
+          schemaSection("Send", [
+            { type: "textInput", id: "chatDraft", label: "Message", defaultValue: chatDraft, action: "chat.draft" },
+            schemaButtonGrid([schemaButton("Send", "chat.send", "primary"), schemaButton("Clear Display", "chat.clear", "danger")], 2),
+          ]),
+          schemaSection("Filters", [
+            { type: "toggle", id: "chatFilterTalk", label: "Talk", defaultValue: chatFilters.talk, action: "chat.filterTalk" },
+            { type: "toggle", id: "chatFilterWhisper", label: "Whisper", defaultValue: chatFilters.whisper, action: "chat.filterWhisper" },
+            { type: "toggle", id: "chatFilterShout", label: "Shout", defaultValue: chatFilters.shout, action: "chat.filterShout" },
+            { type: "toggle", id: "chatFilterSystem", label: "System", defaultValue: chatFilters.system, action: "chat.filterSystem" },
+            { type: "toggle", id: "chatAutoscroll", label: "Auto Scroll", defaultValue: chatFilters.autoscroll, action: "chat.autoscroll" },
+          ]),
+          schemaLog("Room Chat", visibleChatHistory.slice(-120).map((entry) => `${entry.timestamp ?? ""} ${chatEntryLabel(entry)}: ${entry.text ?? ""}`)),
+        ],
+      },
+    },
+    visitors: {
+      values: { visitorFilter },
+      surfaces: {
+        panel: [
+          schemaSection("Visitors", [
+            schemaKv([
+              ["Room", visitorRoomName],
+              ["Current", visitorState.activeKeys.length],
+              ["Seen", visitorEntries.length],
+              ["Missing IDs", missingVisitorAccountIds],
+              ["Lookup", visitorLookupMessage || "-"],
+            ]),
+            { type: "textInput", id: "visitorFilter", label: "Search", defaultValue: visitorFilter, action: "visitors.search" },
+            schemaButtonGrid([schemaButton(visitorLookupBusy ? "Looking Up..." : "Lookup Missing IDs", "visitors.lookupMissing", "primary")], 1),
+          ]),
+          schemaTable("Seen Visitors", [["current", "In"], ["name", "Name"], ["id", "ID"], ["visits", "Visits"], ["entered", "Entered"], ["left", "Left"]], filteredVisitorEntries.map((entry) => ({
+            current: entry.current ? "Yes" : "",
+            name: entry.name,
+            id: entry.accountId,
+            visits: entry.visits,
+            entered: entry.entered,
+            left: entry.left,
+          })), { maxRows: 120 }),
+        ],
+      },
+    },
+    items: {
+      values: { itemFilter },
+      surfaces: {
+        panel: [
+          schemaSection("Item Browser", [
+            schemaKv([
+              ["Total", itemRows.length],
+              ["Floor", itemRows.filter((row) => row.kind !== "wall").length],
+              ["Wall", itemWallCount],
+              ["Selected", selectedItemRow ? itemRowTitle(selectedItemRow, furniMetadata) : "-"],
+            ]),
+            { type: "textInput", id: "itemFilter", label: "Search Items", defaultValue: itemFilter, action: "items.search" },
+            schemaButtonGrid([
+              schemaButton("Use Selected", "items.useSelected", "primary"),
+              schemaButton("Pickup Selected", "items.pickupSelected", "danger"),
+              schemaButton("Refresh", "items.refresh"),
+            ], 3),
+          ]),
+          schemaTable("Floor Items", [["name", "Item"], ["id", "ID"], ["tile", "Tile"], ["state", "State"]], filteredItemRows.filter((row) => row.kind !== "wall").map((row) => ({
+            key: row.key,
+            name: itemRowTitle(row, furniMetadata),
+            id: objectIdText(row.item),
+            tile: objectMeta(row.item),
+            state: compactValue(row.item.state),
+          })), { rowKey: "key", selectedRowKey: selectedItemRow?.key, rowAction: "items.select", maxRows: 80 }),
+          schemaTable("Wall Items", [["name", "Item"], ["id", "ID"], ["owner", "Owner"], ["pos", "Position"]], filteredItemRows.filter((row) => row.kind === "wall").map((row) => ({
+            key: row.key,
+            name: itemRowTitle(row, furniMetadata),
+            id: objectIdText(row.item),
+            owner: compactValue(row.item.ownerName),
+            pos: wallObjectMeta(row.item),
+          })), { rowKey: "key", selectedRowKey: selectedItemRow?.key, rowAction: "items.select", maxRows: 80 }),
+          schemaKv([
+            ["Kind", selectedItemRow?.kind ?? "-"],
+            ["Class", compactValue(selectedItemRow?.item.className)],
+            ["Name", selectedItemRow ? itemRowTitle(selectedItemRow, furniMetadata) : "-"],
+            ["Meta", selectedItemRow ? itemRowMeta(selectedItemRow, furniMetadata) : "-"],
+            ["Furnidata", selectedItemMetadata?.description ?? "-"],
+          ]),
+        ],
+      },
+    },
+    inventory: {
+      values: { inventoryFilter },
+      surfaces: {
+        panel: [
+          schemaSection("Inventory", [
+            schemaKv([
+              ["Total", inventoryTotalCount],
+              ["Rows", inventoryRowCount],
+              ["Floor", inventoryFloorCount],
+              ["Wall", inventoryWallCount],
+              ["Source", inventoryUsesPacketRows ? "Packet log" : "Runtime"],
+              ["Selected", selectedInventoryRow?.title ?? "-"],
+            ]),
+            { type: "textInput", id: "inventoryFilter", label: "Search Inventory", defaultValue: inventoryFilter, action: "inventory.search" },
+            schemaButtonGrid([schemaButton("Request Inventory", "inventory.request", "primary"), schemaButton("Refresh", "inventory.refresh")], 2),
+          ]),
+          schemaTable("Inventory Items", [["kind", "Type"], ["title", "Furni"], ["meta", "Meta"]], filteredInventoryRows.map((row) => ({
+            key: row.key,
+            kind: row.kind,
+            title: row.title,
+            meta: row.meta,
+          })), { rowKey: "key", selectedRowKey: selectedInventoryRow?.key, rowAction: "inventory.select", maxRows: 120 }),
+          schemaKv((selectedInventoryRow?.detailRows ?? [{ label: "Selected", value: "-" }]).map((row) => [row.label, row.value])),
+        ],
+      },
+    },
+    automation: {
+      values: { autoHideBulletin: automationPrefs.autoHideBulletin },
+      surfaces: {
+        panel: [
+          schemaSection("Comfort Automation", [
+            { type: "toggle", id: "autoHideBulletin", label: "Auto Hide Bulletin On Login", defaultValue: automationPrefs.autoHideBulletin, action: "automation.autoHideBulletin" },
+            schemaButtonGrid([schemaButton("Hide Bulletin Now", "automation.hideBulletin", "primary"), schemaButton("Refresh Windows", "automation.refresh")], 2),
+            schemaKv([
+              ["Open Windows", selectedRuntimeSnapshot?.windowIds.length ?? 0],
+              ["Status", automationMessage || "-"],
+            ]),
+          ]),
+          schemaTable("Known Windows", [["id", "Window ID"]], (selectedRuntimeSnapshot?.windowIds ?? []).map((id) => ({ id })), { maxRows: 60 }),
+        ],
+      },
+    },
+    "wall-mover": {
+      values: { wallMoverStep: Number.parseInt(wallMoverStep, 10) || 1 },
+      surfaces: {
+        panel: [
+          schemaSection("Target", [
+            schemaKv([
+              ["Selected", selectedWallMoverRow ? itemRowTitle(selectedWallMoverRow, furniMetadata) : "-"],
+              ["Item ID", selectedWallMoverItemId ?? "-"],
+              ["Owner", compactValue(selectedWallMoverRow?.item.ownerName)],
+              ["Wall", selectedWallMoverLocation ? `${selectedWallMoverLocation.wallX},${selectedWallMoverLocation.wallY}` : "-"],
+              ["Local", selectedWallMoverLocation ? `${selectedWallMoverLocation.localX},${selectedWallMoverLocation.localY}` : "-"],
+              ["Face", selectedWallMoverLocation?.orientation ?? "-"],
+              ["Status", wallMoverMessage || "-"],
+            ]),
+            { type: "numberInput", id: "wallMoverStep", label: "Step", min: 1, max: 50, step: 1, defaultValue: Number.parseInt(wallMoverStep, 10) || 1, action: "wallMover.step" },
+            schemaButtonGrid([
+              schemaButton("Up", "wallMover.up"),
+              schemaButton("Left", "wallMover.left"),
+              schemaButton("Right", "wallMover.right"),
+              schemaButton("Down", "wallMover.down"),
+              schemaButton("Flip L", "wallMover.flipL"),
+              schemaButton("Flip R", "wallMover.flipR"),
+              schemaButton("Pickup", "wallMover.pickup", "danger"),
+            ], 3),
+          ]),
+          schemaTable("Wall Items", [["name", "Item"], ["id", "ID"], ["owner", "Owner"], ["wall", "Wall"], ["local", "Local"], ["face", "Face"]], wallMoverRows.map((row) => {
+            const loc = wallMoverLocation(row.item);
+            return {
+              key: row.key,
+              name: itemRowTitle(row, furniMetadata),
+              id: objectIdText(row.item),
+              owner: compactValue(row.item.ownerName),
+              wall: loc ? `${loc.wallX},${loc.wallY}` : compactValue(row.item.wall),
+              local: loc ? `${loc.localX},${loc.localY}` : compactValue(row.item.local),
+              face: loc?.orientation ?? compactValue(row.item.orientation),
+            };
+          }), { rowKey: "key", selectedRowKey: selectedWallMoverRow?.key, rowAction: "wallMover.select", maxRows: 120 }),
+        ],
+      },
+    },
+    "packet-log": {
+      values: {
+        packetSearch: packetFilters.search,
+        packetClient: packetFilters.client,
+        packetServer: packetFilters.server,
+        packetRelay: packetFilters.relay,
+        packetWrap: packetFilters.wrap,
+        packetAutoscroll: packetFilters.autoscroll,
+        packetSession: packetFilters.session,
+        packetClientSession: packetFilters.clientSession,
+      },
+      surfaces: {
+        panel: [
+          schemaSection("Filters", [
+            { type: "textInput", id: "packetSearch", label: "Search", defaultValue: packetFilters.search, action: "packet.search" },
+            { type: "select", id: "packetSession", label: "Session", defaultValue: packetFilters.session, action: "packet.session", options: packetSessionChoices.map((choice) => ({ value: choice, label: choice })) },
+            { type: "select", id: "packetClientSession", label: "Client", defaultValue: packetFilters.clientSession, action: "packet.clientSession", options: packetClientChoices },
+            { type: "toggle", id: "packetClient", label: "CLIENT", defaultValue: packetFilters.client, action: "packet.client" },
+            { type: "toggle", id: "packetServer", label: "SERVER", defaultValue: packetFilters.server, action: "packet.server" },
+            { type: "toggle", id: "packetRelay", label: "RELAY", defaultValue: packetFilters.relay, action: "packet.relay" },
+            { type: "toggle", id: "packetWrap", label: "Wrap", defaultValue: packetFilters.wrap, action: "packet.wrap" },
+            { type: "toggle", id: "packetAutoscroll", label: "Auto Scroll", defaultValue: packetFilters.autoscroll, action: "packet.autoscroll" },
+            schemaButtonGrid([schemaButton("Clear Display", "packet.clear", "danger"), schemaButton("Export Visible", "packet.export", "primary")], 2),
+          ]),
+          schemaTable("Packets", [["line", "Line"], ["dir", "Dir"], ["name", "Name"], ["header", "Header"], ["size", "Size"], ["text", "Body"]], visiblePacketEntries.slice(-250).map((entry) => ({
+            key: entry.id,
+            line: entry.lineNumber,
+            dir: entry.direction,
+            name: relayEntryDisplayName(entry),
+            header: compactValue(entry.header),
+            size: compactValue(entry.size),
+            text: relayEntryPlain(entry, relayLog?.updatedAt),
+          })), { rowKey: "key", selectedRowKey: selectedPacketEntry?.id, rowAction: "packet.select", maxRows: 250 }),
+          schemaKv([
+            ["Visible", visiblePacketEntries.length],
+            ["Total", packetEntries.length],
+            ["Latest Client", relayPacketSummary(latestClientPacket)],
+            ["Latest Server", relayPacketSummary(latestServerPacket)],
+            ["Session", relaySessionId],
+            ["Modes", `${relayClientModes} / ${relayServerModes}`],
+            ["Body Logging", relayBodyLoggingState],
+            ["Export", packetExportMessage || "-"],
+          ]),
+          schemaKv([
+            ["Selected", selectedPacketEntry ? relayEntryV3Line(selectedPacketEntry, relayLog?.updatedAt) : "-"],
+            ["ASCII", selectedPacketEntry?.bodyAscii ?? "-"],
+            ["HEX", selectedPacketEntry?.bodyHex ?? "-"],
+          ]),
+        ],
+      },
+    },
+    injection: {
+      values: {
+        injectionActionKind: injectionDraft.actionKind,
+        injectionChatMessage: injectionDraft.chatMessage,
+        injectionStageX: injectionDraft.stageX,
+        injectionStageY: injectionDraft.stageY,
+        injectionWindowId: injectionDraft.windowId,
+        injectionElementId: injectionDraft.elementId,
+        injectionNavigatorView: injectionDraft.navigatorView,
+        injectionFlatId: injectionDraft.flatId,
+        injectionPublicRoomQuery: injectionDraft.publicRoomQuery,
+        injectionRepeatCount: clampRepeatCount(injectionRepeatCount),
+        injectionRepeatInterval: clampRepeatInterval(injectionRepeatInterval),
+        selectedInjectionSnippetId,
+      },
+      surfaces: {
+        panel: [
+          schemaSection("Mapped Command Editor", [
+            { type: "select", id: "injectionActionKind", label: "Action", defaultValue: injectionDraft.actionKind, action: "injection.actionKind", options: injectionActionOptions.map((entry) => ({ value: entry.kind, label: entry.label })) },
+            { type: "textInput", id: "injectionChatMessage", label: "Chat Message", defaultValue: injectionDraft.chatMessage, action: "injection.chatMessage" },
+            { type: "textInput", id: "injectionStageX", label: "Stage X", defaultValue: injectionDraft.stageX, action: "injection.stageX" },
+            { type: "textInput", id: "injectionStageY", label: "Stage Y", defaultValue: injectionDraft.stageY, action: "injection.stageY" },
+            { type: "textInput", id: "injectionWindowId", label: "Window ID", defaultValue: injectionDraft.windowId, action: "injection.windowId" },
+            { type: "textInput", id: "injectionElementId", label: "Element ID", defaultValue: injectionDraft.elementId, action: "injection.elementId" },
+            { type: "textInput", id: "injectionNavigatorView", label: "Navigator View", defaultValue: injectionDraft.navigatorView, action: "injection.navigatorView" },
+            { type: "textInput", id: "injectionFlatId", label: "Private Room ID", defaultValue: injectionDraft.flatId, action: "injection.flatId" },
+            { type: "textInput", id: "injectionPublicRoomQuery", label: "Public Room Query", defaultValue: injectionDraft.publicRoomQuery, action: "injection.publicRoomQuery" },
+            { type: "numberInput", id: "injectionRepeatCount", label: "Repeat", min: 1, max: 25, step: 1, defaultValue: clampRepeatCount(injectionRepeatCount), action: "injection.repeatCount" },
+            { type: "numberInput", id: "injectionRepeatInterval", label: "Every ms", min: 50, max: 60000, step: 50, defaultValue: clampRepeatInterval(injectionRepeatInterval), action: "injection.repeatInterval" },
+            schemaButtonGrid([schemaButton("Run", "injection.run", "primary"), schemaButton("Save Snippet", "injection.saveSnippet"), schemaButton("Export Snippets", "injection.exportSnippets")], 3),
+          ]),
+          schemaTable("Saved Snippets", [["label", "Label"], ["created", "Created"]], injectionSnippets.map((snippet) => ({ key: snippet.id, label: snippet.label, created: new Date(snippet.createdAt).toLocaleString() })), { rowKey: "key", selectedRowKey: selectedInjectionSnippetId, rowAction: "injection.selectSnippet", maxRows: 50 }),
+          schemaButtonGrid([schemaButton("Load Selected Snippet", "injection.loadSnippet")], 1),
+          schemaTable("Recent History", [["time", "Time"], ["label", "Command"], ["status", "Status"], ["message", "Message"]], injectionHistory.slice(0, 40).map((entry) => ({
+            time: entry.time,
+            label: entry.label,
+            status: statusLabel(entry.status),
+            message: entry.message,
+          })), { maxRows: 40 }),
+          schemaLog("Status", injectionMessage ? [injectionMessage] : ["Ready."]),
+        ],
+      },
+    },
+    "dev-tools": {
+      surfaces: {
+        panel: [
+          schemaSection("Runtime Diagnostics", [
+            schemaKv([
+              ["FPS", runtimeFps(selectedRuntimeSnapshot)],
+              ["Director Tick", runtimeTickRate(selectedRuntimeSnapshot)],
+              ["Location", runtimeLocation(selectedRuntimeSnapshot)],
+              ["Sprites", selectedRuntimeSnapshot?.activeSprites.length ?? 0],
+              ["Windows", selectedRuntimeSnapshot?.windowIds.length ?? 0],
+              ["Profile", selectedProfile ? profileLine(selectedProfile) : "-"],
+            ]),
+            schemaButtonGrid([schemaButton("Refresh Snapshot", "dev.refresh", "primary"), schemaButton("Open Console", "dev.console")], 2),
+          ]),
+          schemaTable("Sprites", [["n", "N"], ["member", "Member"], ["type", "Type"], ["loc", "Loc"]], (selectedRuntimeSnapshot?.activeSprites ?? []).slice(0, 80).map((sprite) => ({
+            n: compactValue(sprite.n),
+            member: compactValue(sprite.member),
+            type: compactValue(sprite.type),
+            loc: compactValue(sprite.loc?.join(",")),
+          })), { maxRows: 80 }),
+          schemaTable("Windows", [["id", "Window ID"]], (selectedRuntimeSnapshot?.windowIds ?? []).map((id) => ({ id })), { maxRows: 80 }),
+        ],
+      },
+    },
+    "plugin-manager": {
+      surfaces: {
+        panel: [
+          schemaSection("Plugin Manager", [
+            schemaKv([
+              ["Installed", availablePlugins.length],
+              ["Enabled", availablePlugins.filter((plugin) => pluginEnabledById[plugin.id] !== false).length],
+              ["Pinned", pinnedPluginIds.size],
+              ["User Root", pluginRegistryState?.userPluginRoot ?? "-"],
+              ["Portable Root", pluginRegistryState?.portablePluginRoot ?? "-"],
+            ]),
+            schemaButtonGrid([schemaButton("Open Plugin Folder", "pluginManager.openFolder"), schemaButton("Install Plugin", "pluginManager.install", "primary"), schemaButton("Reload Plugins", "pluginManager.reload")], 3),
+          ]),
+          schemaTable("Load Errors", [["plugin", "Plugin"], ["source", "Source"], ["message", "Message"]], (pluginRegistryState?.loadErrors ?? []).map((error) => ({
+            plugin: error.pluginId ?? "-",
+            source: error.sourcePath,
+            message: error.message,
+          })), { maxRows: 30 }),
+        ],
+      },
+    },
+  };
+
+  const effectivePluginRuntimeUiById: Readonly<Record<string, RuntimePluginUiState | undefined>> = {
+    ...pluginRuntimeUiById,
+    ...builtInRuntimeUiById,
+  };
+
+  const handlePluginSchemaAction = (event: PluginSchemaActionEvent) => {
+    const key = event.action || event.elementId || "";
+    const value = event.value;
+    if (event.elementId) {
+      setPluginRuntimeUiById((current) => {
+        const existing = current[event.pluginId] ?? {};
+        return {
+          ...current,
+          [event.pluginId]: {
+            ...existing,
+            values: {
+              ...(existing.values ?? {}),
+              [event.elementId!]: event.value ?? null,
+            },
+          },
+        };
+      });
+    }
+
+    if (event.pluginId === "connection") {
+      if (key === "connection.refresh") void refreshLibrary();
+      if (key === "connection.start") void startEngine();
+      if (key === "connection.stop") void stopEngine();
+      if (key === "connection.import") void importClientReference();
+      return;
+    }
+
+    if (event.pluginId === "multi-account") {
+      if (key === "multi.file") setMultiAccountFile(String(value ?? ""));
+      else if (key === "multi.count") setMultiAccountCount(String(value ?? "1"));
+      else if (key === "multi.concurrency") setMultiAccountConcurrency(String(value ?? "2"));
+      else if (key === "multi.loadMode") setMultiAccountLoadMode(value === "visible" ? "visible" : "headless");
+      else if (key === "multi.selectClient") void selectClientSession(Number(value));
+      else if (key === "multi.loadHeadless") void runMultiAccountCommand(`load ${multiAccountFile} ${clampMultiAccountCount(multiAccountCount)} --headless --concurrency ${clampMultiAccountConcurrency(multiAccountConcurrency)}`);
+      else if (key === "multi.loadVisible") void runMultiAccountCommand(`load ${multiAccountFile} ${clampMultiAccountCount(multiAccountCount)} --visible --concurrency ${clampMultiAccountConcurrency(multiAccountConcurrency)}`);
+      else if (key === "multi.newVisible") void runMultiAccountCommand("newclient");
+      else if (key === "multi.summonAll") void runMultiAccountCommand("summon all");
+      else if (key === "multi.mimicOn") void runMultiAccountCommand("mimic on");
+      else if (key === "multi.mimicOff") void runMultiAccountCommand("mimic off");
+      else if (key === "multi.mimicStatus") void runMultiAccountCommand("mimic status");
+      else if (key === "multi.setMain") void runMultiAccountCommand(`main ${selectedClientId}`);
+      return;
+    }
+
+    if (event.pluginId === "info") {
+      if (key === "info.lookupName") setPublicLookupName(String(value ?? ""));
+      if (key === "info.lookup") void lookupPublicUser();
+      return;
+    }
+
+    if (event.pluginId === "room") {
+      if (key === "room.query") setPublicRoomQuery(String(value ?? ""));
+      else if (key === "room.stageX") setRoomStageClickX(String(value ?? ""));
+      else if (key === "room.stageY") setRoomStageClickY(String(value ?? ""));
+      else if (key === "room.refresh") void refreshRuntimeSnapshot(["core", "room"]);
+      else if (key === "room.navigator") void runRuntimeAction({ kind: "openNavigator", view: "nav_pr" });
+      else if (key === "room.hotelView") void runRuntimeAction({ kind: "showHotelView" });
+      else if (key === "room.toggleZoom") void setEmbeddedRoomZoom(gameZoom === 2 ? 1 : 2);
+      else if (key === "room.enterPrivate") void runRuntimeAction({ kind: "enterPrivateRoom", flatId: publicRoomQuery.trim() || undefined, waitUntilReady: true });
+      else if (key === "room.enterPublic") void runRuntimeAction({ kind: "enterPublicRoom", query: publicRoomQuery.trim() || undefined });
+      else if (key === "room.stageClick") void runRuntimeAction({ kind: "stageClick", x: Number(roomStageClickX) || 0, y: Number(roomStageClickY) || 0 });
+      return;
+    }
+
+    if (event.pluginId === "user") {
+      if (key === "user.select") setSelectedUserKey(String(value ?? ""));
+      else if (key === "user.nameLabels") setEngineUserNameLabels(Boolean(value));
+      else if (key === "user.wave") void sendUserAction({ action: "wave" }, "Wave");
+      else if (key === "user.dance1") void sendUserAction({ action: "dance", number: 1 }, "Dance 1");
+      else if (key === "user.dance2") void sendUserAction({ action: "dance", number: 2 }, "Dance 2");
+      else if (key === "user.dance3") void sendUserAction({ action: "dance", number: 3 }, "Dance 3");
+      else if (key === "user.dance4") void sendUserAction({ action: "dance", number: 4 }, "Dance 4");
+      else if (key === "user.stopDance") void sendUserAction({ action: "stopDance" }, "Stop Dance");
+      else if (key === "user.carryDrink") void sendUserAction({ action: "carryDrink" }, "Carry Drink");
+      else if (key === "user.copyProfile") void copySelectedUserProfile();
+      else if (key === "user.storeLook") storeSelectedUserLook();
+      else if (key === "user.selectStoredLook") setSelectedStoredUserLook(String(value ?? ""));
+      else if (key === "user.applyStoredLook") void sendUserAction({ action: "applyLook", figure: activeStoredUserLook }, "Apply Look");
+      else if (key === "user.copyStoredLook") void copyStoredUserLook();
+      else if (key === "user.clearStoredLooks") clearStoredUserLooks();
+      return;
+    }
+
+    if (event.pluginId === "social") {
+      if (key === "social.target") setSocialTarget(String(value ?? ""));
+      else if (key === "social.messageText") setSocialDraft(String(value ?? ""));
+      else if (key === "social.friendFilter") setSocialFriendFilter(String(value ?? ""));
+      else if (key === "social.sendMessage") void runMultiAccountCommand(`message ${socialTarget.trim()} ${socialDraft.trim()}`.trim());
+      else if (key === "social.addUser") void runMultiAccountCommand(`adduser ${socialTarget.trim()}`.trim());
+      else if (key === "social.refreshRequests") void runMultiAccountCommand("requests");
+      else if (key === "social.lookupTarget") {
+        setPublicLookupName(socialTarget.trim());
+        void runMultiAccountCommand(`lookup ${socialTarget.trim()}`.trim());
+      }
+      return;
+    }
+
+    if (event.pluginId === "chat") {
+      if (key === "chat.draft") setChatDraft(String(value ?? ""));
+      else if (key === "chat.send") {
+        const message = chatDraft.trim();
+        if (message) void runConsoleRuntimeAction({ kind: "sendChat", message });
+      } else if (key === "chat.clear") setChatClearOffset(chatHistory.length);
+      else if (key === "chat.filterTalk") setChatFilters((current) => ({ ...current, talk: Boolean(value) }));
+      else if (key === "chat.filterWhisper") setChatFilters((current) => ({ ...current, whisper: Boolean(value) }));
+      else if (key === "chat.filterShout") setChatFilters((current) => ({ ...current, shout: Boolean(value) }));
+      else if (key === "chat.filterSystem") setChatFilters((current) => ({ ...current, system: Boolean(value) }));
+      else if (key === "chat.autoscroll") setChatFilters((current) => ({ ...current, autoscroll: Boolean(value) }));
+      return;
+    }
+
+    if (event.pluginId === "visitors") {
+      if (key === "visitors.search") setVisitorFilter(String(value ?? ""));
+      else if (key === "visitors.lookupMissing") void lookupMissingVisitorProfiles();
+      return;
+    }
+
+    if (event.pluginId === "items") {
+      if (key === "items.search") setItemFilter(String(value ?? ""));
+      else if (key === "items.select") setSelectedItemKey(String(value ?? ""));
+      else if (key === "items.refresh") void refreshRuntimeSnapshot(["core", "room"]);
+      else if (key === "items.useSelected" || key === "items.pickupSelected") {
+        void (async () => {
+          if (!window.habbpyV4 || !selectedItemRow) return;
+          const id = objectNumericId(selectedItemRow.item);
+          if (!id) return;
+          if (selectedItemRow.kind === "wall" && key === "items.useSelected") {
+            appendTimeline("warning", "Wall items do not have a generic use route. Select the item in Wall Mover for move, flip, or pickup.");
+            return;
+          }
+          const action: FurniRelayAction = selectedItemRow.kind === "wall"
+            ? key === "items.pickupSelected"
+              ? { action: "pickupWallItem", itemId: id, className: compactValue(selectedItemRow.item.className) }
+              : { action: "pickupWallItem", itemId: id, className: compactValue(selectedItemRow.item.className) }
+            : key === "items.pickupSelected"
+              ? { action: "pickupFloorItem", objectId: id, className: compactValue(selectedItemRow.item.className) }
+              : { action: "useFloorItem", objectId: id, value: "0", className: compactValue(selectedItemRow.item.className) };
+          const result = await window.habbpyV4.sendFurniRelayAction(action, selectedClientId);
+          appendTimeline(result.ok ? "success" : "warning", result.message);
+          await Promise.all([refreshRuntimeSnapshot(["core", "room"]).catch(() => null), refreshRelayLog().catch(() => null)]);
+        })();
+      }
+      return;
+    }
+
+    if (event.pluginId === "inventory") {
+      if (key === "inventory.search") setInventoryFilter(String(value ?? ""));
+      else if (key === "inventory.select") setSelectedInventoryKey(String(value ?? ""));
+      else if (key === "inventory.request") void runRuntimeAction({ kind: "requestInventory" });
+      else if (key === "inventory.refresh") void refreshRuntimeSnapshot(["core", "inventory"]);
+      return;
+    }
+
+    if (event.pluginId === "automation") {
+      if (key === "automation.autoHideBulletin") setAutomationPrefs((current) => ({ ...current, autoHideBulletin: Boolean(value) }));
+      else if (key === "automation.hideBulletin") void hideBulletinBoard("manual");
+      else if (key === "automation.refresh") void refreshRuntimeSnapshot(["core"]);
+      return;
+    }
+
+    if (event.pluginId === "wall-mover") {
+      if (key === "wallMover.select") setSelectedWallMoverKey(String(value ?? ""));
+      else if (key === "wallMover.step") setWallMoverStep(String(value ?? "1"));
+      else if (key === "wallMover.up") void sendWallMoverMove(0, -1);
+      else if (key === "wallMover.down") void sendWallMoverMove(0, 1);
+      else if (key === "wallMover.left") void sendWallMoverMove(-1, 0);
+      else if (key === "wallMover.right") void sendWallMoverMove(1, 0);
+      else if (key === "wallMover.flipL") void sendWallMoverMove(0, 0, "l");
+      else if (key === "wallMover.flipR") void sendWallMoverMove(0, 0, "r");
+      else if (key === "wallMover.pickup") void sendWallMoverPickup();
+      return;
+    }
+
+    if (event.pluginId === "packet-log") {
+      if (key === "packet.search") setPacketFilters((current) => ({ ...current, search: String(value ?? "") }));
+      else if (key === "packet.session") setPacketFilters((current) => ({ ...current, session: String(value ?? "All") }));
+      else if (key === "packet.clientSession") setPacketFilters((current) => ({ ...current, clientSession: normalizePacketClientFilter(String(value ?? "All"), packetClientChoices) }));
+      else if (key === "packet.client") setPacketFilters((current) => ({ ...current, client: Boolean(value) }));
+      else if (key === "packet.server") setPacketFilters((current) => ({ ...current, server: Boolean(value) }));
+      else if (key === "packet.relay") setPacketFilters((current) => ({ ...current, relay: Boolean(value) }));
+      else if (key === "packet.wrap") setPacketFilters((current) => ({ ...current, wrap: Boolean(value) }));
+      else if (key === "packet.autoscroll") setPacketFilters((current) => ({ ...current, autoscroll: Boolean(value) }));
+      else if (key === "packet.clear") setPacketClearOffset(packetEntries.length);
+      else if (key === "packet.export") exportVisiblePacketLog();
+      else if (key === "packet.select") setSelectedPacketKey(String(value ?? ""));
+      return;
+    }
+
+    if (event.pluginId === "injection") {
+      if (key === "injection.actionKind") updateInjectionDraft("actionKind", String(value ?? "sendChat") as InjectionActionKind);
+      else if (key === "injection.chatMessage") updateInjectionDraft("chatMessage", String(value ?? ""));
+      else if (key === "injection.stageX") updateInjectionDraft("stageX", String(value ?? ""));
+      else if (key === "injection.stageY") updateInjectionDraft("stageY", String(value ?? ""));
+      else if (key === "injection.windowId") updateInjectionDraft("windowId", String(value ?? ""));
+      else if (key === "injection.elementId") updateInjectionDraft("elementId", String(value ?? ""));
+      else if (key === "injection.navigatorView") updateInjectionDraft("navigatorView", String(value ?? ""));
+      else if (key === "injection.flatId") updateInjectionDraft("flatId", String(value ?? ""));
+      else if (key === "injection.publicRoomQuery") updateInjectionDraft("publicRoomQuery", String(value ?? ""));
+      else if (key === "injection.repeatCount") setInjectionRepeatCount(String(value ?? "1"));
+      else if (key === "injection.repeatInterval") setInjectionRepeatInterval(String(value ?? "1000"));
+      else if (key === "injection.run") void executeInjectionCommand(injectionDraft);
+      else if (key === "injection.saveSnippet") addInjectionSnippet();
+      else if (key === "injection.exportSnippets") exportInjectionSnippets();
+      else if (key === "injection.selectSnippet") setSelectedInjectionSnippetId(String(value ?? ""));
+      else if (key === "injection.loadSnippet" && selectedInjectionSnippet) loadInjectionSnippet(selectedInjectionSnippet);
+      return;
+    }
+
+    if (event.pluginId === "dev-tools") {
+      if (key === "dev.refresh") void refreshRuntimeSnapshot(["full"]);
+      else if (key === "dev.console") setPacketConsoleOpen(true);
+      return;
+    }
+
+    if (event.pluginId === "plugin-manager") {
+      if (key === "pluginManager.openFolder") void openPluginsFolder();
+      else if (key === "pluginManager.install") void installPluginFromFolder();
+      else if (key === "pluginManager.reload") void reloadPlugins();
+      return;
+    }
+
+    userPluginHostRef.current?.dispatchPluginEvent(event.pluginId, "ui.action", event);
+  };
+
+  const handleSettingsAction = useCallback((event: PluginSchemaActionEvent) => {
+    const key = event.elementId ?? event.action;
+    const value = event.value;
+    if (key === "autoHideBulletin") {
+      setAutomationPrefs((current) => ({ ...current, autoHideBulletin: value !== false }));
+      return;
+    }
+    if (key === "engineUserNameLabels") {
+      const enabled = value !== false;
+      setEngineUserNameLabels(enabled);
+      void runRuntimeAction({ kind: "setUserNameLabels", enabled });
+      return;
+    }
+    if (key === "hotelView") {
+      setHotelView(String(value ?? "hh_entry_uk"));
+      return;
+    }
+    if (key === "resizablePresentation") {
+      void updateEngineLaunchSettings({ resizablePresentation: value !== false }, `Responsive stage resize ${value !== false ? "enabled" : "disabled"}.`);
+      return;
+    }
+    if (key === "versionCheckBuild") {
+      setVersionCheckDraft(String(value ?? ""));
+      return;
+    }
+    if (key === "applyVersionCheckBuild") {
+      applyVersionCheckBuild();
+      return;
+    }
+    if (key === "hardwareAcceleration") {
+      void updateHardwareAccelerationPreference(value !== false);
+      return;
+    }
+    if (key === "packetOutputWrap") {
+      const enabled = value !== false;
+      setPacketFilters((current) => ({ ...current, wrap: enabled }));
+      void updateAppPreferencePatch({ packetOutputWrap: enabled }, `Packet output wrapping ${enabled ? "enabled" : "disabled"}.`);
+      return;
+    }
+    if (key === "packetOutputAutoScroll") {
+      const enabled = value !== false;
+      setPacketFilters((current) => ({ ...current, autoscroll: enabled }));
+      void updateAppPreferencePatch({ packetOutputAutoScroll: enabled }, `Packet output auto-scroll ${enabled ? "enabled" : "disabled"}.`);
+      return;
+    }
+    if (key === "settingsBindKey") setSettingsBindKey(String(value ?? ""));
+    if (key === "settingsBindCommand") setSettingsBindCommand(String(value ?? ""));
+    if (key === "bindHotkey") void runMultiAccountCommand(`bind ${settingsBindKey} ${settingsBindCommand}`.trim());
+    if (key === "defaultAccountFile") setMultiAccountFile(String(value ?? ""));
+    if (key === "defaultAccountCount") setMultiAccountCount(String(value ?? "3"));
+    if (key === "defaultAccountConcurrency") setMultiAccountConcurrency(String(value ?? "2"));
+    if (key === "defaultAccountKeyEnv") setMultiAccountKeyEnv(String(value ?? ""));
+    if (key === "defaultSummonTarget") setMultiAccountSummonTarget(String(value ?? "headless"));
+    if (key === "defaultLoadMode") setMultiAccountLoadMode(value === "visible" ? "visible" : "headless");
+    if (key === "autoSubmitVisibleLogin") void updateAppPreferencePatch({ autoSubmitVisibleLogin: value !== false }, `Visible-login auto submit ${value !== false ? "enabled" : "disabled"}.`);
+    if (key === "saveSessionDefaults") void saveSessionDefaultPreferences();
+  }, [
+    applyVersionCheckBuild,
+    runMultiAccountCommand,
+    runRuntimeAction,
+    saveSessionDefaultPreferences,
+    setHotelView,
+    settingsBindCommand,
+    settingsBindKey,
+    updateAppPreferencePatch,
+    updateEngineLaunchSettings,
+    updateHardwareAccelerationPreference,
+  ]);
+
   useEffect(() => {
     const timer = window.setTimeout(() => setBooting(false), 5000);
     return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
-    if (railPlugins.some((plugin) => plugin.id === state.selectedPluginId)) return;
-    dispatch({ type: "selectPlugin", pluginId: "plugin-manager" });
-  }, [railPlugins, state.selectedPluginId]);
+    if (availablePlugins.some((plugin) => plugin.id === state.selectedPluginId)) return;
+    dispatch({ type: "selectPlugin", pluginId: railPlugins[0]?.id ?? "connection" });
+  }, [availablePlugins, railPlugins, state.selectedPluginId]);
 
   useEffect(() => {
     void refreshLibrary();
@@ -4024,12 +4610,9 @@ export function App() {
       selectedPlugin.id === "automation" ||
       selectedPlugin.id === "chat" ||
       selectedPlugin.id === "dev-tools" ||
-      selectedPlugin.id === "fishing" ||
-      selectedPlugin.id === "gardening" ||
       selectedPlugin.id === "info" ||
       selectedPlugin.id === "inventory" ||
       selectedPlugin.id === "items" ||
-      selectedPlugin.id === "present-catcher" ||
       selectedPlugin.id === "social" ||
       selectedPlugin.id === "user" ||
       selectedPlugin.id === "visitors" ||
@@ -4348,7 +4931,7 @@ export function App() {
   }, [packetProfileIndex, packetProfileUsers, roomReady, selectedRuntimeSnapshot?.userState?.sessionUserName, selectedRuntimeSnapshot?.userState?.users, visitorRoomKey]);
 
   return (
-    <main className={`app-shell ${state.ui.dockCollapsed ? "dock-collapsed" : ""}`}>
+    <main className="app-shell">
       <BootSplash booting={booting} />
 
       <section className="game-region" aria-label="Embedded Shockless game area">
@@ -4368,6 +4951,8 @@ export function App() {
           onRefresh={() => void refreshLibrary()}
           onStop={() => void stopEngine()}
           onStart={() => void startEngine()}
+          onOpenPlugins={() => setPluginStoreOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
           onSelectClientSession={(id) => void selectClientSession(id)}
           onAddManualVisibleClient={() => void addManualVisibleClient()}
         />
@@ -4424,7 +5009,7 @@ export function App() {
                         onImport={() => void importClientReference()}
                         onRefresh={() => void refreshLibrary()}
                         onStart={() => void startEngine()}
-                        onSetCustomHotelView={(enabled) => void updateEngineLaunchSettings({ customHotelView: enabled }, `Custom hotel view ${enabled ? "enabled" : "disabled"}.`)}
+                        onSetHotelView={setHotelView}
                         onSetResizablePresentation={(enabled) => void updateEngineLaunchSettings({ resizablePresentation: enabled }, `Responsive stage resize ${enabled ? "enabled" : "disabled"}.`)}
                         onSetVersionCheckBuild={applyVersionCheckBuild}
                         versionCheckDraft={versionCheckDraft}
@@ -4458,7 +5043,7 @@ export function App() {
                     onImport={() => void importClientReference()}
                     onRefresh={() => void refreshLibrary()}
                     onStart={() => void startEngine()}
-                    onSetCustomHotelView={(enabled) => void updateEngineLaunchSettings({ customHotelView: enabled }, `Custom hotel view ${enabled ? "enabled" : "disabled"}.`)}
+                    onSetHotelView={setHotelView}
                     onSetResizablePresentation={(enabled) => void updateEngineLaunchSettings({ resizablePresentation: enabled }, `Responsive stage resize ${enabled ? "enabled" : "disabled"}.`)}
                     onSetVersionCheckBuild={applyVersionCheckBuild}
                     versionCheckDraft={versionCheckDraft}
@@ -4585,575 +5170,82 @@ export function App() {
 
       <aside className="plugin-dock" aria-label="Plugin dock" data-selected-plugin={selectedPlugin.id}>
         <IconRail
-          dockCollapsed={state.ui.dockCollapsed}
           filteredPlugins={filteredPlugins}
           pluginEnabledById={pluginEnabledById}
           selectedPluginId={selectedPlugin.id}
           PluginIcon={PluginIcon}
-          onToggleDock={() => dispatch({ type: "toggleDockCollapsed" })}
+          onOpenPluginManager={() => setPluginStoreOpen(true)}
           onSelectPlugin={(pluginId) => {
-            // Toggle: clicking the icon of the already-open panel closes it; clicking any
-            // other icon (or while closed) opens that panel. Previously a click only ever
-            // opened/switched, so the open tab could never be closed by its own icon.
-            if (!state.ui.dockCollapsed && selectedPlugin.id === pluginId) {
-              dispatch({ type: "toggleDockCollapsed" });
-            } else {
-              dispatch({ type: "selectPlugin", pluginId });
-              if (state.ui.dockCollapsed) dispatch({ type: "toggleDockCollapsed" });
-            }
+            dispatch({ type: "selectPlugin", pluginId });
+            setPluginStoreOpen(true);
           }}
+          onReorderPlugins={() => undefined}
         />
-
-        {!state.ui.dockCollapsed ? (
-          <section className="plugin-panel" aria-label={`${selectedPlugin.name} panel`}>
-            <div className="panel-title">
-              <div className="panel-icon">
-                <PluginIcon plugin={selectedPlugin} />
-              </div>
-              <div>
-                <h2>{selectedPlugin.name}</h2>
-                <p>{labelCase(selectedPlugin.category)}</p>
-              </div>
-            </div>
-
-            {selectedPlugin.id === "connection" ? (
-              <ConnectionPanel
-                desktopBridgeAvailable={desktopBridgeAvailable}
-                engineBusy={engineBusy}
-                profileImportRunning={profileImportRunning}
-                libraryState={libraryState}
-                bridgeMessage={bridgeMessage}
-                engineLaunch={engineLaunch}
-                relaySessionId={relaySessionId}
-                selectedRuntimeSnapshot={selectedRuntimeSnapshot}
-                selectedClientRelayLog={selectedClientRelayLog}
-                latestClientPacket={latestClientPacket}
-                latestServerPacket={latestServerPacket}
-                selectedClientSnapshot={selectedClientSnapshot}
-                selectedClientSession={selectedClientSession}
-                selectedClientId={selectedClientId}
-                packetProfileUsers={packetProfileUsers}
-                packetInfoState={packetInfoState}
-                packetChatEntries={packetChatEntries}
-                packetInventoryState={packetInventoryState}
-                packetWallItemState={packetWallItemState}
-                relayEncryptionState={relayEncryptionState}
-                relayClientModes={relayClientModes}
-                relayServerModes={relayServerModes}
-                relayBodyLoggingState={relayBodyLoggingState}
-                onImportClientReference={() => void importClientReference()}
-                onSelectClientProfile={(root) => void selectClientProfile(root)}
-              />
-            ) : null}
-
-            {selectedPlugin.id === "plugin-manager" ? (
-              <PluginManagerPanel
-                desktopBridgeAvailable={desktopBridgeAvailable}
-                pluginRegistryState={pluginRegistryState}
-                availablePlugins={availablePlugins}
-                pluginEnabledById={pluginEnabledById}
-                pluginSurfaceEnabledByPluginId={pluginSurfaceEnabledByPluginId}
-                pinnedPluginIds={pinnedPluginIds}
-                pluginManagerMessage={pluginManagerMessage}
-                newPluginId={newPluginId}
-                newPluginName={newPluginName}
-                onReloadPlugins={() => void reloadPlugins()}
-                onOpenPluginsFolder={() => void openPluginsFolder()}
-                onInstallPluginFromFolder={() => void installPluginFromFolder()}
-                onSetNewPluginId={setNewPluginId}
-                onSetNewPluginName={setNewPluginName}
-                onCreatePluginFromTemplate={() => void createPluginFromTemplate()}
-                onSetPluginEnabled={(plugin, enabled) => void setPluginEnabled(plugin, enabled)}
-                onSetPluginSurfaceEnabled={(pluginId, surfaceId, enabled) => void setPluginSurfaceEnabled(pluginId, surfaceId, enabled)}
-              />
-            ) : null}
-
-            {selectedPlugin.id === "settings" ? (
-              <SettingsPanel
-                desktopBridgeAvailable={desktopBridgeAvailable}
-                engineBusy={engineBusy}
-                engineLaunch={engineLaunch}
-                versionCheckDraft={versionCheckDraft}
-                appPreferences={appPreferences}
-                settingsBindKey={settingsBindKey}
-                settingsBindCommand={settingsBindCommand}
-                consoleCommandState={consoleCommandState}
-                packetFilters={packetFilters}
-                multiAccountFile={multiAccountFile}
-                multiAccountCount={multiAccountCount}
-                multiAccountConcurrency={multiAccountConcurrency}
-                multiAccountKeyEnv={multiAccountKeyEnv}
-                multiAccountSummonTarget={multiAccountSummonTarget}
-                multiAccountLoadMode={multiAccountLoadMode}
-                onUpdateEngineLaunchSettings={(patch, message) => void updateEngineLaunchSettings(patch, message)}
-                onSetVersionCheckDraft={setVersionCheckDraft}
-                onApplyVersionCheckBuild={applyVersionCheckBuild}
-                onUpdateHardwareAccelerationPreference={(enabled) => void updateHardwareAccelerationPreference(enabled)}
-                onSetSettingsBindKey={setSettingsBindKey}
-                onSetSettingsBindCommand={setSettingsBindCommand}
-                onRunMultiAccountCommand={(cmd) => void runMultiAccountCommand(cmd)}
-                onSetPacketFilters={setPacketFilters as any}
-                onUpdateAppPreferencePatch={(patch, message) => void updateAppPreferencePatch(patch, message)}
-                onSetMultiAccountFile={setMultiAccountFile}
-                onSetMultiAccountCount={setMultiAccountCount}
-                onSetMultiAccountConcurrency={setMultiAccountConcurrency}
-                onSetMultiAccountKeyEnv={setMultiAccountKeyEnv}
-                onSetMultiAccountSummonTarget={setMultiAccountSummonTarget}
-                onSetMultiAccountLoadMode={setMultiAccountLoadMode}
-                onSaveSessionDefaultPreferences={() => void saveSessionDefaultPreferences()}
-              />
-            ) : null}
-
-            {selectedPlugin.origin === "user" ? (
-              <UserPluginPanel
-                selectedPlugin={selectedPlugin}
-                pluginSurfaceEnabledByPluginId={pluginSurfaceEnabledByPluginId}
-                desktopBridgeAvailable={desktopBridgeAvailable}
-                onOpenPluginsFolder={() => void openPluginsFolder()}
-                onReloadPlugins={() => void reloadPlugins()}
-              />
-            ) : null}
-
-            {selectedPlugin.id === "multi-account" ? (
-              <MultiAccountPanel
-                desktopBridgeAvailable={desktopBridgeAvailable}
-                selectedClientId={selectedClientId}
-                selectedClientSession={selectedClientSession}
-                clientSessions={clientSessions}
-                mainClientSession={mainClientSession}
-                multiAccountFile={multiAccountFile}
-                multiAccountCount={multiAccountCount}
-                multiAccountConcurrency={multiAccountConcurrency}
-                multiAccountKeyEnv={multiAccountKeyEnv}
-                multiAccountSummonTarget={multiAccountSummonTarget}
-                mimicState={mimicState}
-                mimicSourceSession={mimicSourceSession}
-                mimicTargetSessions={mimicTargetSessions}
-                mainMimicSourceId={mainMimicSourceId}
-                multiAccountMessage={multiAccountMessage}
-                onSelectClientSession={(id) => void selectClientSession(id)}
-                onRunMultiAccountCommand={(cmd) => void runMultiAccountCommand(cmd)}
-                onRefreshClientSessions={refreshClientSessions}
-                onRefreshMimicState={refreshMimicState}
-                onSetMultiAccountFile={setMultiAccountFile}
-                onSetMultiAccountCount={setMultiAccountCount}
-                onSetMultiAccountConcurrency={setMultiAccountConcurrency}
-                onSetMultiAccountKeyEnv={setMultiAccountKeyEnv}
-                onSetMultiAccountSummonTarget={setMultiAccountSummonTarget}
-              />
-            ) : null}
-
-            {selectedPlugin.id === "info" ? (
-              <InfoPanel
-                engineUrl={engineUrl}
-                runtimeBusy={runtimeBusy}
-                runtimeSnapshot={selectedRuntimeSnapshot}
-                packetInfoState={packetInfoState}
-                inventoryTotalCount={inventoryTotalCount}
-                socialRequestCount={socialRequestCount}
-                socialMessageCount={socialMessageCount}
-                selectedUserAccountId={compactValue(selectedUser?.accountId)}
-                selectedUserBadgeCode={compactValue(selectedUser?.badgeCode)}
-                publicLookupName={publicLookupName}
-                publicLookupBusy={publicLookupBusy}
-                publicLookupResult={publicLookupResult}
-                selectedUserName={selectedUserName}
-                onRead={() => void refreshRuntimeSnapshot()}
-                onLookupPublicUser={() => void lookupPublicUser()}
-                onSetPublicLookupName={setPublicLookupName}
-              />
-            ) : null}
-
-            {selectedPlugin.id === "room" ? (
-              <RoomPanel
-                engineUrl={engineUrl}
-                runtimeBusy={runtimeBusy}
-                runtimeSnapshot={selectedRuntimeSnapshot}
-                privateRoomId={privateRoomId}
-                publicRoomQuery={publicRoomQuery}
-                roomStageClickX={roomStageClickX}
-                roomStageClickY={roomStageClickY}
-                runtimeMessage={runtimeMessage}
-                onRead={() => void refreshRuntimeSnapshot()}
-                onShowHotelView={() => void runRuntimeAction({ kind: "showHotelView" })}
-                onOpenNavigator={() => void runRuntimeAction({ kind: "openNavigator", view: "nav_pr" })}
-                onSetPrivateRoomId={setPrivateRoomId}
-                onEnterPrivateRoom={(flatId) => void runRuntimeAction({ kind: "enterPrivateRoom", flatId })}
-                onSetPublicRoomQuery={setPublicRoomQuery}
-                onEnterPublicRoom={(query) => void runRuntimeAction({ kind: "enterPublicRoom", query })}
-                onSetStageClickX={setRoomStageClickX}
-                onSetStageClickY={setRoomStageClickY}
-                onWalk={(x, y) => void runRuntimeAction({ kind: "stageClick", x, y })}
-              />
-            ) : null}
-
-            {selectedPlugin.id === "user" ? (
-              <UserPanel
-                engineUrl={engineUrl}
-                runtimeBusy={runtimeBusy}
-                selectedRuntimeSnapshot={selectedRuntimeSnapshot}
-                selectedUser={selectedUser}
-                userRows={userRows}
-                selectedUserName={selectedUserName}
-                selectedUserAccountId={selectedUserAccountId}
-                selectedUserIndex={selectedUserIndex}
-                selectedUserGender={selectedUserGender}
-                selectedUserType={selectedUserType}
-                selectedUserBadgeCode={selectedUserBadgeCode}
-                selectedUserMotto={selectedUserMotto}
-                selectedUserPosition={selectedUserPosition}
-                selectedUserFigure={selectedUserFigure}
-                selectedUserPoolFigure={selectedUserPoolFigure}
-                userToolMessage={userToolMessage}
-                activeStoredUserLook={activeStoredUserLook}
-                userStoredLooks={userStoredLooks}
-                engineUserNameLabels={engineUserNameLabels}
-                onSetSelectedUserKey={setSelectedUserKey}
-                onRefresh={() => void refreshRuntimeSnapshot()}
-                onCopyUserValue={(label, value) => void copyUserValue(label, value)}
-                onCopySelectedUserProfile={() => void copySelectedUserProfile()}
-                onStoreSelectedUserLook={storeSelectedUserLook}
-                onCopyStoredUserLook={() => void copyStoredUserLook()}
-                onSetSelectedStoredUserLook={setSelectedStoredUserLook}
-                onClearStoredUserLooks={clearStoredUserLooks}
-                onSendUserAction={(action, label) => void sendUserAction(action as UserRelayAction, label)}
-                onSetEngineUserNameLabels={setEngineUserNameLabels}
-                onRunRuntimeAction={(action) => void runRuntimeAction(action as EngineRuntimeAction)}
-              />
-            ) : null}
-
-            {selectedPlugin.id === "items" ? (
-              <ItemsPanel
-                engineUrl={engineUrl}
-                runtimeBusy={runtimeBusy}
-                roomReady={roomReady}
-                itemFilter={itemFilter}
-                socialMessage={socialMessage}
-                activeObjectsCount={selectedRuntimeSnapshot?.roomObjects?.counts.activeObjects ?? 0}
-                passiveObjectsCount={selectedRuntimeSnapshot?.roomObjects?.counts.passiveObjects ?? 0}
-                wallCount={itemWallCount}
-                filteredCount={filteredItemRows.length}
-                selectedLabel={selectedItemRow?.label ?? "-"}
-                metadataEntryCount={furniMetadata ? furniMetadata.entryCount : null}
-                filteredItemRows={filteredItemRows}
-                selectedItemRow={selectedItemRow}
-                selectedItemMetadata={selectedItemMetadata}
-                itemTitle={(row) => itemRowTitle(row, furniMetadata)}
-                itemMeta={(row) => itemRowMeta(row, furniMetadata)}
-                itemDisplayName={(item) => furniDisplayName(furniMetadata, item)}
-                onSetFilter={setItemFilter}
-                onRead={() => void refreshRuntimeSnapshot()}
-                onSelectKey={setSelectedItemKey}
-              />
-            ) : null}
-
-            {selectedPlugin.id === "inventory" ? (
-              <InventoryPanel
-                engineUrl={engineUrl}
-                runtimeBusy={runtimeBusy}
-                inventoryFilter={inventoryFilter}
-                inventoryTotalCount={inventoryTotalCount}
-                inventoryRowCount={inventoryRowCount}
-                inventoryFloorCount={inventoryFloorCount}
-                inventoryWallCount={inventoryWallCount}
-                inventoryOpenState={compactValue(selectedRuntimeSnapshot?.inventory?.openState)}
-                filteredInventoryRows={filteredInventoryRows}
-                selectedInventoryRow={selectedInventoryRow}
-                inventoryRowsLength={inventoryRows.length}
-                inventoryNote={selectedRuntimeSnapshot?.inventory?.note ?? null}
-                onRequestHand={() => void runRuntimeAction({ kind: "requestInventory" })}
-                onSetFilter={setInventoryFilter}
-                onRead={() => void refreshRuntimeSnapshot(["inventory"])}
-                onSelectKey={setSelectedInventoryKey}
-              />
-            ) : null}
-
-            {selectedPlugin.id === "social" ? (
-              <SocialPanel
-                engineUrl={engineUrl}
-                runtimeBusy={runtimeBusy}
-                desktopBridgeAvailable={desktopBridgeAvailable}
-                socialFriendFilter={socialFriendFilter}
-                packetInfoState={packetInfoState}
-                onlinePacketFriends={onlinePacketFriends}
-                filteredPacketFriends={filteredPacketFriends}
-                visiblePrivateMessages={visiblePrivateMessages}
-                visibleFriendRequests={visibleFriendRequests}
-                rightsCount={selectedRuntimeSnapshot?.userState?.rightsCount ?? 0}
-                sourceChatHistoryLength={sourceChatHistory.length}
-                packetChatEntriesLength={packetChatEntries.length}
-                roomUserCount={selectedRuntimeSnapshot?.userState?.roomUserCount ?? 0}
-                socialRequestCount={socialRequestCount}
-                socialMessageCount={socialMessageCount}
-                onSetFilter={setSocialFriendFilter}
-                onRead={() => void refreshRuntimeSnapshot()}
-                onSendSocialAction={(action, label) => void sendSocialAction(action as SocialRelayAction, label)}
-              />
-            ) : null}
-
-            {selectedPlugin.id === "visitors" ? (
-              <VisitorsPanel
-                engineUrl={engineUrl}
-                runtimeBusy={runtimeBusy}
-                visitorFilter={visitorFilter}
-                visitorLookupBusy={visitorLookupBusy}
-                visitorStateActiveKeysLength={visitorState.activeKeys.length}
-                visitorEntriesLength={visitorEntries.length}
-                filteredVisitorEntries={filteredVisitorEntries}
-                filteredVisitorEntriesLength={filteredVisitorEntries.length}
-                visitorRoomName={visitorRoomName}
-                missingVisitorAccountIds={missingVisitorAccountIds}
-                visitorPublicProfilesCount={Object.keys(visitorPublicProfiles).length}
-                visitorLookupMessage={visitorLookupMessage}
-                roomReady={roomReady}
-                onSetFilter={setVisitorFilter}
-                onRead={() => void refreshRuntimeSnapshot()}
-                onLookupIds={() => void lookupMissingVisitorProfiles()}
-              />
-            ) : null}
-
-            {selectedPlugin.id === "chat" ? (
-              <ChatPanel
-                engineUrl={engineUrl}
-                runtimeBusy={runtimeBusy}
-                roomReady={roomReady}
-                chatDraft={chatDraft}
-                chatFilters={chatFilters}
-                visibleChatHistory={visibleChatHistory}
-                chatHistoryLength={chatHistory.length}
-                activeChatSourceHistoryLength={activeChatSourceHistory.length}
-                packetChatEntriesLength={packetChatEntries.length}
-                displayedCount={visibleChatHistory.length}
-                runtimeMessage={runtimeMessage}
-                chatListRef={chatListRef}
-                onSetChatDraft={setChatDraft}
-                onSetChatFilter={(kind, checked) => setChatFilters((current) => ({ ...current, [kind]: checked }))}
-                onSend={(message) => void runRuntimeAction({ kind: "sendChat", message })}
-                onClearDisplay={() => setChatClearOffset(chatHistory.length)}
-              />
-            ) : null}
-
-            {selectedPlugin.id === "automation" ? (
-              <AutomationPanel
-                engineUrl={engineUrl}
-                runtimeBusy={runtimeBusy}
-                roomReady={roomReady}
-                autoHideBulletin={automationPrefs.autoHideBulletin}
-                windowCount={selectedRuntimeSnapshot?.windowIds.length ?? 0}
-                userCount={selectedRuntimeSnapshot?.roomObjects?.counts.users ?? 0}
-                fishAreaCount={fishingAreaRows.length}
-                plantCount={plantRows.length}
-                wallItemCount={wallMoverRows.length}
-                message={automationMessage}
-                onAutoHideChange={(enabled) => {
-                  setAutomationPrefs((current) => ({ ...current, autoHideBulletin: enabled }));
-                  setAutomationMessage(enabled ? "Auto-hide Bulletin is enabled." : "Auto-hide Bulletin is disabled.");
-                }}
-                onHideBulletin={() => void hideBulletinBoard("manual")}
-                onReadWindows={() => void refreshRuntimeSnapshot()}
-              />
-            ) : null}
-
-            {selectedPlugin.id === "fishing" ? (
-              <FishingPanel
-                engineUrl={engineUrl}
-                runtimeBusy={runtimeBusy}
-                desktopBridgeAvailable={desktopBridgeAvailable}
-                roomReady={roomReady}
-                fishingMessage={fishingMessage}
-                packetFishingState={packetFishingState}
-                fishingAreaRows={fishingAreaRows}
-                selectedFishingAreaRow={selectedFishingAreaRow}
-                itemTitle={(row) => itemRowTitle(row, furniMetadata)}
-                itemMeta={(row) => itemRowMeta(row, furniMetadata)}
-                onStartFishing={() => void sendFishingStart()}
-                onSendAction={(action, label) => void sendFishingAction(action as FishingRelayAction, label)}
-                onRefresh={() => void refreshRuntimeSnapshot()}
-              />
-            ) : null}
-
-            {selectedPlugin.id === "present-catcher" ? (
-              <PresentCatcherPanel
-                desktopBridgeAvailable={desktopBridgeAvailable}
-                roomReady={roomReady}
-                engineUrl={engineUrl}
-                runtimeBusy={runtimeBusy}
-                presentCatcherRunning={presentCatcherRunning}
-                presentCatcherMessage={presentCatcherMessage}
-                presentCatcherTab={presentCatcherTab}
-                presentCatcherPanicDraft={presentCatcherPanicDraft}
-                presentCatcherPanicNames={presentCatcherPanicNames}
-                presentCatcherGiftClass={presentCatcherGiftClass}
-                presentPlaceX={presentPlaceX}
-                presentPlaceY={presentPlaceY}
-                presentPlaceDirection={presentPlaceDirection}
-                presentOpenObjectId={presentOpenObjectId}
-                presentFragmentEvent={presentFragmentEvent}
-                presentFragmentSlotId={presentFragmentSlotId}
-                presentFragmentTradeTarget={presentFragmentTradeTarget}
-                selectedRuntimeSnapshot={selectedRuntimeSnapshot}
-                presentHammerRows={presentHammerRows}
-                presentRows={presentRows}
-                presentGiftRows={presentGiftRows}
-                selectedPresentGiftRow={selectedPresentGiftRow}
-                presentCatcherPacketRows={presentCatcherPacketRows}
-                userRows={userRows}
-                furniMetadata={furniMetadata}
-                relayLog={relayLog}
-                onStartPresentCatcher={() => setPresentCatcherRunning(true)}
-                onStopPresentCatcher={() => setPresentCatcherRunning(false)}
-                onRunPresentCatcherStep={(auto) => void runPresentCatcherStep(auto)}
-                onRefreshRuntimeSnapshot={(scopes) => void refreshRuntimeSnapshot(scopes as EngineRuntimeSnapshotScope[])}
-                onSetPresentCatcherTab={setPresentCatcherTab}
-                onSetPresentCatcherPanicDraft={setPresentCatcherPanicDraft}
-                onSetPresentCatcherPanicNames={setPresentCatcherPanicNames}
-                onSetPresentCatcherGiftClass={setPresentCatcherGiftClass}
-                onSetPresentPlaceX={setPresentPlaceX}
-                onSetPresentPlaceY={setPresentPlaceY}
-                onSetPresentPlaceDirection={setPresentPlaceDirection}
-                onSetPresentOpenObjectId={setPresentOpenObjectId}
-                onSetPresentFragmentEvent={setPresentFragmentEvent}
-                onSetPresentFragmentSlotId={setPresentFragmentSlotId}
-                onSetPresentFragmentTradeTarget={setPresentFragmentTradeTarget}
-                onUsePresentCatcherFloorItem={(row, mode) => void usePresentCatcherFloorItem(row, mode)}
-                onRequestPresentCatcherInventory={() => void requestPresentCatcherInventory()}
-                onPlaceSelectedPresentGift={() => void placeSelectedPresentGift()}
-                onSendPresentCatcherPacket={(packet, label) => void sendPresentCatcherPacket(packet, label)}
-                onOpenPresentObject={() => void openPresentObject()}
-                onSendPresentFragmentPacket={(kind) => void sendPresentFragmentPacket(kind as Parameters<typeof sendPresentFragmentPacket>[0])}
-                onSetSelectedPresentGiftKey={setSelectedPresentGiftKey}
-                onSetPresentCatcherMessage={setPresentCatcherMessage}
-              />
-            ) : null}
-
-            {selectedPlugin.id === "gardening" ? (
-              <GardeningPanel
-                engineUrl={engineUrl}
-                runtimeBusy={runtimeBusy}
-                desktopBridgeAvailable={desktopBridgeAvailable}
-                roomReady={roomReady}
-                gardeningRunning={gardeningRunning}
-                gardeningCycleSec={gardeningCycleSec}
-                gardeningMessage={gardeningMessage}
-                gardeningJob={gardeningJob}
-                runtimeSnapshot={selectedRuntimeSnapshot}
-                plantRows={plantRows}
-                selectedPlantRow={selectedPlantRow}
-                selfUser={selfUser}
-                itemTitle={(row) => itemRowTitle(row, furniMetadata)}
-                itemMeta={(row) => itemRowMeta(row, furniMetadata)}
-                onStartGardening={(mode) => void startGardening(mode)}
-                onStopGardening={stopGardening}
-                onSetCycleSec={setGardeningCycleSec}
-                onSelectPlant={setSelectedPlantKey}
-                onRefresh={() => void refreshRuntimeSnapshot()}
-              />
-            ) : null}
-
-            {selectedPlugin.id === "wall-mover" ? (
-              <WallMoverPanel
-                engineUrl={engineUrl}
-                runtimeBusy={runtimeBusy}
-                desktopBridgeAvailable={desktopBridgeAvailable}
-                wallMoverMessage={wallMoverMessage}
-                rightsCount={selectedRuntimeSnapshot?.userState?.rightsCount ?? 0}
-                selectedItemId={selectedWallMoverItemId}
-                selectedClassName={compactValue(selectedWallMoverRow?.item.className ?? selectedWallMoverRow?.item.name)}
-                selectedOwnerName={compactValue(selectedWallMoverRow?.item.ownerName)}
-                selectedWallPos={compactValue(selectedWallMoverRow?.item.wall)}
-                selectedLocalPos={compactValue(selectedWallMoverRow?.item.local)}
-                selectedOrientation={compactValue(selectedWallMoverRow?.item.orientation ?? selectedWallMoverRow?.item.direction)}
-                wallMoverStep={wallMoverStep}
-                selectedLocation={selectedWallMoverLocation}
-                wallMoverRows={wallMoverRows}
-                selectedRow={selectedWallMoverRow}
-                itemTitle={(row) => itemRowTitle(row, furniMetadata)}
-                itemMeta={(item) => wallObjectMeta(item)}
-                onRefresh={() => void refreshRuntimeSnapshot()}
-                onSetStep={setWallMoverStep}
-                onPickup={() => void sendWallMoverPickup()}
-                onMove={(dx, dy, orientation) => void sendWallMoverMove(dx, dy, orientation)}
-                onSelectKey={setSelectedWallMoverKey}
-              />
-            ) : null}
-
-            {selectedPlugin.id === "injection" ? (
-              <InjectionPanel
-                runtimeBusy={runtimeBusy}
-                roomReady={roomReady}
-                selectedRuntimeSnapshot={selectedRuntimeSnapshot}
-                injectionDraft={injectionDraft}
-                injectionRepeatCount={injectionRepeatCount}
-                injectionRepeatInterval={injectionRepeatInterval}
-                injectionMessage={injectionMessage}
-                injectionSnippets={injectionSnippets}
-                selectedInjectionSnippetId={selectedInjectionSnippetId}
-                selectedInjectionSnippet={selectedInjectionSnippet}
-                injectionHistory={injectionHistory}
-                injectionFileInputRef={injectionFileInputRef}
-                injectionActionOptions={injectionActionOptions}
-                onUpdateInjectionDraft={updateInjectionDraft}
-                onSetInjectionRepeatCount={setInjectionRepeatCount}
-                onSetInjectionRepeatInterval={setInjectionRepeatInterval}
-                onExecuteInjectionCommand={(command, label) => void executeInjectionCommand(command, label)}
-                onAddInjectionSnippet={addInjectionSnippet}
-                onImportInjectionSnippets={(file) => void importInjectionSnippets(file)}
-                onExportInjectionSnippets={exportInjectionSnippets}
-                onSetInjectionSnippets={setInjectionSnippets as any}
-                onSetSelectedInjectionSnippetId={setSelectedInjectionSnippetId}
-                onSetInjectionMessage={setInjectionMessage}
-                onLoadInjectionSnippet={loadInjectionSnippet}
-                onSetInjectionHistory={setInjectionHistory as any}
-              />
-            ) : null}
-
-            {selectedPlugin.id === "packet-log" ? (
-              <PacketLogPanel
-                desktopBridgeAvailable={desktopBridgeAvailable}
-                packetFilters={packetFilters}
-                packetClientChoices={packetClientChoices}
-                packetSessionChoices={packetSessionChoices}
-                packetListRef={packetListRef}
-                handlePacketListScroll={handlePacketListScroll}
-                visiblePacketEntries={visiblePacketEntries}
-                renderedPacketEntries={renderedPacketEntries}
-                selectedPacketEntry={selectedPacketEntry}
-                packetVirtualRange={packetVirtualRange}
-                selectedRuntimeSnapshot={selectedRuntimeSnapshot}
-                relayLog={relayLog}
-                packetEntries={packetEntries}
-                packetExportMessage={packetExportMessage}
-                onRefreshRelayLog={() => void refreshRelayLog()}
-                onExportVisiblePacketLog={exportVisiblePacketLog}
-                onSetPacketClearOffset={setPacketClearOffset}
-                onSetSelectedPacketKey={setSelectedPacketKey}
-                onSetPacketExportMessage={setPacketExportMessage}
-                onSetPacketFilters={setPacketFilters as any}
-              />
-            ) : null}
-
-            {selectedPlugin.id === "dev-tools" ? (
-              <DevToolsPanel
-                engineUrl={engineUrl}
-                runtimeBusy={runtimeBusy}
-                runtimeSnapshot={selectedRuntimeSnapshot}
-                onRefresh={refreshRuntimeSnapshot}
-              />
-            ) : null}
-
-            {selectedPlugin.id === "about" ? (
-              <AboutPanel
-                appName={appInfo?.name ?? "Habbpy v4"}
-                appVersion={appInfo?.version ?? "-"}
-                appMode={compactValue(appInfo?.mode)}
-                profileLabel={selectedProfile?.label ?? "No profile selected"}
-                buildLabel={engineLaunch?.buildLabel ?? profileLine(selectedProfile)}
-                storageMode={selectedProfile?.storageMode ?? "-"}
-              />
-            ) : null}
-          </section>
-        ) : null}
       </aside>
+
+      <PluginStoreModal
+        open={pluginStoreOpen}
+        desktopBridgeAvailable={desktopBridgeAvailable}
+        pluginRegistryState={pluginRegistryState}
+        availablePlugins={availablePlugins}
+        selectedPluginId={selectedPlugin.id}
+        pluginEnabledById={pluginEnabledById}
+        pluginSurfaceEnabledByPluginId={pluginSurfaceEnabledByPluginId}
+        pinnedPluginIds={pinnedPluginIds}
+        pluginRuntimeUiById={effectivePluginRuntimeUiById}
+        pluginManagerMessage={pluginManagerMessage}
+        newPluginId={newPluginId}
+        newPluginName={newPluginName}
+        onClose={() => setPluginStoreOpen(false)}
+        onSelectPlugin={(pluginId) => dispatch({ type: "selectPlugin", pluginId })}
+        onOpenPluginsFolder={() => void openPluginsFolder()}
+        onInstallPluginFromFolder={() => void installPluginFromFolder()}
+        onSetNewPluginId={setNewPluginId}
+        onSetNewPluginName={setNewPluginName}
+        onCreatePluginFromTemplate={() => void createPluginFromTemplate()}
+        onSetPluginEnabled={(plugin, enabled) => void setPluginEnabled(plugin, enabled)}
+        onSetPluginSurfaceEnabled={(pluginId, surfaceId, enabled) => void setPluginSurfaceEnabled(pluginId, surfaceId, enabled)}
+        onUninstallPlugin={(plugin) => void uninstallPlugin(plugin)}
+        onPluginSchemaAction={handlePluginSchemaAction}
+        onRunCommand={(command) => {
+          setPacketConsoleOpen(true);
+          setPacketConsoleInput(command);
+          void runMultiAccountCommand(command);
+        }}
+      />
+
+      <SettingsModal
+        open={settingsOpen}
+        layout={appSettingsLayout}
+        values={appSettingsValues}
+        onClose={() => setSettingsOpen(false)}
+        onAction={handleSettingsAction}
+      />
+
+      <AboutModal open={aboutOpen} appInfo={appInfo} onClose={() => setAboutOpen(false)} />
     </main>
+  );
+}
+function AboutModal({
+  open,
+  appInfo,
+  onClose,
+}: {
+  readonly open: boolean;
+  readonly appInfo: { readonly name: string; readonly version: string; readonly mode: "desktop" | "browser-preview" } | null;
+  readonly onClose: () => void;
+}): React.ReactElement | null {
+  if (!open) return null;
+  return (
+    <div className="about-overlay" role="presentation" onMouseDown={onClose}>
+      <section className="about-modal" role="dialog" aria-modal="true" aria-label="About Shockless" onMouseDown={(event) => event.stopPropagation()}>
+        <img className="about-image" src="./img/aboutimg.png" alt="Shockless" />
+        <strong>Habbpy v4</strong>
+        <span className="about-version">{appInfo?.version ? `v${appInfo.version}` : "development build"}</span>
+        <p>Shockless Engine companion shell for importing, launching, inspecting, and extending Origins Shockwave clients.</p>
+        <div className="about-credits">Shockless Engine / ProjectorRays / Habbpy v4</div>
+        <button className="about-close" type="button" onClick={onClose}>Close</button>
+      </section>
+    </div>
   );
 }

@@ -22,7 +22,88 @@
       "kind": "panel",
       "label": "User Panel",
       "enabledByDefault": true,
-      "summary": "Selected user details and safe mapped user actions."
+      "summary": "Selected user details and safe mapped user actions.",
+      "layout": [
+        {
+          "type": "header",
+          "text": "Avatar actions",
+          "level": 3
+        },
+        {
+          "type": "text",
+          "text": "Walk, wave, dance, and carry drink through typed avatar helpers."
+        },
+        {
+          "type": "section",
+          "title": "Walk",
+          "children": [
+            {
+              "type": "numberInput",
+              "id": "walkX",
+              "label": "X",
+              "defaultValue": 0,
+              "action": "user.set.walkX"
+            },
+            {
+              "type": "numberInput",
+              "id": "walkY",
+              "label": "Y",
+              "defaultValue": 0,
+              "action": "user.set.walkY"
+            },
+            {
+              "type": "textInput",
+              "id": "itemSelector",
+              "label": "Item",
+              "placeholder": "item id, class, or name",
+              "action": "user.set.itemSelector"
+            },
+            {
+              "type": "button",
+              "label": "Walk To Tile",
+              "action": "user.walkTile",
+              "variant": "primary"
+            },
+            {
+              "type": "button",
+              "label": "Walk To Item",
+              "action": "user.walkItem",
+              "variant": "default"
+            }
+          ]
+        },
+        {
+          "type": "section",
+          "title": "Actions",
+          "children": [
+            {
+              "type": "numberInput",
+              "id": "danceNumber",
+              "label": "Dance",
+              "defaultValue": 1,
+              "action": "user.set.danceNumber"
+            },
+            {
+              "type": "button",
+              "label": "Wave",
+              "action": "user.wave",
+              "variant": "default"
+            },
+            {
+              "type": "button",
+              "label": "Dance",
+              "action": "user.dance",
+              "variant": "default"
+            },
+            {
+              "type": "button",
+              "label": "Carry Drink",
+              "action": "user.carryDrink",
+              "variant": "default"
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "overlay",
@@ -39,6 +120,25 @@
       "summary": "Wave and dance controls."
     }
   ],
-  "commands": [],
+  "commands": [
+    {
+      "name": "user.readSourceState",
+      "label": "Read User State",
+      "description": "Read room user objects plus safe session username, room, and rights fields into the User panel.",
+      "usage": "user.readSourceState"
+    },
+    {
+      "name": "user.copyProfileData",
+      "label": "Copy User Profile Data",
+      "description": "Copy selected parsed user fields and store parsed figure strings locally without sending game traffic.",
+      "usage": "user.copyProfileData"
+    },
+    {
+      "name": "user.sourceWindowActions",
+      "label": "User Actions",
+      "description": "Wave, dance, stop dance, carry drink, and apply look route through scoped v3-equivalent relay packets.",
+      "usage": "user.sourceWindowActions"
+    }
+  ],
   "hotkeys": []
 }

@@ -7,22 +7,17 @@ export const automationPlugin: PluginDefinition = {
     icon: "bot",
     enabledByDefault: false,
     status: "mapped",
-    summary: "Automation tools for comfort, fishing, gardening, and wall items.",
+    summary: "Automation tools for comfort actions, window cleanup, and wall items.",
     capabilities: [
-      "Auto-hide Bulletin Board after login",
-      "Fishing plugin split",
-      "Gardening plugin split",
-      "Wall Mover plugin split",
-      "Comfort toggles",
-      "Fishing minigame relay helpers",
-    ],
+      "Auto-hide Bulletin Board after login",      "Wall Mover plugin split",
+      "Comfort toggles",    ],
     uiSurfaces: [
       {
         id: "panel",
         kind: "panel",
         label: "Automation Panel",
         enabledByDefault: false,
-        summary: "Fishing, gardening, wall mover, and helper settings.",
+        summary: "Window cleanup, wall mover, and helper settings.",
       },
       {
         id: "status",
@@ -40,21 +35,13 @@ export const automationPlugin: PluginDefinition = {
       },
     ],
     sourceMapping: {
-      habbpyV3: [
-        "habbpy/tabs/fishing_tab.py",
-        "habbpy/tabs/gardening_tab.py",
-        "habbpy/tabs/wallmover_tab.py",
-        "habbpy/fishing.py",
-        "habbpy/gardening.py",
-        "habbpy/wallmover.py",
+      habbpyV3: [        "habbpy/tabs/wallmover_tab.py",        "habbpy/wallmover.py",
       ],
       shockless: [
         "window.__engine.dev.windowIds",
         "window.__engine.dev.windowElements",
-        "window.__engine.dev.clickWindowElement",
-        "src/shared/fishingRelayPackets.ts",
-      ],
+        "window.__engine.dev.clickWindowElement",      ],
       notes:
-        "Auto-hide Bulletin Board is mapped through runtime window controls. Fishing, Gardening, and Wall Mover own their first-class controls and validated relay actions.",
+        "Auto-hide Bulletin Board is mapped through runtime window controls. Wall Mover owns first-class wall item controls and validated relay actions.",
     },
   };

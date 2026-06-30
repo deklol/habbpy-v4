@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+﻿import { contextBridge, ipcRenderer } from "electron";
 import type { HabbpyV4Api } from "../shared/window-api.js";
 
 const api: HabbpyV4Api = {
@@ -13,6 +13,7 @@ const api: HabbpyV4Api = {
   openPluginsFolder: () => ipcRenderer.invoke("habbpy-v4:open-plugins-folder"),
   createPluginFromTemplate: (request) => ipcRenderer.invoke("habbpy-v4:create-plugin-from-template", request),
   installPluginFromFolder: () => ipcRenderer.invoke("habbpy-v4:install-plugin-from-folder"),
+  uninstallPlugin: (pluginId) => ipcRenderer.invoke("habbpy-v4:uninstall-plugin", pluginId),
   readPluginEntrySource: (pluginId) => ipcRenderer.invoke("habbpy-v4:read-plugin-entry-source", pluginId),
   getClientLibraryState: () => ipcRenderer.invoke("habbpy-v4:get-client-library-state"),
   getClientSessions: () => ipcRenderer.invoke("habbpy-v4:get-client-sessions"),
@@ -28,6 +29,12 @@ const api: HabbpyV4Api = {
   onProfileImportProgress: (listener) => {
     const channel = "habbpy-v4:profile-import-progress";
     const wrapped = (_event: Electron.IpcRendererEvent, progress: unknown) => listener(progress as Parameters<typeof listener>[0]);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onShowAbout: (listener) => {
+    const channel = "habbpy-v4:show-about";
+    const wrapped = () => listener();
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },

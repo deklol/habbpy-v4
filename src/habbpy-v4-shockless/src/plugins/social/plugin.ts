@@ -12,6 +12,7 @@ export const socialPlugin: PluginDefinition = {
       "Packet-backed friends list",
       "Friend search",
       "Packet-backed private messages",
+      "Private message top-right notifications",
       "Packet-backed friend requests",
       "Scoped private message relay command",
       "Scoped friend request relay command",
@@ -39,6 +40,13 @@ export const socialPlugin: PluginDefinition = {
         summary: "Account and notification status in the bottom strip.",
       },
       {
+        id: "private-message-notifications",
+        kind: "overlay",
+        label: "Private Message Notifications",
+        enabledByDefault: true,
+        summary: "Received private messages in the native top-right notification box.",
+      },
+      {
         id: "commands",
         kind: "commands",
         label: "Social Commands",
@@ -55,8 +63,9 @@ export const socialPlugin: PluginDefinition = {
         "src/main/relay/originsRelayV4.ts social control scope",
         "docs/REMOTE_PLAY_API.md",
         "Official Origins public user lookup where applicable",
+        "engine/src/app/main.ts showBulletinNotification helper",
       ],
       notes:
-        "Social reads packet-backed friends, private messages, and friend requests. Backtick console lookup combines in-game runtime rows, decoded USERS rows, parsed social rows, and the official Origins public API. message/adduser/requests/accept/decline/remove/follow commands use scoped v3-equivalent relay packets for headers 33, 39, 233, 37, 38, 40, and 262.",
+        "Social reads packet-backed friends, private messages, and friend requests. The Private Message Notifications surface listens to live MESSENGER_MESSAGE [134] rows and renders them through the source bulletin notification manager. Backtick console lookup combines in-game runtime rows, decoded USERS rows, parsed social rows, and the official Origins public API. message/adduser/requests/accept/decline/remove/follow commands use scoped v3-equivalent relay packets for headers 33, 39, 233, 37, 38, 40, and 262.",
     },
   };

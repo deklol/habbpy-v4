@@ -1021,14 +1021,10 @@ export function runtimeProbeScopesForPlugin(pluginId: string): readonly EngineRu
     case "room":
     case "user":
     case "items":
-    case "fishing":
-    case "gardening":
     case "wall-mover":
     case "chat":
     case "visitors":
       return ["core", "room"];
-    case "present-catcher":
-      return ["core", "room", "inventory"];
     case "inventory":
       return ["core", "inventory"];
     default:

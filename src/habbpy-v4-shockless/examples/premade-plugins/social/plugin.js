@@ -1,100 +1,67 @@
-const MODULE = {
-  "sourceModuleId": "social",
-  "name": "Social",
-  "summary": "Friends, badges, private messages, friend requests, visitors, and chat status.",
-  "capabilities": [
-    "Packet-backed friends list",
-    "Friend search",
-    "Packet-backed private messages",
-    "Packet-backed friend requests",
-    "Scoped private message relay command",
-    "Scoped friend request relay command",
-    "Friend request accept/decline controls",
-    "Friend remove/follow controls",
-    "Friend request refresh control",
-    "Badge summary",
-    "Visitors split",
-    "Chat split",
-    "Profile lookup"
-  ],
-  "permissions": [
-    "ui.panel",
-    "ui.status",
-    "console.commands",
-    "events.room",
-    "engine.snapshot",
-    "events.chat",
-    "events.packet",
-    "packet.read",
-    "actions.social",
-    "storage"
-  ],
-  "surfaces": [
-    {
-      "id": "panel",
-      "kind": "panel"
-    },
-    {
-      "id": "status",
-      "kind": "status"
-    },
-    {
-      "id": "commands",
-      "kind": "commands"
-    }
-  ]
-};
+// @name Social Premade Module
+// @group social
+// @desc Readable user-plugin source reference for the built-in Social module.
+// @runtime Habbpy v4 plugin API
 
 export async function activate(api) {
-  const { log, storage, packets, social } = api;
-  const disposers = [];
-  const state = { activatedAt: new Date().toISOString() };
-  await remember(storage, 'module', MODULE);
-  await remember(storage, 'state', state);
-  log.info(MODULE.name + ' premade module ready.');
+  const { log, storage, subscriptions, social, packets, ui } = api;
+  const cleanup = subscriptions.create();
+  log.info("Social helper ready: tracking messenger packets and routing social actions.");
 
+  const controls = { friendName: '', accountId: 0, recipient: '', message: '' };
   const friendsByName = new Map();
-  onPacket(disposers, packets, 'server', {}, async (packet) => {
-    if (packet.packetName && String(packet.packetName).toLowerCase().includes('messenger')) await remember(storage, 'latestMessengerPacket', packetSummary(packet));
+  cleanup.add(packets.on('server', {}, rememberMessengerPacket));
+  cleanup.add(ui.onAction(async (event) => {
+    rememberControlValue(controls, event);
+    const accountId = numberValue(controls.accountId);
+    switch (event?.action) {
+      case 'social.addUser':
+        return rememberResult(storage, log, 'Add User', social.addUser(textValue(controls.friendName)));
+      case 'social.message':
+        return rememberResult(storage, log, 'Send Message', social.message(accountId, textValue(controls.message), { recipient: textValue(controls.recipient) }));
+      case 'social.refreshRequests':
+        return rememberResult(storage, log, 'Refresh Requests', social.refreshRequests());
+      case 'social.acceptRequest':
+        return rememberResult(storage, log, 'Accept Request', social.acceptRequest(accountId));
+      case 'social.declineRequest':
+        return rememberResult(storage, log, 'Decline Request', social.declineRequest(accountId));
+      case 'social.followFriend':
+        return rememberResult(storage, log, 'Follow Friend', social.followFriend(accountId));
+      default:
+        return undefined;
+    }
+  }));
+  async function rememberMessengerPacket(packet) {
+    if (!packets.hasName(packet, 'messenger', 'friend') && !packets.field(packet, /friend \d+ name/i)) return packet.allow();
     for (const field of packet.decodedFields ?? []) {
       if (/friend \d+ name/i.test(field.label)) friendsByName.set(String(field.value).toLowerCase(), { name: field.value, sourceLine: packet.lineNumber });
     }
-    await remember(storage, 'friends', [...friendsByName.values()].slice(0, 50));
+    await storage.remember('latestMessengerPacket', packets.summary(packet));
+    await storage.remember('friends', [...friendsByName.values()].slice(0, 50));
     return packet.allow();
-  });
-  async function addUser(name, clientId) {
-    return social.addUser(name, { clientId });
   }
-  async function message(accountId, message, recipient, clientId) {
-    return social.message(accountId, message, { recipient, clientId });
-  }
-  async function refreshRequests(clientId) {
-    return social.refreshRequests({ clientId });
-  }
-  async function acceptRequest(accountId, clientId) {
-    return social.acceptRequest(accountId, { clientId });
-  }
-  async function declineRequest(accountId, clientId) {
-    return social.declineRequest(accountId, { clientId });
-  }
-  async function followFriend(accountId, clientId) {
-    return social.followFriend(accountId, { clientId });
-  }
-  await remember(storage, 'availableActions', ['addUser(name, clientId)', 'message(accountId, message, recipient, clientId)', 'refreshRequests(clientId)', 'acceptRequest(accountId, clientId)', 'declineRequest(accountId, clientId)', 'followFriend(accountId, clientId)']);
 
-  return () => {
-    for (const dispose of disposers) dispose();
-  };
+  return cleanup.dispose;
 }
 
-function onPacket(disposers, packets, direction, filter, handler) {
-  disposers.push(packets.on(direction, filter, handler));
+function rememberControlValue(target, event) {
+  if (!event?.elementId || !("value" in event)) return;
+  target[event.elementId] = event.value;
 }
 
-async function remember(storage, key, value) {
-  await storage.set(key, { value, updatedAt: new Date().toISOString() });
+function textValue(value, fallback = '') {
+  const text = String(value ?? '').trim();
+  return text || fallback;
 }
 
-function packetSummary(packet) {
-  return { clientId: packet?.clientId ?? null, direction: packet?.direction ?? null, header: packet?.header ?? null, packetName: packet?.packetName ?? 'UNKNOWN_HEADER', lineNumber: packet?.lineNumber ?? null, fields: packet?.decodedFields ?? [], bodyStatus: packet?.bodyStatus ?? null };
+function numberValue(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.trunc(number) : fallback;
+}
+
+async function rememberResult(storage, log, action, task) {
+  const result = await task;
+  await storage.remember('lastAction', { action, result });
+  log.info(action + ': ' + (result?.message ?? 'done'));
+  return result;
 }

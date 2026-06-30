@@ -1,9 +1,10 @@
-import { app, BrowserWindow, dialog, ipcMain, shell, webContents, type WebContents } from "electron";
+﻿import { app, BrowserWindow, dialog, ipcMain, shell, webContents, type WebContents } from "electron";
 import net from "node:net";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { appPreferencesState, earlyAppDataPath, GPU_LAUNCH_SWITCHES, readAppPreferences, writeAppPreferences, type AppPreferences } from "./appPreferences.js";
+import { applyAppMenu } from "./appMenu.js";
 import { ClientLibraryStore } from "./clientLibrary.js";
 import { readFurniMetadataSnapshot } from "./furnidata.js";
 import { MultiSessionManager } from "./multiSessionManager.js";
@@ -48,6 +49,19 @@ let mainWindow: BrowserWindow | null = null;
 let isQuitting = false;
 let forcedExitTimer: NodeJS.Timeout | null = null;
 let activeImportJobId: string | null = null;
+
+// Portable build: relocate all app data (config, logs, saved credentials, the
+// client library) AND Chromium's profile (localStorage / cache) into a `data/`
+// folder next to the exe â€” easy to find, back up, or clear â€” instead of Roaming
+// AppData. The env override keeps earlyAppDataPath() + appDataPath() in agreement;
+// redirecting userData carries localStorage so renderer prefs persist portably.
+if (app.isPackaged && !process.env.HABBPY_V4_APP_DATA_PATH) {
+  const portableBase = process.env.PORTABLE_EXECUTABLE_DIR?.trim() || path.dirname(app.getPath("exe"));
+  const dataRoot = path.join(portableBase, "data");
+  process.env.HABBPY_V4_APP_DATA_PATH = dataRoot;
+  app.setPath("userData", path.join(dataRoot, "profile"));
+}
+
 const launchHardwareAccelerationEnabled = readAppPreferences(earlyAppDataPath()).hardwareAcceleration;
 
 if (launchHardwareAccelerationEnabled) {
@@ -66,12 +80,12 @@ function rendererUrl(): string {
 function createWindow(): void {
   const window = new BrowserWindow({
     width: 1440,
-    height: 760,
+    height: 975,
     minWidth: 720,
     minHeight: 520,
     useContentSize: true,
     show: process.env.HABBPY_V4_MAIN_WINDOW_SHOW === "0" ? false : true,
-    title: "Habbpy v4",
+    title: "Shockless Engine",
     backgroundColor: "#090a0d",
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload.cjs"),
@@ -87,6 +101,23 @@ function createWindow(): void {
   });
 
   mainWindow = window;
+  applyAppMenu(window, {
+    dataDir: path.join(appDataPath(), "HabbpyV4"),
+    pluginsDir: path.join(appDataPath(), "HabbpyV4", "plugins"),
+    repoUrl: "https://github.com/deklol/habbpy-v4",
+    issuesUrl: "https://github.com/deklol/habbpy-v4/issues",
+    clearSavedCredentials: () => {
+      const dir = path.join(appDataPath(), "HabbpyV4");
+      for (const file of ["account-store.v1.json", "multiclient-accounts.txt"]) {
+        rmSync(path.join(dir, file), { force: true });
+      }
+    },
+    clearSessionLogs: () => rmSync(path.join(appDataPath(), "HabbpyV4", "logs"), { recursive: true, force: true }),
+    clearAllAppData: () => rmSync(path.join(appDataPath(), "HabbpyV4"), { recursive: true, force: true }),
+    reloadPlugins: () => {
+      pluginManager().reload();
+    },
+  });
   window.on("close", () => {
     disposeAppResources();
   });
@@ -98,7 +129,7 @@ function createWindow(): void {
 }
 
 ipcMain.handle("habbpy-v4:get-app-info", () => ({
-  name: "Habbpy v4",
+  name: "Shockless Engine",
   version: appVersion(),
   mode: app.isPackaged ? "desktop" : "browser-preview",
 }));
@@ -144,15 +175,18 @@ ipcMain.handle("habbpy-v4:create-plugin-from-template", (_event, request: Plugin
 ipcMain.handle("habbpy-v4:read-plugin-entry-source", (_event, pluginId: string) =>
   pluginManager().readPluginEntrySource(String(pluginId ?? "")),
 );
+ipcMain.handle("habbpy-v4:uninstall-plugin", (_event, pluginId: string) =>
+  pluginManager().uninstallPlugin(String(pluginId ?? "")),
+);
 ipcMain.handle("habbpy-v4:install-plugin-from-folder", async () => {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   const result = focusedWindow
     ? await dialog.showOpenDialog(focusedWindow, {
-        title: "Install Habbpy Plugin Folder",
+        title: "Install Shockless Plugin Folder",
         properties: ["openDirectory"],
       })
     : await dialog.showOpenDialog({
-        title: "Install Habbpy Plugin Folder",
+        title: "Install Shockless Plugin Folder",
         properties: ["openDirectory"],
       });
   if (result.canceled || !result.filePaths[0]) return { ok: false, message: "Plugin install cancelled.", state: pluginManager().state() };
@@ -276,6 +310,7 @@ ipcMain.handle("habbpy-v4:set-engine-launch-settings", (_event, patch: EngineLau
     activeProfileId: profileId,
     resizablePresentation: typeof patch?.resizablePresentation === "boolean" ? patch.resizablePresentation : undefined,
     customHotelView: typeof patch?.customHotelView === "boolean" ? patch.customHotelView : undefined,
+    entryView: typeof patch?.entryView === "string" ? patch.entryView : patch?.entryView === null ? null : undefined,
     versionCheckBuild,
   });
   return sessionManager().engineStatus();
@@ -639,4 +674,3 @@ function compactRelaySnapshot(snapshot: ReturnType<typeof readRelayLogSnapshot>)
     recentEntries,
   };
 }
-

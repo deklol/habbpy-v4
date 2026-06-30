@@ -231,13 +231,25 @@ export type EngineRuntimeAction =
   | { readonly kind: "enterPublicRoom"; readonly query?: string }
   | { readonly kind: "requestInventory" }
   | { readonly kind: "hideBulletinBoard" }
+  | {
+      readonly kind: "showBulletinNotification";
+      readonly title: string;
+      readonly message: string;
+      readonly imageName?: string;
+      readonly titleColor?: string;
+      readonly backgroundColor?: string;
+    }
   | { readonly kind: "setUserNameLabels"; readonly enabled: boolean }
   | { readonly kind: "setRoomStageZoom"; readonly scale: 1 | 2 }
   | { readonly kind: "clientRights"; readonly mode: "get" | "set" | "grant" | "remove"; readonly rights?: readonly string[] }
   | { readonly kind: "userWindowAction"; readonly action: "wave" | "dance" | "hcdance" }
   | { readonly kind: "sendChat"; readonly message: string }
   | { readonly kind: "stageClick"; readonly x: number; readonly y: number }
-  | { readonly kind: "clickWindowElement"; readonly windowId: string; readonly elementId: string };
+  | { readonly kind: "clickWindowElement"; readonly windowId: string; readonly elementId: string }
+  | { readonly kind: "setHideFurni"; readonly enabled: boolean }
+  | { readonly kind: "setHideUsers"; readonly enabled: boolean }
+  | { readonly kind: "setHideUi"; readonly enabled: boolean }
+  | { readonly kind: "setSceneFilter"; readonly name: string };
 
 export interface EngineRuntimeActionResult {
   readonly ok: boolean;
@@ -713,6 +725,18 @@ export async function runEngineRuntimeAction(
           }
           return { ok: false, message: "Bulletin Board was visible, but no close element resolved to a runtime sprite.", result: { windows: bulletinWindows } };
         }
+        if (action.kind === "showBulletinNotification") {
+          if (typeof dev.showBulletinNotification !== "function") return { ok: false, message: "Engine bulletin notification helper is not available." };
+          const result = await dev.showBulletinNotification({
+            title: action.title,
+            message: action.message,
+            imageName: action.imageName,
+            titleColor: action.titleColor,
+            backgroundColor: action.backgroundColor,
+          });
+          if (result?.ok === false) return { ok: false, message: result.message || "Bulletin notification was not shown.", result };
+          return { ok: true, message: "Bulletin notification shown through Shockless source manager.", result };
+        }
         if (action.kind === "setUserNameLabels") {
           if (typeof dev.setUserNameLabels !== "function") return { ok: false, message: "Engine username label helper is not available." };
           const result = await dev.setUserNameLabels(Boolean(action.enabled));
@@ -731,6 +755,21 @@ export async function runEngineRuntimeAction(
             message: scale === 2 ? "Room stage zoom set to 200%." : "Room stage zoom set to 100%.",
             result,
           };
+        }
+        if (action.kind === "setHideFurni" || action.kind === "setHideUsers" || action.kind === "setHideUi") {
+          const fn = action.kind === "setHideFurni" ? dev.setHideFurni : action.kind === "setHideUsers" ? dev.setHideUsers : dev.setHideUi;
+          if (typeof fn !== "function") return { ok: false, message: "Engine hide helper is not available." };
+          const result = await fn(Boolean(action.enabled));
+          const what = action.kind === "setHideFurni" ? "Furni" : action.kind === "setHideUsers" ? "Users" : "UI";
+          return { ok: true, message: what + " " + (Boolean(action.enabled) ? "hidden" : "shown") + ".", result };
+        }
+        if (action.kind === "setSceneFilter") {
+          if (typeof dev.setSceneFilter !== "function") return { ok: false, message: "Engine scene filter helper is not available." };
+          const result = await dev.setSceneFilter(action.name);
+          if (result && typeof result === "object" && result.ok === false) {
+            return { ok: false, message: result.error ? String(result.error) : "Unknown filter.", result };
+          }
+          return { ok: true, message: "Scene filter set to " + action.name + ".", result };
         }
         if (action.kind === "clientRights") {
           const root = window.__engine;

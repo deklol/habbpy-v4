@@ -32,6 +32,13 @@
       "summary": "Request and inspect inventory once mapped."
     }
   ],
-  "commands": [],
+  "commands": [
+    {
+      "name": "inventory.requestHand",
+      "label": "Request Hand Inventory",
+      "description": "Open/read the hand inventory through the Room_bar hand icon and Room_container.pItemList.",
+      "usage": "inventory.requestHand"
+    }
+  ],
   "hotkeys": []
 }

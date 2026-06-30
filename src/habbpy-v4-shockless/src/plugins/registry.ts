@@ -1,11 +1,11 @@
-import type { PluginDefinition, PluginPermission } from "../shared/plugin.js";
+import { getCommandsForPlugin } from "../core/commandRegistry.js";
+import type { PluginCommandDefinition, PluginDefinition, PluginPermission } from "../shared/plugin.js";
+import { withPluginSchemaDefaults } from "../shared/pluginSchemaDefaults.js";
 import { builtInPluginDefinitions } from "./builtins.js";
 
 const pluginDisplayOrder = new Map(
   [
     "connection",
-    "plugin-manager",
-    "settings",
     "multi-account",
     "info",
     "room",
@@ -15,15 +15,11 @@ const pluginDisplayOrder = new Map(
     "visitors",
     "items",
     "inventory",
-    "gardening",
     "wall-mover",
-    "fishing",
-    "present-catcher",
     "packet-log",
     "automation",
     "injection",
     "dev-tools",
-    "about",
   ].map((id, index) => [id, index] as const),
 );
 
@@ -40,17 +36,28 @@ export function isPinnedPlugin(plugin: PluginDefinition): boolean {
 }
 
 export function normalizeBuiltInPlugin(plugin: PluginDefinition): PluginDefinition {
-  return {
+  const normalized = {
     ...plugin,
     origin: plugin.origin ?? "built-in",
     core: plugin.core ?? false,
     permissions: plugin.permissions ?? permissionsFromSurfaces(plugin),
+    commands: plugin.commands ?? builtInCommandsForPlugin(plugin.id),
     loadError: plugin.loadError ?? null,
   };
+  return withPluginSchemaDefaults(normalized);
 }
 
 export function pluginSortValue(pluginId: string): number {
   return pluginDisplayOrder.get(pluginId) ?? 999;
+}
+
+function builtInCommandsForPlugin(pluginId: string): readonly PluginCommandDefinition[] {
+  return getCommandsForPlugin(pluginId).map((command) => ({
+    name: command.id,
+    label: command.label,
+    description: command.summary,
+    usage: command.id,
+  }));
 }
 
 function permissionsFromSurfaces(plugin: PluginDefinition): readonly PluginPermission[] {

@@ -48,3 +48,15 @@ test("room relay movement packet matches live ORIGINS_MOVE VL64 triples", () => 
   assert.equal(isAllowedRoomRelayAction({ action: "move", x: 0, y: 0 }), true);
   assert.equal(isAllowedRoomRelayAction({ action: "move", x: -1, y: 0 }), false);
 });
+
+
+test("room relay leave packet uses typed QUIT route", () => {
+  const result = buildRoomRelayPacketsFromControl({ action: "leave" });
+  assert.equal(result.ok, true, result.ok ? result.note : result.message);
+  if (!result.ok) return;
+
+  assert.equal(result.packets.length, 1);
+  assert.equal(result.packets[0]?.note, "Room QUIT header=53");
+  assert.equal(text(result.packets[0]!.packet), "@u");
+  assert.equal(isAllowedRoomRelayAction({ action: "leave" }), true);
+});

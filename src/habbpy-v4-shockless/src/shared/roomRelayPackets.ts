@@ -28,6 +28,13 @@ export function buildRoomRelayPacketsFromControl(record: Record<string, unknown>
         ],
       };
     }
+    case "leave": {
+      return {
+        ok: true,
+        note: "Room leave current room",
+        packets: [{ packet: makePacket(53), note: "Room QUIT header=53" }],
+      };
+    }
     case "visitPrivateRoom": {
       const roomId = parsePositiveControlInt(record.roomId ?? record.flatId, "roomId");
       if (!roomId.ok) return roomId;

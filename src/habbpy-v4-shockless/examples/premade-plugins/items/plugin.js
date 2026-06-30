@@ -1,144 +1,79 @@
-const MODULE = {
-  "sourceModuleId": "items",
-  "name": "Items",
-  "summary": "Searchable floor and wall item inspector with furnidata names and packet-backed wall rows.",
-  "capabilities": [
-    "Floor item table",
-    "Wall item table",
-    "ITEMS/UPDATEITEM/REMOVEITEM packet-backed wall fallback",
-    "Search",
-    "Selected item detail",
-    "Furnidata names/descriptions"
-  ],
-  "permissions": [
-    "ui.panel",
-    "ui.overlay",
-    "events.room",
-    "engine.snapshot",
-    "events.packet",
-    "packet.read",
-    "actions.furni",
-    "storage"
-  ],
-  "surfaces": [
-    {
-      "id": "panel",
-      "kind": "panel"
-    },
-    {
-      "id": "overlay",
-      "kind": "overlay"
-    }
-  ]
-};
+// @name Items Premade Module
+// @group inventory
+// @desc Readable user-plugin source reference for the built-in Items module.
+// @runtime Habbpy v4 plugin API
 
 export async function activate(api) {
-  const { log, storage, events, furni } = api;
-  const disposers = [];
-  const state = { activatedAt: new Date().toISOString() };
-  await remember(storage, 'module', MODULE);
-  await remember(storage, 'state', state);
-  log.info(MODULE.name + ' premade module ready.');
+  const { log, storage, subscriptions, furni, room, ui } = api;
+  const cleanup = subscriptions.create();
+  log.info("Items helper ready: tracking room items and routing typed furniture actions.");
 
+  const controls = { itemQuery: '', itemKind: 'all', moveX: 0, moveY: 0, direction: 0 };
   const itemsByKey = new Map();
-  on(disposers, events, 'room.items', async (event) => {
+  cleanup.add(room.onItems(async (event) => {
     itemsByKey.clear();
-    for (const item of event?.items ?? []) itemsByKey.set(item.key, item);
-    await remember(storage, 'items', {
-      room: event?.room ?? null,
-      counts: event?.counts ?? null,
-      floorCount: Array.isArray(event?.floorItems) ? event.floorItems.length : [...itemsByKey.values()].filter((item) => item.kind !== 'wall').length,
-      wallCount: Array.isArray(event?.wallItems) ? event.wallItems.length : [...itemsByKey.values()].filter((item) => item.kind === 'wall').length,
-      items: [...itemsByKey.values()].map(itemSummary).slice(0, 40),
-      initial: event?.initial === true,
-    });
-  });
-  for (const eventName of ['room.itemAdded', 'room.itemUpdated', 'room.itemRemoved', 'room.floorItemAdded', 'room.floorItemUpdated', 'room.floorItemRemoved', 'room.wallItemAdded', 'room.wallItemUpdated', 'room.wallItemRemoved']) {
-    on(disposers, events, eventName, async (event) => {
-      if (event?.item?.key && eventName.endsWith('Removed')) itemsByKey.delete(event.item.key);
-      else if (event?.item?.key) itemsByKey.set(event.item.key, event.item);
-      await remember(storage, 'lastItemEvent', { eventName, item: itemSummary(event?.item), previous: itemSummary(event?.previous), total: itemsByKey.size });
-    });
+    for (const item of event?.items ?? []) itemsByKey.set(room.itemKey(item), item);
+    await storage.remember('items', { room: event?.room ?? null, counts: room.countItems(event), items: [...itemsByKey.values()].map(room.summarizeItem).slice(0, 60) });
+  }));
+  cleanup.add(room.onItemAdded((event) => recordItemEvent('item added', event?.item)));
+  cleanup.add(room.onItemUpdated((event) => recordItemEvent('item updated', event?.item, event?.previous)));
+  cleanup.add(room.onItemRemoved((event) => recordItemEvent('item removed', event?.item, event?.previous)));
+  cleanup.add(ui.onAction(async (event) => {
+    rememberControlValue(controls, event);
+    const selector = itemSelector(controls);
+    const options = { kind: itemKind(controls) };
+    switch (event?.action) {
+      case 'items.find':
+        return rememberResult(storage, log, 'Find Items', furni.findItems(selector, options));
+      case 'items.use':
+        return rememberResult(storage, log, 'Use Item', furni.useFloorItem(selector, '0', options));
+      case 'items.move':
+        return rememberResult(storage, log, 'Move Item', furni.moveFloorItem(selector, numberValue(controls.moveX), numberValue(controls.moveY), numberValue(controls.direction), options));
+      case 'items.rotate':
+        return rememberResult(storage, log, 'Rotate Item', furni.rotateFloorItem(selector, numberValue(controls.direction), options));
+      case 'items.pickup':
+        return rememberResult(storage, log, 'Pick Up Item', furni.pickupItem({ ...selector, kind: itemKind(controls) }, options));
+      default:
+        return undefined;
+    }
+  }));
+  async function recordItemEvent(reason, item, previous = null) {
+    if (item && reason !== 'item removed') itemsByKey.set(room.itemKey(item), item);
+    if (item && reason === 'item removed') itemsByKey.delete(room.itemKey(item));
+    await storage.remember('lastItemEvent', { reason, item: room.summarizeItem(item), previous: room.summarizeItem(previous), total: itemsByKey.size });
   }
-  await remember(storage, 'availableEvents', ['room.items', 'room.floorItemsLoaded', 'room.wallItemsLoaded', 'room.itemAdded/Updated/Removed', 'room.floorItemAdded/Updated/Removed', 'room.wallItemAdded/Updated/Removed']);
-  async function findItems(selector, clientId) {
-    return furni.findItems(selector, { clientId });
-  }
-  async function findItem(selector, clientId) {
-    return furni.findItem(selector, { clientId });
-  }
-  async function moveFloorItem(selector, x, y, direction, clientId) {
-    return furni.moveFloorItem(selector, x, y, direction, { clientId });
-  }
-  async function rotateFloorItem(selector, direction, clientId) {
-    return furni.rotateFloorItem(selector, direction, { clientId });
-  }
-  async function pickupMatching(selector, clientId) {
-    const matches = await furni.findItems(selector, { clientId });
-    const results = [];
-    for (const item of matches) results.push(await furni.pickupItem(item, { clientId }));
-    return results;
-  }
-  await remember(storage, 'availableActions', ['findItems(selector, clientId)', 'findItem(selector, clientId)', 'moveFloorItem(selector, x, y, direction, clientId)', 'rotateFloorItem(selector, direction, clientId)', 'pickupMatching(selector, clientId)']);
 
-  return () => {
-    for (const dispose of disposers) dispose();
-  };
+  return cleanup.dispose;
 }
 
-function on(disposers, events, eventName, handler) {
-  disposers.push(events.on(eventName, handler));
+function rememberControlValue(target, event) {
+  if (!event?.elementId || !("value" in event)) return;
+  target[event.elementId] = event.value;
 }
 
-async function remember(storage, key, value) {
-  await storage.set(key, { value, updatedAt: new Date().toISOString() });
+function textValue(value, fallback = '') {
+  const text = String(value ?? '').trim();
+  return text || fallback;
 }
 
-function snapshotFromEvent(event) {
-  return event?.snapshot ?? event?.runtime ?? event ?? null;
+function numberValue(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.trunc(number) : fallback;
 }
 
-function roomReady(snapshot) {
-  return Boolean(snapshot?.roomReady?.ready ?? snapshot?.roomEntryState?.roomReady?.ready);
+function itemKind(controls) {
+  return controls.itemKind === 'floor' || controls.itemKind === 'wall' ? controls.itemKind : 'all';
 }
 
-function roomSummary(snapshot) {
-  return {
-    id: snapshot?.room?.id ?? snapshot?.roomEntryState?.flatId ?? snapshot?.userState?.roomId ?? null,
-    name: snapshot?.room?.name ?? snapshot?.userState?.roomName ?? null,
-    owner: snapshot?.room?.owner ?? snapshot?.userState?.roomOwner ?? null,
-    type: snapshot?.room?.type ?? snapshot?.userState?.roomType ?? null,
-    ready: roomReady(snapshot),
-  };
+function itemSelector(controls) {
+  const text = textValue(controls.itemQuery);
+  const id = Number(text);
+  return Number.isSafeInteger(id) && id > 0 ? { id, kind: itemKind(controls) } : { text, kind: itemKind(controls) };
 }
 
-function floorItems(snapshot) {
-  return [
-    ...(snapshot?.roomObjects?.activeObjects ?? []),
-    ...(snapshot?.roomObjects?.passiveObjects ?? []),
-  ];
-}
-
-function wallItems(snapshot) {
-  return snapshot?.roomObjects?.wallItems ?? [];
-}
-
-function tileOf(entity) {
-  const x = Number(entity?.x);
-  const y = Number(entity?.y);
-  const direction = Number(entity?.direction ?? 0);
-  if (Number.isFinite(x) && Number.isFinite(y)) return { x: Math.trunc(x), y: Math.trunc(y), direction: Number.isFinite(direction) ? Math.trunc(direction) : 0 };
-  const match = String(entity?.position ?? '').match(/(-?\d+)\s*,\s*(-?\d+)/);
-  return match ? { x: Number.parseInt(match[1], 10), y: Number.parseInt(match[2], 10), direction: 0 } : null;
-}
-
-function objectId(item) {
-  const value = Number(item?.objectId ?? item?.id ?? item?.itemId);
-  return Number.isInteger(value) && value > 0 ? value : null;
-}
-
-function itemSummary(item) {
-  if (!item) return null;
-  const tile = item.tile ?? tileOf(item);
-  return { key: item.key ?? null, kind: item.kind ?? null, id: objectId(item), objectId: item.objectId ?? null, itemId: item.itemId ?? null, className: item.className ?? item.name ?? null, name: item.name ?? null, ownerName: item.ownerName ?? null, tile, x: item.x ?? tile?.x ?? null, y: item.y ?? tile?.y ?? null, wallLocation: item.wallLocation ?? null, wall: item.wall ?? null, local: item.local ?? null, orientation: item.orientation ?? item.direction ?? null, state: item.state ?? null };
+async function rememberResult(storage, log, action, task) {
+  const result = await task;
+  await storage.remember('lastAction', { action, result });
+  log.info(action + ': ' + (result?.message ?? 'done'));
+  return result;
 }

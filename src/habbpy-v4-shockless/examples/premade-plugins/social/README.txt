@@ -16,6 +16,7 @@ It does not replace the native panel; it shows how a third-party plugin can subs
 
 - `ui.panel`
 - `ui.status`
+- `ui.overlay`
 - `console.commands`
 - `events.room`
 - `engine.snapshot`
@@ -30,6 +31,7 @@ It does not replace the native panel; it shows how a third-party plugin can subs
 - Packet-backed friends list
 - Friend search
 - Packet-backed private messages
+- Private message top-right notifications
 - Packet-backed friend requests
 - Scoped private message relay command
 - Scoped friend request relay command
@@ -45,4 +47,4 @@ It does not replace the native panel; it shows how a third-party plugin can subs
 
 - The plugin keeps state in plugin-scoped storage.
 - Packet hooks observe and allow packets; they do not mutate traffic.
-- Raw packet injection, custom React panels, and custom console commands remain reserved host phases.
+- Raw packet sends require `packet.inject` and the validated packet builder. Custom React panels and arbitrary console command registration remain reserved host phases.

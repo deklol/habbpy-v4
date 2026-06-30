@@ -1,100 +1,28 @@
-const MODULE = {
-  "sourceModuleId": "connection",
-  "name": "Connection",
-  "summary": "Client/profile import, session lifecycle, active profile, status, and traffic facts.",
-  "capabilities": [
-    "Session list and active session selection",
-    "Compiled client import/build and Shockless profile registration",
-    "Profile selection and launch",
-    "Client state, traffic, crypto/status facts",
-    "Lifecycle controls"
-  ],
-  "permissions": [
-    "ui.panel",
-    "ui.status",
-    "console.commands",
-    "events.session",
-    "engine.snapshot",
-    "storage"
-  ],
-  "surfaces": [
-    {
-      "id": "panel",
-      "kind": "panel"
-    },
-    {
-      "id": "status",
-      "kind": "status"
-    },
-    {
-      "id": "commands",
-      "kind": "commands"
-    }
-  ]
-};
+// @name Connection Premade Module
+// @group session
+// @desc Readable user-plugin source reference for the built-in Connection module.
+// @runtime Habbpy v4 plugin API
 
 export async function activate(api) {
-  const { log, storage, events, packets } = api;
-  const disposers = [];
-  const state = { activatedAt: new Date().toISOString() };
-  await remember(storage, 'module', MODULE);
-  await remember(storage, 'state', state);
-  log.info(MODULE.name + ' premade module ready.');
+  const { log, storage, subscriptions, session, runtime, packets } = api;
+  const cleanup = subscriptions.create();
+  log.info("Connection helper ready: tracking selected session, runtime snapshot, and latest traffic.");
 
-  on(disposers, events, 'session.selected', async (event) => {
-    state.selectedClientId = event?.clientId ?? null;
-    await remember(storage, 'selectedClient', { clientId: state.selectedClientId });
-  });
-  on(disposers, events, 'runtime.snapshot', async (event) => {
-    const snapshot = snapshotFromEvent(event);
-    await remember(storage, 'connection', {
+  cleanup.add(session.onSelected((event) => storage.remember('selectedClient', { clientId: event?.clientId ?? null })));
+  cleanup.add(runtime.onSnapshot(async (event) => {
+    const stats = event?.snapshot?.performanceStats ?? {};
+    await storage.remember('connection', {
       clientId: event?.clientId ?? null,
-      roomReady: roomReady(snapshot),
-      room: roomSummary(snapshot),
-      userName: snapshot?.userState?.sessionUserName ?? null,
-      fps: snapshot?.performanceStats?.rafPerSecond ?? snapshot?.performanceStats?.rafRate ?? null,
+      room: event?.room ?? null,
+      userName: event?.snapshot?.userState?.sessionUserName ?? null,
+      fps: stats.rafPerSecond ?? stats.rafRate ?? null,
+      worstFrameMs: stats.worstRafDeltaMs ?? null,
     });
-  });
-  onPacket(disposers, packets, 'all', {}, async (packet) => {
-    await remember(storage, 'latestPacket', packetSummary(packet));
+  }));
+  cleanup.add(packets.on('all', {}, async (packet) => {
+    await storage.remember('latestTraffic', packets.summary(packet));
     return packet.allow();
-  });
+  }));
 
-  return () => {
-    for (const dispose of disposers) dispose();
-  };
-}
-
-function on(disposers, events, eventName, handler) {
-  disposers.push(events.on(eventName, handler));
-}
-
-function onPacket(disposers, packets, direction, filter, handler) {
-  disposers.push(packets.on(direction, filter, handler));
-}
-
-async function remember(storage, key, value) {
-  await storage.set(key, { value, updatedAt: new Date().toISOString() });
-}
-
-function snapshotFromEvent(event) {
-  return event?.snapshot ?? event?.runtime ?? event ?? null;
-}
-
-function roomReady(snapshot) {
-  return Boolean(snapshot?.roomReady?.ready ?? snapshot?.roomEntryState?.roomReady?.ready);
-}
-
-function roomSummary(snapshot) {
-  return {
-    id: snapshot?.room?.id ?? snapshot?.roomEntryState?.flatId ?? snapshot?.userState?.roomId ?? null,
-    name: snapshot?.room?.name ?? snapshot?.userState?.roomName ?? null,
-    owner: snapshot?.room?.owner ?? snapshot?.userState?.roomOwner ?? null,
-    type: snapshot?.room?.type ?? snapshot?.userState?.roomType ?? null,
-    ready: roomReady(snapshot),
-  };
-}
-
-function packetSummary(packet) {
-  return { clientId: packet?.clientId ?? null, direction: packet?.direction ?? null, header: packet?.header ?? null, packetName: packet?.packetName ?? 'UNKNOWN_HEADER', lineNumber: packet?.lineNumber ?? null, fields: packet?.decodedFields ?? [], bodyStatus: packet?.bodyStatus ?? null };
+  return cleanup.dispose;
 }

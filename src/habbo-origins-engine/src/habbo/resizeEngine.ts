@@ -86,19 +86,6 @@ export class OriginsResizeEngine {
   private roomStage: RoomStageState | null = null;
   private manualRoomOffsetX = 0;
   private manualRoomOffsetY = 0;
-  // Per wall wrapper, the rendered-image object we last produced at logical part
-  // positions. Lets us cheaply detect when source re-rendered the wall image (room
-  // build / setPartPattern) so we only re-run the expensive renderImage then.
-  private readonly wallLogicalImages = new WeakMap<ScriptInstance, object>();
-  // Per shadow (`other`) wrapper, the room offset that was applied when its image was
-  // last (re)rendered — i.e. the offset its baked-in parts already account for. The
-  // shadow sprite is then offset by how far the room has moved since.
-  private readonly shadowPlacement = new WeakMap<ScriptInstance, { image: object | undefined; ax: number; ay: number }>();
-  // The room offset baked into the current room's landscape image, captured once per
-  // room (by epoch) when the landscape first goes active. The landscape + cloud sprites
-  // are then offset only by how far the room has moved since. Re-captured on every room
-  // (re)entry so a stale baseline can't carry over and push the sky off-screen.
-  private landscapePlacement: { epochKey: string; ax: number; ay: number } | null = null;
 
   constructor(private readonly movie: DirectorMovie) {
     this.viewportWidth = movie.manifestStageWidth;
@@ -210,8 +197,6 @@ export class OriginsResizeEngine {
         this.roomStage?.instance === visualizer &&
         seenRoomStage?.instance === visualizer &&
         (Math.round(currentX) !== Math.round(seenRoomStage.locX) || Math.round(currentY) !== Math.round(seenRoomStage.locY));
-      const roomChanged =
-        !this.roomStage || this.roomStage.instance !== visualizer || this.roomStage.epochKey !== epochKey;
       if (!this.roomStage || this.roomStage.instance !== visualizer || this.roomStage.epochKey !== epochKey || sourceSnap) {
         this.roomStage = {
           instance: visualizer,
@@ -223,14 +208,6 @@ export class OriginsResizeEngine {
         };
         this.manualRoomOffsetX = 0;
         this.manualRoomOffsetY = 0;
-        // A genuine room change (new visualizer instance / layout) gets a freshly-built
-        // landscape image with a new baked-in offset, so the sky baseline must be
-        // recaptured. The epoch key is only `layout|wideOffset`, which two different rooms
-        // can share — keying the landscape placement by epoch alone left a STALE baseline
-        // from the previous room, anchoring the new room's sky off-screen ("sky derender"
-        // when leaving and rejoining a same-layout room). Clear it on the real room change
-        // (but not on in-room source re-baselines) so anchorLandscapeSprite recaptures.
-        if (roomChanged) this.landscapePlacement = null;
       }
       const targetX = Math.round(this.roomStage.baseX + roomOffsetX + this.manualRoomOffsetX);
       const targetY = Math.round(this.roomStage.baseY + roomOffsetY + this.manualRoomOffsetY);
@@ -244,18 +221,6 @@ export class OriginsResizeEngine {
         this.manualRoomOffsetX = Math.round(currentX - this.roomStage.baseX - roomOffsetX);
         this.manualRoomOffsetY = Math.round(currentY - this.roomStage.baseY - roomOffsetY);
       }
-      // Run every frame (not only when the room moved): source re-renders the wall
-      // image during room build AFTER our centering pass, so a one-shot render would
-      // be overwritten and the wall would sit mis-rendered until the next manual move.
-      // The image-identity skip inside keeps this cheap when nothing changed.
-      const stageAppliedX = Math.round(currentX - this.roomStage.baseX);
-      const stageAppliedY = Math.round(currentY - this.roomStage.baseY);
-      this.renderWallWrappersAtLogical(visualizer, stageAppliedX, stageAppliedY);
-      // Landscape (window sky/clouds): its masked image bakes in whatever room offset
-      // was applied when it was built; `anchorLandscapeSprite` records that baseline and
-      // offsets the sprite only by further room movement, so it tracks centering, drag
-      // AND resize without double-counting.
-      if (this.anchorLandscapeSprite(visualizer, stageAppliedX, stageAppliedY, anchors)) markChanged();
       this.updateSeen("Room_stage", visualizer, currentX, currentY);
       if (this.correctWrapperSpriteLocations(visualizer, currentX, currentY, anchors)) markChanged();
       if (this.resizeDimmerSprite(visualizer, anchors)) markChanged();
@@ -691,49 +656,38 @@ export class OriginsResizeEngine {
       if (!(sprite instanceof SpriteChannel) || !(offsets instanceof LingoList)) continue;
       const offsetX = this.numberValue(offsets.getAt(1), sprite.locH);
       const offsetY = this.numberValue(offsets.getAt(2), sprite.locV);
-      if (this.wrapperImageCarriesRoomOffset(typeDef)) {
-        // Shadow (`other`) wrapper: its image is rendered from furni shadow parts that
-        // source bakes at placement-time SCREEN coordinates (`geometry.getScreenCoordinate`)
-        // and `moveRoomBy` never moves, so on a stage move/resize the shadow lags. The
-        // image is only re-rendered when a furni shadow is added/removed — and at that
-        // moment the parts reflect the THEN-current room offset. So: each time the image
-        // changes (detected by identity), treat the current room offset as the shadow's
-        // baseline, then anchor the sprite by how far the room has moved since. This keeps
-        // the shadow under its furni across both drag and resize. (`offsetX/Y` is the
-        // shadow wrapper's `pOffsets` base, normally 0,0.)
-        const currentImage = this.spriteMemberImage(sprite);
-        let placement = this.shadowPlacement.get(wrapper);
-        if (!placement || placement.image !== currentImage) {
-          placement = { image: currentImage, ax: appliedX, ay: appliedY };
-          this.shadowPlacement.set(wrapper, placement);
+      const baselineKey = this.wrapperBaselineKey(wrappedParts, index, wrapper);
+      let baseline = roomStage.wrappers.get(baselineKey);
+      if (!baseline || baseline.instance !== wrapper) {
+        baseline = this.captureWrapperBaseline(wrapper, offsetX, offsetY, 0, 0);
+        roomStage.wrappers.set(baselineKey, baseline);
+      }
+      const wrapperAppliedX = Math.round(appliedX - baseline.appliedX);
+      const wrapperAppliedY = Math.round(appliedY - baseline.appliedY);
+      const contentShift = this.wrapperUniformPartShift(roomStage, baselineKey, wrapper);
+      const expectedSpriteMovedX = Math.round(offsetX + wrapperAppliedX);
+      const expectedSpriteMovedY = Math.round(offsetY + wrapperAppliedY);
+      if (contentShift && this.matchesRoomStageMove(contentShift, wrapperAppliedX, wrapperAppliedY)) {
+        if (this.spriteAt(sprite, expectedSpriteMovedX, expectedSpriteMovedY)) {
+          continue;
         }
-        const targetX = Math.round(offsetX + (appliedX - placement.ax));
-        const targetY = Math.round(offsetY + (appliedY - placement.ay));
-        if (sprite.locH !== targetX || sprite.locV !== targetY) {
-          sprite.locH = targetX;
-          sprite.locV = targetY;
-          changed = true;
-          anchors.push({
-            id: `wrapper:${String(wrappedParts.keys[index] ?? index + 1)}`,
-            kind: "sprite",
-            action: "shadow-follow",
-            x: targetX,
-            y: targetY,
-            note: typeDef,
-          });
-        }
+        sprite.locH = expectedSpriteMovedX;
+        sprite.locV = expectedSpriteMovedY;
+        changed = true;
+        anchors.push({
+          id: `wrapper:${String(wrappedParts.keys[index] ?? index + 1)}`,
+          kind: "sprite",
+          action: "wrapper-source-owned-corrected",
+          x: sprite.locH,
+          y: sprite.locV,
+          note: `${typeDef} stray→${expectedSpriteMovedX},${expectedSpriteMovedY}`,
+        });
         continue;
       }
-      // Floor and walls: the wrapper image is rendered once at the source-authored
-      // (logical) part positions and is NOT re-rendered when the room moves, so the
-      // visible wall/floor position is driven by the wrapper SPRITE. Anchor the sprite
-      // to the centered room offset. Do NOT touch `pPartList`: source `moveRoomBy`
-      // shifts wall parts for hit-testing and wall items read those parts via
-      // `getPartAtLocation`, so the parts must keep their room offset for wall items
-      // to stay attached to the wall.
-      const expectedX = Math.round(offsetX + appliedX);
-      const expectedY = Math.round(offsetY + appliedY);
+      const expectedX = expectedSpriteMovedX;
+      const expectedY = expectedSpriteMovedY;
       if (sprite.locH === expectedX && sprite.locV === expectedY) continue;
+      console.debug(`[resize] wrapper ${typeDef} sp${sprite.number}: sprite@${sprite.locH},${sprite.locV} → expected@${expectedX},${expectedY} (offsetX=${offsetX} wrapperApplied=${wrapperAppliedX},${wrapperAppliedY} applied=${appliedX},${appliedY} base=${roomStage.baseX},${roomStage.baseY})`);
       sprite.locH = expectedX;
       sprite.locV = expectedY;
       changed = true;
@@ -745,154 +699,6 @@ export class OriginsResizeEngine {
         y: expectedY,
         note: typeDef,
       });
-    }
-    return changed;
-  }
-
-  /**
-   * True only for the Shadow Manager wrapper (`typeDef #other`): its image is
-   * re-rendered every frame from parts at `geometry.getScreenCoordinate(...)`
-   * (offset room space), so the image already carries the room offset and the
-   * sprite must stay at the source `pOffsets` base — anchoring it would double the
-   * offset and drift with window size.
-   *
-   * Walls (`wallleft`/`wallright`) and the floor are NOT included: they are sprite-
-   * anchored. The wall wrapper image is rendered from LOGICAL part positions (see
-   * `renderWallWrappersAtLogical`) so it fits the fixed 960x540 wrapper buffer and
-   * does not clip, and the anchored sprite then positions that logical image at the
-   * centered room offset. (`moveRoomBy` shifts the wall *parts* by the room delta
-   * for wall-item placement via `getPartAtLocation`; those stay shifted.)
-   */
-  private wrapperImageCarriesRoomOffset(typeDef: string): boolean {
-    return typeDef === "other";
-  }
-
-  /**
-   * Re-render each `wallleft`/`wallright` wrapper image from its LOGICAL part
-   * positions, then restore the parts.
-   *
-   * `Visualizer Part Wrapper Class.renderImage` paints each part into a fixed
-   * `stage.sourceRect`-sized (960x540) image at the part's `locH/locV`. Source
-   * `Room Interface Class.moveRoomBy` shifts the wall parts by the room delta, so
-   * once the room is centered those parts sit far to the right and the wall paints
-   * partly (or fully) OUTSIDE the 960-wide buffer — it clips and "disappears" the
-   * further the room is moved (the parallax/vanishing-wall bug).
-   *
-   * Fix: temporarily subtract the applied room offset from the wall parts so the
-   * image renders at the logical (un-centered) positions that fit the buffer, force
-   * the re-render, then restore the parts to their shifted values (wall items read
-   * those via `getPartAtLocation`). The wrapper sprite is separately anchored by the
-   * room offset in `correctWrapperSpriteLocations`, which positions this logical
-   * image at the centered location — matching how the floor and wallpapered walls
-   * already render correctly. Only runs when the room actually moved.
-   */
-  private renderWallWrappersAtLogical(visualizer: ScriptInstance, appliedX: number, appliedY: number): void {
-    if (appliedX === 0 && appliedY === 0) return;
-    const wrappedParts = this.instanceProp(visualizer, "pwrappedparts");
-    if (!(wrappedParts instanceof LingoPropList)) return;
-    for (const wrapper of wrappedParts.values) {
-      if (!(wrapper instanceof ScriptInstance)) continue;
-      const typeDef = this.normalizedSymbol(this.instanceProp(wrapper, "ptypedef"));
-      if (typeDef !== "wallleft" && typeDef !== "wallright") continue;
-      const sprite = this.instanceProp(wrapper, "psprite");
-      const currentImage = this.spriteMemberImage(sprite);
-      // Cheap skip: if the wall still shows the logical image we produced last time,
-      // source has not re-rendered it (no room build / setPartPattern since), so the
-      // anchored sprite alone keeps it correct — avoid the costly renderImage. We
-      // re-render only when source has replaced the image (which happens at room load
-      // AFTER our centering pass and would otherwise leave the wall mis-rendered).
-      if (currentImage && this.wallLogicalImages.get(wrapper) === currentImage) continue;
-      const partList = this.instanceProp(wrapper, "ppartlist");
-      if (!(partList instanceof LingoList)) continue;
-      const saved: Array<{ part: LingoPropList; locH: number; locV: number }> = [];
-      for (const part of partList.items) {
-        if (!(part instanceof LingoPropList)) continue;
-        const locH = this.numberValue(this.propListLookup(part, "#locH"), 0);
-        const locV = this.numberValue(this.propListLookup(part, "#locV"), 0);
-        saved.push({ part, locH, locV });
-        part.setaProp(LingoSymbol.for("locH"), Math.round(locH - appliedX), lingoKeyEquals);
-        part.setaProp(LingoSymbol.for("locV"), Math.round(locV - appliedY), lingoKeyEquals);
-      }
-      if (saved.length === 0) continue;
-      const status = this.instanceProp(wrapper, "pwrapperstatus");
-      if (status instanceof LingoPropList) {
-        status.setaProp(LingoSymbol.for("rendered"), 0, lingoKeyEquals);
-      }
-      if (this.movie.runtime.hasHandler(wrapper, "renderimage")) {
-        this.movie.runtime.callMethod(wrapper, "renderimage", []);
-      }
-      for (const entry of saved) {
-        entry.part.setaProp(LingoSymbol.for("locH"), Math.round(entry.locH), lingoKeyEquals);
-        entry.part.setaProp(LingoSymbol.for("locV"), Math.round(entry.locV), lingoKeyEquals);
-      }
-      const renderedImage = this.spriteMemberImage(sprite);
-      if (renderedImage) this.wallLogicalImages.set(wrapper, renderedImage);
-    }
-  }
-
-  /** The rendered-image object currently shown by a wrapper sprite's member, used as
-   * an identity token to detect when source has re-rendered the wrapper image. */
-  private spriteMemberImage(value: LingoValue): object | undefined {
-    if (!(value instanceof SpriteChannel)) return undefined;
-    const member = (value as unknown as { member?: { image?: unknown } }).member;
-    const image = member?.image;
-    return image && typeof image === "object" ? (image as object) : undefined;
-  }
-
-  /**
-   * The room "landscape" — the sky/clouds seen through windows — is a single sprite,
-   * `visualizer.getSprByID("landscape")`, that source pins to logical (0,0) in
-   * `Landscape Manager.setActivate`. The sky is baked into its image (masked to the
-   * window holes); that mask is built from the wall geometry, so the image already
-   * accounts for whatever room offset was applied WHEN IT WAS BUILT. `moveRoomBy` never
-   * moves the sprite, so on later centering/drag/resize it goes stale.
-   *
-   * Fix (same idea as shadows): once per room (keyed by room epoch, re-captured on every
-   * (re)entry so it can't go stale across rooms), the first frame the landscape is active
-   * record the room offset then in force as the baseline the image already bakes in. From
-   * then on, offset the sprite only by how far the room has moved SINCE — so it tracks
-   * centering, drag and resize without double-counting. The cloud animation sprite copies
-   * the landscape sprite's loc only when
-   * source re-renders (`resetSprite`), which doesn't fire on a stage move, so move it in
-   * lockstep here too (its drifting is in the image, not the sprite loc).
-   */
-  private anchorLandscapeSprite(
-    visualizer: ScriptInstance,
-    appliedX: number,
-    appliedY: number,
-    anchors: ResizeEngineAnchor[],
-  ): boolean {
-    if (!this.movie.runtime.hasHandler(visualizer, "getsprbyid")) return false;
-    const sprite = this.movie.runtime.callMethod(visualizer, "getsprbyid", ["landscape"]);
-    if (!(sprite instanceof SpriteChannel)) return false;
-    const member = (sprite as unknown as { member?: unknown }).member;
-    if (!member || typeof member !== "object") return false; // landscape not active yet
-    const epochKey = this.roomStage?.epochKey ?? "";
-    if (!this.landscapePlacement || this.landscapePlacement.epochKey !== epochKey) {
-      // First active frame for this room: the landscape image already bakes in the room
-      // offset in force now (it goes active right after its image is built). Record that
-      // as the baseline; from here the sprite only follows further room movement.
-      this.landscapePlacement = { epochKey, ax: appliedX, ay: appliedY };
-    }
-    const placement = this.landscapePlacement;
-    const targetX = Math.round(appliedX - placement.ax);
-    const targetY = Math.round(appliedY - placement.ay);
-    let changed = false;
-    if (sprite.locH !== targetX || sprite.locV !== targetY) {
-      sprite.locH = targetX;
-      sprite.locV = targetY;
-      changed = true;
-      anchors.push({ id: "landscape", kind: "sprite", action: "landscape-follow", x: targetX, y: targetY });
-    }
-    const animMgr = this.object("landscape_animation_manager");
-    if (animMgr) {
-      const cloud = this.instanceProp(animMgr, "psprite");
-      if (cloud instanceof SpriteChannel && (cloud.locH !== targetX || cloud.locV !== targetY)) {
-        cloud.locH = targetX;
-        cloud.locV = targetY;
-        changed = true;
-        anchors.push({ id: "landscape_clouds", kind: "sprite", action: "landscape-clouds-follow", x: targetX, y: targetY });
-      }
     }
     return changed;
   }

@@ -1,68 +1,49 @@
-const MODULE = {
-  "sourceModuleId": "chat",
-  "name": "Chat",
-  "summary": "Room chat send, runtime/packet chat history, room markers, and v3-style filters.",
-  "capabilities": [
-    "Send room chat",
-    "Talk/whisper/shout/system filters",
-    "Display clear",
-    "Runtime chat history",
-    "Packet-backed CHAT/CHAT_2/CHAT_3 fallback rows",
-    "Room entry/clear markers from runtime room events"
-  ],
-  "permissions": [
-    "ui.panel",
-    "ui.status",
-    "console.commands",
-    "events.room",
-    "engine.snapshot",
-    "events.chat",
-    "chat.send",
-    "storage"
-  ],
-  "surfaces": [
-    {
-      "id": "panel",
-      "kind": "panel"
-    },
-    {
-      "id": "status",
-      "kind": "status"
-    },
-    {
-      "id": "commands",
-      "kind": "commands"
-    }
-  ]
-};
+// @name Chat Premade Module
+// @group social
+// @desc Readable user-plugin source reference for the built-in Chat module.
+// @runtime Habbpy v4 plugin API
 
 export async function activate(api) {
-  const { log, storage, events, chat } = api;
-  const disposers = [];
-  const state = { activatedAt: new Date().toISOString() };
-  await remember(storage, 'module', MODULE);
-  await remember(storage, 'state', state);
-  log.info(MODULE.name + ' premade module ready.');
+  const { log, storage, subscriptions, chat, ui } = api;
+  const cleanup = subscriptions.create();
+  log.info("Chat helper ready: listening to room chat and routing say/shout/whisper actions.");
 
+  const controls = { chatMessage: '', whisperTarget: '' };
   const chatLog = [];
-  on(disposers, events, 'chat.message', async (event) => {
+  cleanup.add(chat.onMessage(async (event) => {
     chatLog.push({ clientId: event?.clientId ?? null, user: event?.user?.name ?? event?.name ?? null, text: event?.text ?? '', mode: event?.mode ?? null, at: new Date().toISOString() });
-    await remember(storage, 'chat', chatLog.slice(-100));
-  });
-  async function say(message, clientId) {
-    return chat.send(message, { clientId });
-  }
-  await remember(storage, 'availableActions', ['say(message, clientId)']);
+    await storage.remember('chat', chatLog.slice(-100));
+  }));
+  cleanup.add(ui.onAction(async (event) => {
+    rememberControlValue(controls, event);
+    switch (event?.action) {
+      case 'chat.say':
+        return rememberResult(storage, log, 'Say', chat.say(textValue(controls.chatMessage)));
+      case 'chat.shout':
+        return rememberResult(storage, log, 'Shout', chat.shout(textValue(controls.chatMessage)));
+      case 'chat.whisper':
+        return rememberResult(storage, log, 'Whisper', chat.whisper(textValue(controls.whisperTarget), textValue(controls.chatMessage)));
+      default:
+        return undefined;
+    }
+  }));
 
-  return () => {
-    for (const dispose of disposers) dispose();
-  };
+  return cleanup.dispose;
 }
 
-function on(disposers, events, eventName, handler) {
-  disposers.push(events.on(eventName, handler));
+function rememberControlValue(target, event) {
+  if (!event?.elementId || !("value" in event)) return;
+  target[event.elementId] = event.value;
 }
 
-async function remember(storage, key, value) {
-  await storage.set(key, { value, updatedAt: new Date().toISOString() });
+function textValue(value, fallback = '') {
+  const text = String(value ?? '').trim();
+  return text || fallback;
+}
+
+async function rememberResult(storage, log, action, task) {
+  const result = await task;
+  await storage.remember('lastAction', { action, result });
+  log.info(action + ': ' + (result?.message ?? 'done'));
+  return result;
 }

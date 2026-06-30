@@ -8,7 +8,7 @@ export function BootSplash({ booting }: BootSplashProps) {
       <div className="boot-inner">
         <div className="boot-brand">
           <img className="boot-sprite" src="./img/headicon.png" alt="" aria-hidden="true" />
-          <span className="boot-title">Habbpy v4</span>
+          <span className="boot-title">Shockless Engine</span>
         </div>
         <div className="boot-bar">
           <span />

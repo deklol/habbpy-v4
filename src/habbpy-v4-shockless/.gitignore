@@ -10,4 +10,4 @@ logs/
 .env
 .env.*
 *.local
-
+.private-plugins/

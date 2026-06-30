@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -556,12 +556,12 @@
           This page lists every API exposed to user plugins by
           <code>src/renderer/userPluginHost.ts</code>. Plugins run in a
           restricted renderer Worker and use grouped APIs for game state,
-          packets, runtime control, avatar actions, furniture, Fishing,
-          Gardening, social actions, storage, and session data.
+          packets, runtime control, avatar actions, furniture, typed domain
+          actions, social actions, storage, and session data.
         </p>
         <div class="facts">
-          <div class="fact"><strong>22</strong><span>API groups</span></div>
-          <div class="fact"><strong>69</strong><span>callable methods</span></div>
+          <div class="fact"><strong>26</strong><span>API groups</span></div>
+          <div class="fact"><strong>89</strong><span>callable methods</span></div>
           <div class="fact"><strong>23</strong><span>permissions</span></div>
           <div class="fact"><strong>23</strong><span>named event families</span></div>
         </div>
@@ -574,15 +574,16 @@
             <h3>Plugin Entry</h3>
             <p>Each user plugin exports <code>activate(api)</code>. Return a disposer when the plugin subscribes to events.</p>
             <pre><code>export async function activate(api) {
-  const { events, log, avatar, storage } = api;
+  const { avatar, log, room, storage, subscriptions } = api;
+  const cleanup = subscriptions.create();
   const enabled = await storage.get("enabled", true);
   if (enabled) await avatar.wave();
 
-  const off = events.on("room.ready", (event) => {
-    log.info(`Ready in ${event.room.name}`);
-  });
+  cleanup.add(room.onReady((event) => {
+    log.info(`Ready in ${event.room?.name ?? "unknown"}`);
+  }));
 
-  return () => off();
+  return cleanup.dispose;
 }</code></pre>
           </div>
           <div class="card">
@@ -693,9 +694,10 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
           </thead>
           <tbody>
             <tr><td><code>console.registerCommand()</code></td><td>Reserved for the command registry phase. Manifest command declarations can be persisted, but runtime registration is not active.</td></tr>
-            <tr><td><code>ui.registerPanel()</code></td><td>Reserved for plugin-rendered custom panels. Manifest-backed panels are supported today.</td></tr>
+            <tr><td><code>ui.registerSurface()</code> / <code>ui.updateSurface()</code></td><td>Implemented for host-rendered schema layouts. <code>ui.registerPanel()</code> is a compatibility alias, not a React/HTML panel hook.</td></tr>
+            <tr><td>Schema controls</td><td>Supported controls include headers, text, notices, sections, buttons, <code>buttonGrid</code>, toggles, inputs, selects, keybinds, key/value rows, logs, and selectable tables with <code>rowKey</code>, <code>selectedRowKey</code>, <code>rowAction</code>, and <code>maxRows</code>.</td></tr>
             <tr><td><code>packets.send()</code></td><td>Implemented for client-to-server Shockwave packets through the validated builder. Known action helpers remain preferred for normal gameplay actions.</td></tr>
-            <tr><td>Selected visible runtime</td><td>Stage clicks, Navigator control, window clicks, room entry, chat sending, client rights, and selector-based room object reads currently target the selected visible runtime.</td></tr>
+            <tr><td>Selected visible runtime</td><td>Stage clicks, Navigator control, window clicks, room entry, client rights, and selector-based room object reads currently target the selected visible runtime. Chat helpers can route to target relay sessions for packet-backed modes.</td></tr>
             <tr><td>Security boundary</td><td>User plugins do not receive Node, Electron, filesystem, account credentials, webhook values, or raw local test files.</td></tr>
             <tr><td>Known actions</td><td>Use typed domain APIs for known actions. Use packet observation for discovery or local events when no first-class event exists yet.</td></tr>
           </tbody>
@@ -723,7 +725,10 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
       ["actions.furni", "Send validated floor and wall furniture packets."],
       ["actions.plants", "Send validated Gardening plant packets."],
       ["actions.wallItems", "Send validated legacy wall item packets."],
-      ["chat.send", "Send room chat through the selected visible runtime."],
+      ["chat.say", "Send normal room chat through the selected or target client."],
+      ["chat.shout", "Send room shout through the validated SHOUT packet."],
+      ["rooms.leave", "Leave the current room through QUIT [53]."],
+      ["teleport.enter", "Resolve, walk to, and use a teleport item."],
       ["storage", "Use plugin-scoped local storage."],
       ["packet.read", "Read non-sensitive decrypted packet metadata."],
       ["packet.inject", "Send validated client-to-server Shockwave packets through packets.send()."],
@@ -757,6 +762,15 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
         ]
       },
       {
+        id: "subscriptions",
+        name: "subscriptions",
+        summary: "Collect event and packet disposers for readable plugin shutdown.",
+        permission: "none",
+        methods: [
+          ["subscriptions.create()", "CleanupCollector", "Returns { add, addAll, dispose } for cleanup.add(room.onReady(...)) style scripts.", "const cleanup = subscriptions.create()"]
+        ]
+      },
+      {
         id: "events",
         name: "events",
         summary: "Subscribe to host events, emit plugin-local events, and derive events from packets.",
@@ -764,6 +778,7 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
         methods: [
           ["events.on(name, handler)", "() => void", "Subscribes to an event and returns a disposer.", "const off = events.on('room.ready', handler)"],
           ["events.once(name, options?)", "Promise<payload>", "Waits for the next event. Supports { timeoutMs } or { timeout }.", "await events.once('room.ready', { timeoutMs: 15000 })"],
+          ["events.waitFor(name, options?)", "Promise<payload>", "Readable alias for events.once().", "await events.waitFor('room.ready', { timeoutMs: 15000 })"],
           ["events.emit(name, payload?)", "true", "Emits a plugin-local custom event inside the same Worker.", "events.emit('myPlugin.ready', { ok: true })"],
           ["events.defineFromPacket(eventName, direction, filter, mapper)", "() => void", "Creates a plugin-local event from matching packet rows. Mapper return undefined to skip.", "events.defineFromPacket('plants.watered', 'server', { header: 540 }, p => ({ packet: p }))"]
         ]
@@ -774,8 +789,12 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
         summary: "Observe packet rows and send validated client-to-server Shockwave packets.",
         permission: "events.packet, packet.read, packet.intercept, or packet.inject",
         methods: [
+          ["packets.summary(packet)", "PacketSummary", "Returns a compact packet object for logs or storage.", "await storage.remember('packet', packets.summary(packet))"],
+          ["packets.hasName(packet, ...names)", "boolean", "Checks exact or containing packet-name matches.", "if (packets.hasName(packet, 'messenger', 'friend')) return packet.allow()"],
+          ["packets.field(packet, labelOrRegex)", "DecodedField|null", "Finds a decoded field by label string or regex.", "const name = packets.field(packet, /friend \d+ name/i)?.value"],
           ["packets.on(direction, filter, handler)", "() => void", "Subscribes to packet events. Direction is server, client, all, or *.", "packets.on('server', { packetName: 'USERS' }, packet => packet.allow())"],
           ["packets.once(direction, filter, options?)", "Promise<PacketEvent>", "Waits for the next matching packet. Supports { timeoutMs }.", "await packets.once('server', { header: 28 }, { timeoutMs: 5000 })"],
+          ["packets.waitFor(direction, filter, options?)", "Promise<PacketEvent>", "Readable alias for packets.once().", "await packets.waitFor('server', { packetName: 'USERS' })"],
           ["packets.send(clientId, packet)", "Promise<Result>", "Requires packet.inject. Sends a validated client packet through the target client's relay control path. Supports header, packetName, bodyBytes, bodyHex, bodyText, bodyEscapedText, or full packetText.", "await packets.send(2, { packetName: 'WAVE' })"]
         ]
       },
@@ -791,10 +810,14 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
       {
         id: "chat",
         name: "chat",
-        summary: "Send room chat through the selected visible runtime.",
-        permission: "chat.send",
+        summary: "Send chat and subscribe to parsed room chat messages.",
+        permission: "chat.send or events.chat",
         methods: [
-          ["chat.send(message, options?)", "Promise<Result>", "Sends a non-empty room chat message up to 240 characters. Currently selected visible client only.", "await chat.send(':chooser')"]
+          ["chat.send(message, options?)", "Promise<Result>", "Sends normal room chat. Selected visible clients use the Director helper; other clients use validated CHAT [52].", "await chat.say('hello')"],
+          ["chat.say(message, options?)", "Promise<Result>", "Readable alias for normal room chat.", "await chat.say('hello')"],
+          ["chat.shout(message, options?)", "Promise<Result>", "Sends room shout through validated SHOUT [55].", "await chat.shout('hello')"],
+          ["chat.whisper(targetName, message, options?)", "Promise<Result>", "Sends room whisper through validated WHISPER [56].", "await chat.whisper('dek', 'hello')"],
+          ["chat.onMessage(handler)", "() => void", "Subscribes to parsed chat.message events.", "cleanup.add(chat.onMessage(({ text }) => log.info(text)))"]
         ]
       },
       {
@@ -807,13 +830,39 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
         ]
       },
       {
+        id: "room",
+        name: "room",
+        summary: "Readable room state and room event helpers.",
+        permission: "events.room or engine.snapshot depending on method",
+        methods: [
+          ["room.getState(options?)", "Promise<Snapshot>", "Readable selected-runtime snapshot request.", "const snapshot = await room.getState()"],
+          ["room.itemKey(item) / room.userKey(user)", "string", "Stable keys for live state maps.", "items.set(room.itemKey(item), item)"],
+          ["room.objectId(item)", "number|null", "Extracts the numeric room object/item id when available.", "const id = room.objectId(item)"],
+          ["room.summarizeItem(item)", "RoomItemSummary|null", "Returns compact UI/storage-safe item facts.", "await storage.remember('item', room.summarizeItem(item))"],
+          ["room.summarizeItems(items)", "RoomItemSummary[]", "Summarizes a list of live room item payloads.", "const rows = room.summarizeItems(event.items)"],
+          ["room.countItems(event)", "{ users, floor, wall, all }", "Counts users/floor/wall/all item rows from a room item event.", "const counts = room.countItems(event)"],
+          ["room.floorItemsFromSnapshot(snapshot)", "RoomItem[]", "Extracts floor/passive objects from a runtime snapshot.", "const items = room.floorItemsFromSnapshot(snapshot)"],
+          ["room.wallItemsFromSnapshot(snapshot)", "RoomItem[]", "Extracts wall objects from a runtime snapshot.", "const wallItems = room.wallItemsFromSnapshot(snapshot)"],
+          ["room.keepSelectedItem(selected, items)", "RoomItem|null", "Preserves a selected item by id across room updates.", "selected = room.keepSelectedItem(selected, event.items)"],
+          ["room.keepSelectedWallItem(selected, items)", "RoomItem|null", "Wall-item alias for preserving selected wall objects.", "selectedWall = room.keepSelectedWallItem(selectedWall, event.wallItems)"],
+          ["room.onReady(handler)", "() => void", "Subscribes to room.ready.", "cleanup.add(room.onReady(handler))"],
+          ["room.onUsers(handler)", "() => void", "Subscribes to room.users.", "cleanup.add(room.onUsers(handler))"],
+          ["room.onUserJoined/Left(handler)", "() => void", "Subscribes to visitor deltas.", "cleanup.add(room.onUserJoined(({ user }) => log.info(user.name)))"],
+          ["room.onItems(handler)", "() => void", "Subscribes to full parsed room item payloads.", "cleanup.add(room.onItems(handler))"],
+          ["room.onItemAdded/Updated/Removed(handler)", "() => void", "Subscribes to generic item deltas.", "cleanup.add(room.onItemUpdated(handler))"],
+          ["room.onFloorItemAdded/Updated/Removed(handler)", "() => void", "Subscribes to floor/passive item deltas.", "cleanup.add(room.onFloorItemAdded(handler))"],
+          ["room.onWallItemAdded/Updated/Removed(handler)", "() => void", "Subscribes to wall item deltas.", "cleanup.add(room.onWallItemUpdated(handler))"]
+        ]
+      },
+      {
         id: "rooms",
         name: "rooms",
         summary: "Enter private or public rooms through the runtime.",
         permission: "engine.control",
         methods: [
           ["rooms.enterPrivateRoom(flatId, options?)", "Promise<Result>", "Runs private room entry for the selected visible runtime and waits until ready.", "await rooms.enterPrivateRoom(12345)"],
-          ["rooms.enterPublicRoom(query, options?)", "Promise<Result>", "Runs public room Navigator entry for the selected visible runtime.", "await rooms.enterPublicRoom('Infobus Park')"]
+          ["rooms.enterPublicRoom(query, options?)", "Promise<Result>", "Runs public room Navigator entry for the selected visible runtime.", "await rooms.enterPublicRoom('Infobus Park')"],
+          ["rooms.leave(options?)", "Promise<Result>", "Leaves the current room through the typed QUIT [53] room relay action. Supports options.clientId.", "await rooms.leave({ clientId })"]
         ]
       },
       {
@@ -851,6 +900,15 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
         ]
       },
       {
+        id: "teleport",
+        name: "teleport",
+        summary: "Enter teleport-style floor items without writing packet code.",
+        permission: "actions.furni, engine.snapshot, and actions.avatar unless walk is false",
+        methods: [
+          ["teleport.enter(selector, options?)", "Promise<Result & { item, walk }>", "Resolves a floor item by id/name/class/query, optionally walks to it, then uses it through SET_STUFF_DATA [74].", "await teleport.enter({ query: 'teleport', kind: 'floor' })"]
+        ]
+      },
+      {
         id: "social",
         name: "social",
         summary: "Messenger, friend request, and follow actions.",
@@ -868,7 +926,7 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
       {
         id: "plants",
         name: "plants",
-        summary: "Explicit v3-style Gardening plant steps.",
+        summary: "Low-level typed plant item actions.",
         permission: "actions.plants",
         methods: [
           ["plants.movePlant(objectId, x, y, direction = 0, options?)", "Promise<Result>", "Moves a plant/floor object to a tile. Supports options.clientId.", "await plants.movePlant(1001, 7, 8, 2)"],
@@ -893,11 +951,12 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
         summary: "Find, move, rotate, and pick up floor or wall furniture.",
         permission: "engine.snapshot for find/selectors, actions.furni for actions",
         methods: [
+          ["furni.wallMoveLocation(item, options?)", "WallMoveLocation|null", "Builds a wall move selector/location from parsed wall/local coordinates. Supports deltaX, deltaY, and orientation.", "const next = furni.wallMoveLocation(poster, { deltaX: 1 })"],
           ["furni.findItems(selector = {}, options?)", "Promise<RoomItemPayload[]>", "Finds live room items by selector. options.kind can be floor, wall, or all.", "const chairs = await furni.findItems({ query: 'chair', kind: 'floor' })"],
           ["furni.findItem(selector = {}, options?)", "Promise<RoomItemPayload | null>", "Returns the first matching live room item.", "const poster = await furni.findItem({ kind: 'wall', query: 'poster' })"],
           ["furni.moveFloorItem(selector, x, y, direction = null, options?)", "Promise<Result & { item }>", "Moves a floor/passive item. Numeric ids can avoid snapshot lookup when x/y/direction are supplied.", "await furni.moveFloorItem('chair', 5, 7, 2)"],
           ["furni.rotateFloorItem(selector, direction, options?)", "Promise<Result & { item }>", "Rotates a floor/passive item while preserving/resolving tile coordinates.", "await furni.rotateFloorItem(12345, 4)"],
-          ["furni.useFloorItem(selector, value = '0', options?)", "Promise<Result & { item }>", "Uses a floor/passive item through SET_STUFF_DATA [74]. Numeric ids can avoid snapshot lookup; selectors require engine.snapshot.", "await furni.useFloorItem({ className: 'toby_hammer' }, '0')"],
+          ["furni.useFloorItem(selector, value = '0', options?)", "Promise<Result & { item }>", "Uses a floor/passive item through SET_STUFF_DATA [74]. Numeric ids can avoid snapshot lookup; selectors require engine.snapshot.", "await furni.useFloorItem({ query: 'switch', kind: 'floor' }, '0')"],
           ["furni.pickupFloorItem(selector, options?)", "Promise<Result & { item }>", "Picks up a floor/passive item by id or selector.", "await furni.pickupFloorItem({ objectId: 12345 })"],
           ["furni.moveWallItem(selector, location, options?)", "Promise<Result & { item }>", "Moves a wall item by absolute wall/local coordinates or delta from parsed location.", "await furni.moveWallItem('poster', { deltaX: 1 })"],
           ["furni.pickupWallItem(selector, options?)", "Promise<Result & { item }>", "Picks up a wall item by id or selector.", "await furni.pickupWallItem('poster')"],
@@ -924,6 +983,16 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
         ]
       },
       {
+        id: "runtime",
+        name: "runtime",
+        summary: "Readable selected-runtime snapshot helpers.",
+        permission: "engine.snapshot",
+        methods: [
+          ["runtime.getSnapshot(options?)", "Promise<Snapshot>", "Readable form of engine.getSnapshot(clientId).", "const snapshot = await runtime.getSnapshot()"],
+          ["runtime.onSnapshot(handler)", "() => void", "Subscribes to runtime.snapshot and returns a disposer.", "cleanup.add(runtime.onSnapshot(({ room }) => log.info(room?.name)))"]
+        ]
+      },
+      {
         id: "engine",
         name: "engine",
         summary: "Read runtime snapshots.",
@@ -942,7 +1011,7 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
           ["client.setRights(rights, options?)", "Promise<Result>", "Replaces rights with an array or comma/space-separated string.", "await client.setRights(['fuse_habbo_chooser'])"],
           ["client.grantRights(rights, options?)", "Promise<Result>", "Adds rights to the selected visible runtime.", "await client.grantRights('fuse_debug_window')"],
           ["client.removeRights(rights, options?)", "Promise<Result>", "Removes rights from the selected visible runtime.", "await client.removeRights(['fuse_debug_window'])"],
-          ["client.enableChooserCommands(options?)", "Promise<Result>", "Grants fuse_habbo_chooser and fuse_furni_chooser.", "await client.enableChooserCommands()"]
+          ["client.enableChooserCommands(options?)", "Promise<Result>", "Advanced convenience wrapper for chooser-related source runtime rights; no public addon enables it by default.", "await client.enableChooserCommands()"]
         ]
       },
       {
@@ -951,7 +1020,8 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
         summary: "Read multi-client session state.",
         permission: "events.session",
         methods: [
-          ["session.getClients()", "Promise<ClientSessionList>", "Returns selectedClientId, mainClientId, and client summaries.", "const clients = await session.getClients()"]
+          ["session.getClients()", "Promise<ClientSessionList>", "Returns selectedClientId, mainClientId, and client summaries.", "const clients = await session.getClients()"],
+          ["session.onSelected(handler)", "() => void", "Subscribes to selected-client changes.", "cleanup.add(session.onSelected(({ clientId }) => log.info(clientId)))"]
         ]
       },
       {
@@ -962,6 +1032,7 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
         methods: [
           ["storage.get(key, fallbackValue = null)", "Promise<any>", "Reads JSON data. Returns fallback when null or undefined.", "const enabled = await storage.get('enabled', true)"],
           ["storage.set(key, value)", "Promise<true>", "Stores JSON data under the plugin id and key.", "await storage.set('enabled', true)"],
+          ["storage.remember(key, value)", "Promise<true>", "Stores { value, updatedAt } without repeating timestamp boilerplate.", "await storage.remember('lastRoom', event.room)"],
           ["storage.delete(key)", "Promise<true>", "Deletes one plugin-scoped key.", "await storage.delete('enabled')"]
         ]
       },
@@ -977,10 +1048,14 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
       {
         id: "ui",
         name: "ui",
-        summary: "Reserved plugin-rendered UI registration.",
+        summary: "Host-rendered schema UI registration and updates.",
         permission: "ui.panel",
         methods: [
-          ["ui.registerPanel(surface)", "Promise<{ ok: false, message }>", "Reserved for plugin-rendered panel phase. Manifest-backed panels are supported today.", "await ui.registerPanel({ id: 'panel' })"]
+          ["ui.registerSurface(surface)", "Promise<{ ok, message }>", "Create or replace a host-rendered schema surface. surface.layout must be non-empty.", "await ui.registerSurface({ id: 'panel', layout })"],
+          ["ui.registerPanel(surface)", "Promise<{ ok, message }>", "Compatibility alias for registerSurface; it does not mount React or HTML.", "await ui.registerPanel({ id: 'panel', layout })"],
+          ["ui.updateSurface(surfaceId, layout)", "Promise<{ ok, message }>", "Replace a declared schema surface at runtime.", "await ui.updateSurface('panel', layout)"],
+          ["ui.setValue(key, value)", "Promise<{ ok, message }>", "Update a schema control value displayed by the host renderer.", "await ui.setValue('enabled', true)"],
+          ["ui.onAction(handler)", "dispose function", "Subscribe to schema control events from buttons, button grids, selectable table rows, toggles, inputs, selects, and keybinds.", "const off = ui.onAction((event) => log.info(event.action))"]
         ]
       }
     ];
@@ -1038,26 +1113,27 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
         name: "Welcome Message",
         build: "Greet each non-self user when they enter the room.",
         permissions: "events.room, chat.send, storage",
-        apis: "events.on('room.userJoined'), chat.send(), storage.get/set()",
+        apis: "room.onUserJoined(), chat.say(), storage.get/set()",
         notes: "Use storage to remember greeted users if you do not want repeat welcomes after reconnects.",
-        code: `export function activate({ events, chat, log }) {
-  const off = events.on("room.userJoined", async ({ user }) => {
+        code: `export function activate({ room, chat, log, subscriptions }) {
+  const cleanup = subscriptions.create();
+  cleanup.add(room.onUserJoined(async ({ user }) => {
     if (user.isSelf || !user.name) return;
-    await chat.send(\`Welcome \${user.name}!\`);
+    await chat.say(\`Welcome \${user.name}!\`);
     log.info(\`Welcomed \${user.name}\`);
-  });
-  return () => off();
+  }));
+  return cleanup.dispose;
 }`
       },
       {
         name: "Auto Hide Bulletin",
         build: "Click a known runtime window element after login or room-ready when the bulletin/news window exists.",
         permissions: "engine.snapshot, engine.control, events.room",
-        apis: "events.once('room.ready'), engine.getSnapshot(), windows.clickElement()",
+        apis: "events.waitFor('room.ready'), runtime.getSnapshot(), windows.clickElement()",
         notes: "Window ids/elements must come from the live runtime snapshot. Do not blindly click screen coordinates.",
-        code: `export async function activate({ events, engine, windows, log }) {
-  await events.once("room.ready", { timeoutMs: 30000 });
-  const snapshot = await engine.getSnapshot();
+        code: `export async function activate({ events, runtime, windows, log }) {
+  await events.waitFor("room.ready", { timeoutMs: 30000 });
+  const snapshot = await runtime.getSnapshot();
   const news = snapshot?.windowState?.windowIds?.find((id) =>
     /bulletin|welcome|news/i.test(String(id))
   );
@@ -1068,35 +1144,24 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
 }`
       },
       {
-        name: "Chooser / Furni Rights Toggle",
-        build: "Enable clientside chooser and furni commands for the selected visible runtime, then open the UI through normal chat.",
-        permissions: "client.rights, chat.send",
-        apis: "client.enableChooserCommands(), client.grantRights(), chat.send()",
-        notes: "These are clientside source rights only. They do not grant server account privileges.",
-        code: `export async function activate({ client, chat, log }) {
-  await client.enableChooserCommands();
-  await chat.send(":chooser");
-  log.info("Chooser rights enabled for selected runtime.");
-}`
-      },
-      {
         name: "Room Visitor Tracker",
         build: "Maintain a current/seen visitor list and log joins/leaves.",
         permissions: "events.room, storage",
-        apis: "events.on('room.users'), events.on('room.userJoined'), events.on('room.userLeft'), storage.set()",
+        apis: "room.onUsers(), room.onUserJoined(), room.onUserLeft(), storage.set()",
         notes: "Use accountId/name from the user payload. Bots are flagged with isBot/kind.",
-        code: `export function activate({ events, storage, log }) {
+        code: `export function activate({ room, storage, log, subscriptions }) {
+  const cleanup = subscriptions.create();
   const seen = new Set();
-  const joined = events.on("room.userJoined", async ({ user }) => {
+  cleanup.add(room.onUserJoined(async ({ user }) => {
     if (user.isBot || !user.name) return;
     seen.add(user.name);
     await storage.set("seenUsers", [...seen]);
     log.info(\`\${user.name} joined.\`);
-  });
-  const left = events.on("room.userLeft", ({ user }) => {
+  }));
+  cleanup.add(room.onUserLeft(({ user }) => {
     if (!user.isBot && user.name) log.info(\`\${user.name} left.\`);
-  });
-  return () => { joined(); left(); };
+  }));
+  return cleanup.dispose;
 }`
       },
       {
@@ -1115,63 +1180,10 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
 }`
       },
       {
-        name: "Use Event Furni",
-        build: "Find a live floor item, walk to it, and use it with the typed SET_STUFF_DATA route.",
-        permissions: "engine.snapshot, actions.avatar, actions.furni",
-        apis: "furni.findItem(), avatar.walkTo(), furni.useFloorItem()",
-        notes: "This is the safe typed API path used by built-in event-item handling for toby_hammer and anniv_present_gen* objects. Untested live route: event-present behavior is documented but not marked proven until matching Origins event data is available.",
-        code: `export async function activate({ avatar, furni, log }) {
-  const hammer = await furni.findItem({ className: "toby_hammer", kind: "floor" });
-  if (!hammer?.tile) return log.warn("No hammer in room.");
-  await avatar.walkTo(hammer.tile.x, hammer.tile.y, Number(hammer.objectId));
-  await furni.useFloorItem(hammer, "0");
-  log.info("Hammer use routed through SET_STUFF_DATA.");
-}`
-      },
-      {
-        name: "Gardening Helper",
-        build: "Locate plant-like furni, move it beside the avatar, water/harvest/compost, then move it back.",
-        permissions: "engine.snapshot, actions.plants, actions.avatar",
-        apis: "engine.getSnapshot(), furni.findItems(), avatar.walkTo(), plants.movePlant(), plants.waterPlant(), plants.harvestPlant()",
-        notes: "Keep each step explicit with timers and retries. Do not hide the whole workflow behind one opaque call.",
-        code: `export async function activate({ furni, plants, timers, log }) {
-  const plant = await furni.findItem({ query: "plant", kind: "floor" });
-  if (!plant?.tile) return log.warn("No plant found.");
-  const original = plant.tile;
-  await plants.movePlant(Number(plant.objectId), 6, 7, original.direction);
-  await timers.sleep(500);
-  await plants.waterPlant(Number(plant.objectId));
-  await timers.sleep(500);
-  await plants.harvestPlant(Number(plant.objectId));
-  await plants.movePlant(Number(plant.objectId), original.x, original.y, original.direction);
-}`
-      },
-      {
-        name: "Fishing Safety Bot",
-        build: "Watch Fishing state, leave automation idle if other humans are present, and start only when an area exists.",
-        permissions: "engine.snapshot, actions.fishing, actions.avatar, events.room",
-        apis: "fishing.getState(), fishing.walkToArea(), fishing.startFishing(), events.on('runtime.snapshot')",
-        notes: "Fishing areas spawn over time. Poll or listen for snapshots instead of assuming an area is present immediately.",
-        code: `export async function activate({ fishing, timers, log }) {
-  for (;;) {
-    const state = await fishing.getState();
-    if (!state.occupants.safeToAutomate) {
-      log.warn("Other players present; waiting.");
-    } else if (state.areas.length > 0) {
-      await fishing.walkToArea(state.areas[0].id);
-      await fishing.startFishing(state.areas[0].id);
-      log.info("Started fishing.");
-      return;
-    }
-    await timers.sleep(1500);
-  }
-}`
-      },
-      {
         name: "Packet Discovery Event",
         build: "Create a local event from raw packets before the host has a first-class named event.",
         permissions: "events.packet, packet.read",
-        apis: "packets.on(), packets.once(), events.defineFromPacket(), events.on()",
+        apis: "packets.on(), packets.waitFor(), events.defineFromPacket(), events.on()",
         notes: "Packet-derived events are local to the plugin. Promote stable discoveries into host events later.",
         code: `export function activate({ events, log }) {
   const offPacket = events.defineFromPacket(
@@ -1190,7 +1202,7 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
         name: "Validated Packet Sender",
         build: "Send a client packet that does not yet have a typed helper, while keeping login/key packets blocked.",
         permissions: "packet.inject, packet.read",
-        apis: "packets.send(), packets.once()",
+        apis: "packets.send(), packets.waitFor()",
         notes: "Use typed APIs for normal actions. Raw packet send accepts known packetName values or numeric headers plus one byte-safe body source.",
         code: `export async function activate({ packets, session, log }) {
   const clients = await session.getClients();
@@ -1218,13 +1230,14 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
         name: "Room Item Alert",
         build: "React when a watched item appears, moves, or disappears.",
         permissions: "events.room",
-        apis: "events.on('room.itemAdded'), events.on('room.itemUpdated'), events.on('room.itemRemoved')",
+        apis: "room.onItemAdded(), room.onItemUpdated(), room.onItemRemoved()",
         notes: "Use item.searchText, item.className, item.ownerName, tile, and wallLocation instead of reparsing packets.",
-        code: `export function activate({ events, log }) {
-  return events.on("room.itemUpdated", ({ item, previous }) => {
-    if (!/roller|gate|plant/i.test(item.searchText)) return;
-    log.info(\`\${item.name || item.className} changed from \${previous?.tile?.x ?? "-"} to \${item.tile?.x ?? "-"}\`);
-  });
+        code: `export function activate({ room, log, subscriptions }) {
+  const cleanup = subscriptions.create();
+  cleanup.add(room.onItemUpdated(({ item, previous }) => {
+    log.info(\`\${item.name ?? item.className} changed from \${previous?.state} to \${item.state}\`);
+  }));
+  return cleanup.dispose;
 }`
       }
     ];

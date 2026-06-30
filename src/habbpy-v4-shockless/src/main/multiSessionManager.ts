@@ -980,7 +980,7 @@ export class MultiSessionManager {
     return this.startClientsFromAccounts(command, accounts, {
       sourceLabel: fileArg,
       warnings: parsed.warnings,
-      preface: "Plaintext account file warning: the file is read for local runtime login only; passwords stay in memory and are not persisted by Habbpy v4.",
+      preface: "Plaintext account file warning: the file is read for local runtime login only; passwords stay in memory and are not persisted by Shockless.",
     });
   }
 

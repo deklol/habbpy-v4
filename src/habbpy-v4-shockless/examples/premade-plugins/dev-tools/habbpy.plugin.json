@@ -46,6 +46,19 @@
       "summary": "Screenshot capture, visual diff, and diagnostic commands."
     }
   ],
-  "commands": [],
+  "commands": [
+    {
+      "name": "room.captureScreenshot",
+      "label": "Capture Game Screenshot",
+      "description": "Capture the embedded game surface for visual QA and regression evidence.",
+      "usage": "room.captureScreenshot"
+    },
+    {
+      "name": "devTools.gpuDiagnostics",
+      "label": "GPU Diagnostics",
+      "description": "Report launch GPU switches and WebGL renderer/vendor facts for visible or hidden clients.",
+      "usage": "devTools.gpuDiagnostics"
+    }
+  ],
   "hotkeys": []
 }

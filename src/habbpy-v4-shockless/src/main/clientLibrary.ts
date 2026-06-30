@@ -164,7 +164,7 @@ export class ClientLibraryStore {
       selectedProfileRoot: resolved,
       registeredProfileRoots: stored.registeredProfileRoots ?? [],
     });
-    return this.state("Active Habbpy v4 client profile updated.");
+    return this.state("Active Shockless client profile updated.");
   }
 
   private discoverProfiles(stored: StoredClientLibrary): ClientLibraryProfile[] {

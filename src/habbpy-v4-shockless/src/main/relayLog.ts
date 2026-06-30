@@ -408,9 +408,9 @@ export function parseRelayLine(line: string, index: number, source?: RelayLogSou
 function bodyNoteFor(status: RelayLogEntry["bodyStatus"]): string {
   switch (status) {
     case "sampled":
-      return "Sanitized relay body captured by the Habbpy v4 relay wrapper; sensitive client payloads are redacted.";
+      return "Sanitized relay body captured by the Shockless relay wrapper; sensitive client payloads are redacted.";
     case "redacted":
-      return "Sensitive client payload redacted by the Habbpy v4 relay wrapper.";
+      return "Sensitive client payload redacted by the Shockless relay wrapper.";
     case "not-a-packet":
       return "Relay lifecycle line; no packet payload exists.";
     case "not-persisted":
