@@ -7,6 +7,7 @@ import {
   origins306ClientVersionId,
   origins306ConnectionParams,
   origins306ExternalParams,
+  origins306MusConnectionParams,
   overrideOrigins306ExternalVariables,
 } from "../../src/habbo/launchParams";
 
@@ -15,7 +16,7 @@ describe("Habbo release306 launch parameters", () => {
     const params = origins306ExternalParams();
 
     expect(params.get("sw1")).toBe(
-      `connection.info.host=${ORIGINS306_DEFAULT_CONNECTION_HOST};connection.info.port=${ORIGINS306_DEFAULT_CONNECTION_PORT};connection.info.id=#info;connection.room.id=#info;link.format.userpage=${ORIGINS306_DEFAULT_USERPAGE_TEMPLATE};client.version.id=${ORIGINS306_DEFAULT_CLIENT_VERSION_ID}`,
+      `connection.info.host=${ORIGINS306_DEFAULT_CONNECTION_HOST};connection.info.port=${ORIGINS306_DEFAULT_CONNECTION_PORT};connection.info.id=#info;connection.room.id=#info;connection.mus.host=${ORIGINS306_DEFAULT_CONNECTION_HOST};connection.mus.port=${ORIGINS306_DEFAULT_CONNECTION_PORT + 1};connection.mus.id=#mus;link.format.userpage=${ORIGINS306_DEFAULT_USERPAGE_TEMPLATE};client.version.id=${ORIGINS306_DEFAULT_CLIENT_VERSION_ID}`,
     );
   });
 
@@ -28,7 +29,7 @@ describe("Habbo release306 launch parameters", () => {
     );
 
     expect(params.get("sw1")).toBe(
-      `connection.info.host=${ORIGINS306_DEFAULT_CONNECTION_HOST};connection.info.port=${ORIGINS306_DEFAULT_CONNECTION_PORT};connection.info.id=#info;connection.room.id=#info;link.format.userpage=${ORIGINS306_DEFAULT_USERPAGE_TEMPLATE};client.version.id=${ORIGINS306_DEFAULT_CLIENT_VERSION_ID};connection.info.host=127.0.0.1;custom.flag=1`,
+      `connection.info.host=${ORIGINS306_DEFAULT_CONNECTION_HOST};connection.info.port=${ORIGINS306_DEFAULT_CONNECTION_PORT};connection.info.id=#info;connection.room.id=#info;connection.mus.host=${ORIGINS306_DEFAULT_CONNECTION_HOST};connection.mus.port=${ORIGINS306_DEFAULT_CONNECTION_PORT + 1};connection.mus.id=#mus;link.format.userpage=${ORIGINS306_DEFAULT_USERPAGE_TEMPLATE};client.version.id=${ORIGINS306_DEFAULT_CLIENT_VERSION_ID};connection.info.host=127.0.0.1;custom.flag=1`,
     );
     expect(params.get("sw2")).toBe("another.flag=2");
   });
@@ -70,6 +71,25 @@ describe("Habbo release306 launch parameters", () => {
         }),
       ),
     ).toEqual({ host: "127.0.0.1", port: 30000 });
+  });
+
+  it("derives MUS connection defaults from the game connection and supports explicit overrides", () => {
+    const game = origins306ConnectionParams(new URLSearchParams({ connectionHost: "game.example.test", connectionPort: "41000" }));
+    expect(origins306MusConnectionParams(new URLSearchParams({ connectionHost: "game.example.test", connectionPort: "41000" }), game)).toEqual({
+      host: "game.example.test",
+      port: 41001,
+    });
+    expect(
+      origins306MusConnectionParams(
+        new URLSearchParams({
+          connectionHost: "game.example.test",
+          connectionPort: "41000",
+          musHost: "mus.example.test",
+          musPort: "32000",
+        }),
+        game,
+      ),
+    ).toEqual({ host: "mus.example.test", port: 32000 });
   });
 
   it("falls back to the release306 official port when an override is invalid", () => {

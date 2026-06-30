@@ -1,6 +1,7 @@
-import { ChevronDown, FolderInput, Play, RefreshCw } from "lucide-react";
+import { ChevronDown, Download, FolderInput, Play, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { EngineLaunchState, ClientProfileSummary } from "../../shared/window-api";
+import type { AppUpdateState } from "../../shared/update";
 import {
   profileLine,
   statusLabel,
@@ -99,9 +100,11 @@ interface ImporterWorkspaceProps {
   readonly importState: ProfileImportUiState;
   readonly profiles: readonly ClientProfileSummary[];
   readonly selectedProfile: ClientProfileSummary | null;
+  readonly updateState: AppUpdateState | null;
   readonly onImport: () => void;
   readonly onRefresh: () => void;
   readonly onStart: () => void;
+  readonly onOpenUpdates: () => void;
   readonly onSetHotelView: (value: string) => void;
   readonly onSetResizablePresentation: (enabled: boolean) => void;
   readonly onSetVersionCheckBuild: () => void;
@@ -112,7 +115,8 @@ interface ImporterWorkspaceProps {
 export function ImporterWorkspace({
   bridgeAvailable, bridgeMessage, engineBusy, settingsBusy, engineLaunch,
   elapsedMs, importState, profiles, selectedProfile,
-  onImport, onRefresh, onStart,
+  updateState,
+  onImport, onRefresh, onStart, onOpenUpdates,
   onSetHotelView, onSetResizablePresentation, onSetVersionCheckBuild,
   versionCheckDraft, onVersionCheckDraftChange,
 }: ImporterWorkspaceProps) {
@@ -125,6 +129,10 @@ export function ImporterWorkspace({
   const currentHotelView = engineLaunch?.settings?.customHotelView
     ? "custom"
     : engineLaunch?.settings?.entryView ?? "hh_entry_uk";
+  const showUpdateCallout =
+    updateState?.status === "available" ||
+    updateState?.status === "downloaded" ||
+    updateState?.status === "error";
   return (
     <div className="importer-workspace" aria-label="Client importer">
       <section className="importer-hero">
@@ -149,6 +157,13 @@ export function ImporterWorkspace({
           ) : null}
         </div>
       </section>
+      {showUpdateCallout ? (
+        <button type="button" className={`importer-update-callout update-${updateState.status}`} onClick={onOpenUpdates}>
+          <Download size={15} />
+          <span>{updateState.message}</span>
+          <strong>{updateState.available?.version ? `v${updateState.available.version}` : "Details"}</strong>
+        </button>
+      ) : null}
       <section className="importer-main">
         <div className="importer-progress-panel">
           <div className="importer-panel-heading"><span>{status}</span><strong>{latestPercent}%</strong></div>

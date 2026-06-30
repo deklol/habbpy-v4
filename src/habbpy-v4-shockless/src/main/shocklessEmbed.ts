@@ -26,6 +26,8 @@ const DEFAULT_RELAY_CONTROL_PORT = 12327;
 const MAIN_DIR = dirname(fileURLToPath(import.meta.url));
 const ORIGINS_FURNIDATA_FILE = "furnidata.txt";
 const ORIGINS_PRODUCTDATA_FILE = "productdata.txt";
+const ORIGINS_DEFAULT_TCP_HOST = "game-ous.habbo.com";
+const ORIGINS_DEFAULT_TCP_PORT = 40001;
 const activeRelayChildren = new Set<ChildProcess>();
 let relayCleanupHooksRegistered = false;
 const ORIGINS_GAMEDATA_URLS: Readonly<Record<string, string>> = {
@@ -221,6 +223,8 @@ export class ShocklessEmbedController {
 }
 
 export function buildShocklessEmbedUrl(baseUrl: string, context: LaunchContext): string {
+  const gameConnection = originsRelayGameConnection();
+  const musConnection = originsRelayMusConnection(gameConnection);
   const url = new URL(baseUrl);
   url.searchParams.set("profile", context.profile.id);
   url.searchParams.set("profileVersion", context.profile.versionId);
@@ -234,16 +238,32 @@ export function buildShocklessEmbedUrl(baseUrl: string, context: LaunchContext):
   else if (context.settings.entryView) url.searchParams.set("entryView", context.settings.entryView);
   url.searchParams.set("bridgeHost", RELAY_HOST);
   url.searchParams.set("bridgePort", String(context.relayWsPort));
+  url.searchParams.set("connection.info.host", gameConnection.host);
+  url.searchParams.set("connection.info.port", String(gameConnection.port));
+  url.searchParams.set("connection.mus.host", musConnection.host);
+  url.searchParams.set("connection.mus.port", String(musConnection.port));
   return url.toString();
 }
 
-export function normalizeOriginsExternalVariables(text: string, versionCheckBuild?: number | null): string {
+export function normalizeOriginsExternalVariables(
+  text: string,
+  versionCheckBuild?: number | null,
+  gameConnection: { readonly host: string; readonly port: number } = originsRelayGameConnection(),
+): string {
   const lines = text.split(/\r\n|\r|\n/).filter((line, index, all) => line.length > 0 || index < all.length - 1);
   const keys = new Set(lines.map(variableKey).filter((key): key is string => Boolean(key)));
   const normalizedVersionCheckBuild = positiveInteger(versionCheckBuild);
   if (normalizedVersionCheckBuild !== null) {
     setExternalVariable(lines, keys, "client.version.id", String(normalizedVersionCheckBuild));
   }
+  const musConnection = originsRelayMusConnection(gameConnection);
+  setExternalVariable(lines, keys, "connection.info.host", gameConnection.host);
+  setExternalVariable(lines, keys, "connection.info.port", String(gameConnection.port));
+  setExternalVariable(lines, keys, "connection.info.id", "#info");
+  setExternalVariable(lines, keys, "connection.room.id", "#info");
+  setExternalVariable(lines, keys, "connection.mus.host", musConnection.host);
+  setExternalVariable(lines, keys, "connection.mus.port", String(musConnection.port));
+  setExternalVariable(lines, keys, "connection.mus.id", "#mus");
   const flashDynamicDownload = valueForExternalVariable(lines, "flash.dynamic.download.url");
   if (!keys.has("dynamic.download.url") && flashDynamicDownload) lines.push(`dynamic.download.url=${flashDynamicDownload}`);
   if (!keys.has("furnidata.load.url")) lines.push(`furnidata.load.url=${ORIGINS_FURNIDATA_FILE}`);
@@ -328,7 +348,11 @@ class EmbeddedStaticServer {
       .find((candidate) => candidate && existsSync(candidate) && statSync(candidate).isFile());
     if (match) {
       if (rootKey === "client" && requestPath.toLowerCase() === "external_variables.txt") {
-        sendText(response, 200, normalizeOriginsExternalVariables(readFileSync(match, "utf8"), context.settings.versionCheckBuild));
+        sendText(
+          response,
+          200,
+          normalizeOriginsExternalVariables(readFileSync(match, "utf8"), context.settings.versionCheckBuild),
+        );
         return;
       }
       sendFile(response, match);
@@ -397,10 +421,13 @@ class EmbeddedRelayController {
     }
     this.logStream?.end();
     this.logStream = createWriteStream(logPath, { flags: "a" });
+    const relayGameConnection = originsRelayGameConnection();
     this.child = spawn(process.execPath, [launch.script], {
       env: {
         ...process.env,
         ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
+        ORIGINS_TCP_HOST: relayGameConnection.host,
+        ORIGINS_TCP_PORT: String(relayGameConnection.port),
         ORIGINS_WS_HOST: RELAY_HOST,
         ORIGINS_WS_PORT: String(this.wsPort),
         ORIGINS_CONTROL_HOST: RELAY_HOST,
@@ -618,6 +645,31 @@ function relayResourceDirValid(candidate: string): boolean {
     const filePath = join(candidate, fileName);
     return existsSync(filePath) && statSync(filePath).isFile();
   });
+}
+
+function originsRelayGameConnection(): { readonly host: string; readonly port: number } {
+  return {
+    host:
+      process.env.HABBPY_V4_ORIGINS_TCP_HOST?.trim() ||
+      process.env.ORIGINS_TCP_HOST?.trim() ||
+      process.env.BRIDGE_TCP_HOST?.trim() ||
+      ORIGINS_DEFAULT_TCP_HOST,
+    port:
+      positiveInteger(process.env.HABBPY_V4_ORIGINS_TCP_PORT) ??
+      positiveInteger(process.env.ORIGINS_TCP_PORT) ??
+      positiveInteger(process.env.BRIDGE_TCP_PORT) ??
+      ORIGINS_DEFAULT_TCP_PORT,
+  };
+}
+
+function originsRelayMusConnection(gameConnection: { readonly host: string; readonly port: number }): { readonly host: string; readonly port: number } {
+  return {
+    host: process.env.HABBPY_V4_ORIGINS_MUS_HOST?.trim() || process.env.ORIGINS_MUS_HOST?.trim() || gameConnection.host,
+    port:
+      positiveInteger(process.env.HABBPY_V4_ORIGINS_MUS_PORT) ??
+      positiveInteger(process.env.ORIGINS_MUS_PORT) ??
+      Math.min(65535, gameConnection.port + 1),
+  };
 }
 
 function packagedResourcePath(...parts: readonly string[]): string | undefined {

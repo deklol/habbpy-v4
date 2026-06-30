@@ -330,7 +330,9 @@ import { BootSplash } from "./BootSplash";
 import { IconRail } from "./IconRail";
 import { RoomOverlays } from "./RoomOverlays";
 import { ImporterWorkspace } from "./ImporterWorkspace";
+import { UpdateModal } from "./UpdateModal";
 import { encodeShockwaveBase64Int, formatShockwavePacketParts } from "../../shared/shockwavePacketText";
+import type { AppUpdateState } from "../../shared/update";
 import type {
   AppPreferencesPatch,
   AppPreferencesState,
@@ -477,6 +479,8 @@ export function App() {
   const [query, setQuery] = useState("");
   const [appInfo, setAppInfo] = useState<{ readonly name: string; readonly version: string; readonly mode: "desktop" | "browser-preview" } | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [updateModalOpen, setUpdateModalOpen] = useState(false);
+  const [updateState, setUpdateState] = useState<AppUpdateState | null>(null);
   const [appPreferences, setAppPreferences] = useState<AppPreferencesState | null>(null);
   const [pluginRegistryState, setPluginRegistryState] = useState<PluginRegistryState | null>(null);
   const [pluginManagerMessage, setPluginManagerMessage] = useState("");
@@ -1245,6 +1249,7 @@ export function App() {
   useEffect(() => {
     return window.habbpyV4?.onShowAbout?.(() => setAboutOpen(true));
   }, []);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
@@ -3303,6 +3308,7 @@ export function App() {
     }
     setAppInfo(await window.habbpyV4.getAppInfo());
     setAppPreferences(await window.habbpyV4.getAppPreferences());
+    setUpdateState(await window.habbpyV4.getUpdateState());
     setPluginRegistryState(await window.habbpyV4.getPluginRegistryState());
     const nextLibrary = await window.habbpyV4.getClientLibraryState();
     setLibraryState(nextLibrary);
@@ -3318,6 +3324,50 @@ export function App() {
     setPluginRegistryState(next);
     setPluginManagerMessage(next.message);
   }, []);
+
+  const refreshUpdateState = useCallback(async () => {
+    if (!window.habbpyV4?.getUpdateState) return null;
+    const next = await window.habbpyV4.getUpdateState();
+    setUpdateState(next);
+    return next;
+  }, []);
+
+  const checkForUpdates = useCallback(async () => {
+    if (!window.habbpyV4?.checkForUpdates) return;
+    setUpdateModalOpen(true);
+    const next = await window.habbpyV4.checkForUpdates();
+    setUpdateState(next);
+    appendTimeline(next.status === "error" ? "warning" : "info", next.message);
+  }, [appendTimeline]);
+
+  const downloadUpdate = useCallback(async () => {
+    if (!window.habbpyV4?.downloadUpdate) return;
+    setUpdateModalOpen(true);
+    const next = await window.habbpyV4.downloadUpdate();
+    setUpdateState(next);
+    appendTimeline(next.status === "error" ? "warning" : "success", next.message);
+  }, [appendTimeline]);
+
+  const installDownloadedUpdate = useCallback(async () => {
+    if (!window.habbpyV4?.installDownloadedUpdate) return;
+    const confirmed = window.confirm("Restart Shockless Engine and install the downloaded update now?");
+    if (!confirmed) return;
+    const next = await window.habbpyV4.installDownloadedUpdate();
+    setUpdateState(next);
+    appendTimeline(next.status === "error" ? "warning" : "success", next.message);
+  }, [appendTimeline]);
+
+  const skipUpdate = useCallback(async (version: string) => {
+    if (!window.habbpyV4?.skipUpdate) return;
+    const next = await window.habbpyV4.skipUpdate(version);
+    setUpdateState(next);
+    appendTimeline("info", next.message);
+  }, [appendTimeline]);
+
+  useEffect(() => {
+    void refreshUpdateState();
+    return window.habbpyV4?.onUpdateState?.((next) => setUpdateState(next));
+  }, [refreshUpdateState]);
 
   useEffect(() => {
     if (!appPreferences || preferenceDefaultsAppliedRef.current) return;
@@ -3552,6 +3602,21 @@ export function App() {
     },
     {
       type: "section",
+      id: "updates",
+      title: "Updates",
+      description: "GitHub release checks and downloaded update installation.",
+      children: [
+        { type: "kv", id: "updateStatus", rows: [
+          { key: "State", value: updateState ? statusLabel(updateState.status) : "Idle" },
+          { key: "Current", value: updateState?.currentVersion ? `v${updateState.currentVersion}` : "development build" },
+          { key: "Available", value: updateState?.available?.version ? `v${updateState.available.version}` : "-" },
+          { key: "Last Check", value: updateState?.lastCheckedAt ? new Date(updateState.lastCheckedAt).toLocaleString() : "-" },
+        ] },
+        { type: "button", id: "checkForUpdates", label: "Check For Updates", action: "settings.checkForUpdates", variant: "primary" },
+      ],
+    },
+    {
+      type: "section",
       id: "console",
       title: "Console",
       description: "Backtick console and packet output defaults.",
@@ -3593,7 +3658,7 @@ export function App() {
         { type: "button", id: "saveSessionDefaults", label: "Save Session Defaults", action: "settings.saveSessionDefaults", variant: "primary" },
       ],
     },
-  ], []);
+  ], [updateState]);
 
   const appSettingsValues = useMemo<Readonly<Record<string, string | number | boolean | null>>>(() => ({
     autoHideBulletin: automationPrefs.autoHideBulletin,
@@ -4470,6 +4535,10 @@ export function App() {
       void updateHardwareAccelerationPreference(value !== false);
       return;
     }
+    if (key === "checkForUpdates") {
+      void checkForUpdates();
+      return;
+    }
     if (key === "packetOutputWrap") {
       const enabled = value !== false;
       setPacketFilters((current) => ({ ...current, wrap: enabled }));
@@ -4495,6 +4564,7 @@ export function App() {
     if (key === "saveSessionDefaults") void saveSessionDefaultPreferences();
   }, [
     applyVersionCheckBuild,
+    checkForUpdates,
     runMultiAccountCommand,
     runRuntimeAction,
     saveSessionDefaultPreferences,
@@ -4945,6 +5015,7 @@ export function App() {
           clientSessions={clientSessions}
           selectedClientSession={selectedClientSession}
           selectedClientSnapshotLabel={state.engine.profileLabel}
+          updateState={updateState}
           engineLocation={state.engine.location}
           engineEmbedded={state.engine.embedded}
           clientSessionTitle={clientSessionTitle}
@@ -4953,6 +5024,7 @@ export function App() {
           onStart={() => void startEngine()}
           onOpenPlugins={() => setPluginStoreOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
+          onOpenUpdates={() => setUpdateModalOpen(true)}
           onSelectClientSession={(id) => void selectClientSession(id)}
           onAddManualVisibleClient={() => void addManualVisibleClient()}
         />
@@ -5006,9 +5078,11 @@ export function App() {
                         importState={profileImportUi}
                         profiles={libraryState?.profiles ?? []}
                         selectedProfile={selectedProfile}
+                        updateState={updateState}
                         onImport={() => void importClientReference()}
                         onRefresh={() => void refreshLibrary()}
                         onStart={() => void startEngine()}
+                        onOpenUpdates={() => setUpdateModalOpen(true)}
                         onSetHotelView={setHotelView}
                         onSetResizablePresentation={(enabled) => void updateEngineLaunchSettings({ resizablePresentation: enabled }, `Responsive stage resize ${enabled ? "enabled" : "disabled"}.`)}
                         onSetVersionCheckBuild={applyVersionCheckBuild}
@@ -5040,9 +5114,11 @@ export function App() {
                     importState={profileImportUi}
                     profiles={libraryState?.profiles ?? []}
                     selectedProfile={selectedProfile}
+                    updateState={updateState}
                     onImport={() => void importClientReference()}
                     onRefresh={() => void refreshLibrary()}
                     onStart={() => void startEngine()}
+                    onOpenUpdates={() => setUpdateModalOpen(true)}
                     onSetHotelView={setHotelView}
                     onSetResizablePresentation={(enabled) => void updateEngineLaunchSettings({ resizablePresentation: enabled }, `Responsive stage resize ${enabled ? "enabled" : "disabled"}.`)}
                     onSetVersionCheckBuild={applyVersionCheckBuild}
@@ -5223,6 +5299,15 @@ export function App() {
       />
 
       <AboutModal open={aboutOpen} appInfo={appInfo} onClose={() => setAboutOpen(false)} />
+      <UpdateModal
+        open={updateModalOpen}
+        state={updateState}
+        onClose={() => setUpdateModalOpen(false)}
+        onCheck={() => void checkForUpdates()}
+        onDownload={() => void downloadUpdate()}
+        onInstall={() => void installDownloadedUpdate()}
+        onSkip={(version) => void skipUpdate(version)}
+      />
     </main>
   );
 }

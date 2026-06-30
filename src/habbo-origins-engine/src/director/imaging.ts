@@ -1,6 +1,7 @@
 import { paletteTableForBitmapDepth } from "./palettes";
 import { LingoObjectLike, LingoSymbol, LingoValue } from "./values";
 import { LingoColor, LingoPoint, LingoRect } from "./geometry";
+import { decodeDirectorBitmapMedia, encodeDirectorBitmapMedia } from "./directorBitmapMedia";
 
 /**
  * Director image object. Habbo renders almost everything by compositing
@@ -50,6 +51,12 @@ export interface CopyPixelsParams {
   quadPoints?: CopyPixelsQuadPoints;
 }
 
+export interface LingoBitmapMediaSource {
+  readonly memberName?: string;
+  readonly memberNumber?: number;
+  readonly castName?: string;
+}
+
 export type CopyPixelsQuadPoints = [LingoPoint, LingoPoint, LingoPoint, LingoPoint];
 
 export type CopyPixelsQuadTransform =
@@ -73,6 +80,26 @@ function createCanvas(width: number, height: number): { ctx: Canvas2D | null; el
   }
   // Node: no canvas. Image keeps dimensions only.
   return { ctx: null, el: null };
+}
+
+export class LingoBitmapMedia implements LingoObjectLike {
+  readonly lingoType = "media";
+  private imageCache: LingoImage | null | undefined;
+
+  constructor(
+    readonly bytes: Uint8Array,
+    readonly source: LingoBitmapMediaSource = {},
+  ) {}
+
+  toImage(): LingoImage | null {
+    if (this.imageCache !== undefined) return this.imageCache;
+    this.imageCache = decodeDirectorBitmapMedia(this.bytes);
+    return this.imageCache;
+  }
+
+  lingoToString(): string {
+    return `(media ${this.bytes.length} bytes)`;
+  }
 }
 
 /** Exact-match color key -> transparent (Director Background Transparent). */
@@ -398,6 +425,15 @@ function paletteColorsForRef(ref: LingoValue | null | undefined, bitDepth?: numb
   return Array.isArray(paletteLike?.paletteColors) ? (paletteLike.paletteColors as readonly number[]) : null;
 }
 
+function isGrayscalePalette(palette: readonly number[] | null): boolean {
+  if (!palette || palette.length < 256) return false;
+  const grayscale = paletteTableForBitmapDepth("grayscale", 8);
+  for (let index = 0; index < 256; index += 1) {
+    if ((palette[index] ?? null) !== grayscale[index]) return false;
+  }
+  return true;
+}
+
 function resolveColorForPalette(color: LingoColor, paletteRef: LingoValue | null | undefined): LingoColor {
   if (color.paletteIndex === null) return color;
   const table = paletteColorsForRef(paletteRef);
@@ -561,6 +597,38 @@ export class LingoImage implements LingoObjectLike {
     const image = new LingoImage(width, height, 32, LingoSymbol.for("systemMac"), { initWhite: false });
     if (LingoImage.browserEnv) {
       image.drawable = drawable;
+    }
+    return image;
+  }
+
+  static fromDirectorBitmapMedia(media: LingoBitmapMedia): LingoImage | null {
+    return media.toImage();
+  }
+
+  toDirectorBitmapMedia(source: LingoBitmapMediaSource = {}): LingoBitmapMedia {
+    return new LingoBitmapMedia(encodeDirectorBitmapMedia(this), source);
+  }
+
+  directorBitmapMediaSource(): { readonly indices: Uint8Array } | null {
+    if (!this.indexedSource || this.indexedSource.bitDepth !== 8) return null;
+    if (!isGrayscalePalette(this.activePaletteColors())) return null;
+    return { indices: new Uint8Array(this.indexedSource.indices) };
+  }
+
+  /** Capture a draw source into an immutable Director image at this instant.
+   * Director's `(the stage).image` is used as a snapshot source by Habbo's
+   * camera code; it must not keep a live reference to the renderer canvas. */
+  static fromDrawableSnapshot(drawable: CanvasImageSource, width: number, height: number): LingoImage {
+    const image = new LingoImage(width, height, 32, LingoSymbol.for("systemMac"), { initWhite: false });
+    if (LingoImage.browserEnv) {
+      const ctx = image.ctx;
+      if (ctx) {
+        ctx.clearRect(0, 0, image.width, image.height);
+        ctx.drawImage(drawable as DomImageSource, 0, 0, image.width, image.height);
+        image.initWhitePending = false;
+        image.drawable = null;
+        image.version += 1;
+      }
     }
     return image;
   }
@@ -888,9 +956,41 @@ export class LingoImage implements LingoObjectLike {
   }
 
   getPixel(x: number, y: number): LingoColor {
+    const px = Math.trunc(x);
+    const py = Math.trunc(y);
+    if (this.indexedSource && px >= 0 && py >= 0 && px < this.width && py < this.height) {
+      const paletteIndex = this.indexedSource.indices[py * this.width + px] ?? 0;
+      const palette = this.activePaletteColors();
+      const rgb = palette?.[paletteIndex] ?? 0;
+      return new LingoColor((rgb >> 16) & 0xff, (rgb >> 8) & 0xff, rgb & 0xff, paletteIndex);
+    }
     if (!this.ctx) return new LingoColor(0, 0, 0);
-    const data = this.ctx.getImageData(Math.trunc(x), Math.trunc(y), 1, 1).data;
-    return new LingoColor(data[0] ?? 0, data[1] ?? 0, data[2] ?? 0);
+    const data = this.ctx.getImageData(px, py, 1, 1).data;
+    const color = new LingoColor(data[0] ?? 0, data[1] ?? 0, data[2] ?? 0);
+    color.paletteIndex = this.nearestPaletteIndex(color);
+    return color;
+  }
+
+  private nearestPaletteIndex(color: LingoColor): number {
+    const palette = this.activePaletteColors();
+    if (!palette || palette.length === 0) return 0;
+    let bestIndex = 0;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < palette.length; index += 1) {
+      const rgb = palette[index] ?? 0;
+      const red = (rgb >> 16) & 0xff;
+      const green = (rgb >> 8) & 0xff;
+      const blue = rgb & 0xff;
+      const dr = red - color.r;
+      const dg = green - color.g;
+      const db = blue - color.b;
+      const distance = dr * dr + dg * dg + db * db;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = index;
+      }
+    }
+    return bestIndex;
   }
 
   getPixelAlpha(x: number, y: number): number {

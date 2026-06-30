@@ -1,6 +1,7 @@
 ﻿import type { ConsoleCommandResult } from "./consoleCommand.js";
 import type { PluginCreateRequest, PluginEntrySourceResult, PluginInstallResult, PluginRegistryState } from "./plugin.js";
 import type { PluginPacketInput } from "./shockwavePluginPacketBuilder.js";
+import type { AppUpdateState } from "./update.js";
 
 export type { PluginPacketInput } from "./shockwavePluginPacketBuilder.js";
 
@@ -401,6 +402,12 @@ export interface HabbpyV4Api {
   }>;
   getAppPreferences(): Promise<AppPreferencesState>;
   setAppPreferences(patch: AppPreferencesPatch): Promise<AppPreferencesState>;
+  getUpdateState(): Promise<AppUpdateState>;
+  checkForUpdates(): Promise<AppUpdateState>;
+  downloadUpdate(): Promise<AppUpdateState>;
+  installDownloadedUpdate(): Promise<AppUpdateState>;
+  skipUpdate(version: string): Promise<AppUpdateState>;
+  onUpdateState(listener: (state: AppUpdateState) => void): () => void;
   getPluginRegistryState(): Promise<PluginRegistryState>;
   setPluginEnabled(pluginId: string, enabled: boolean): Promise<PluginRegistryState>;
   setPluginSurfaceEnabled(pluginId: string, surfaceId: string, enabled: boolean): Promise<PluginRegistryState>;

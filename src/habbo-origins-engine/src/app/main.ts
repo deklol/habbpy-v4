@@ -1,4 +1,5 @@
 import { Application, ColorMatrixFilter, TextureSource } from "pixi.js";
+import "./host.css";
 // Director inks 35/38 (Subtract Pin/Subtract) map to the GPU "subtract"
 // blend, which Pixi only honors with the advanced-blend-modes extension;
 // without it the room dimmer draws opaque and blacks out the stage.
@@ -595,6 +596,17 @@ async function boot(): Promise<void> {
     return bufferComponent instanceof ScriptInstance ? bufferComponent : null;
   };
 
+  let movieForStageImage: DirectorMovie | null = null;
+  const captureStageImage = (): LingoImage | null => {
+    const activeMovie = movieForStageImage;
+    if (!activeMovie) return null;
+    const focusedSprite = Number(activeMovie.keyboardFocusSprite) | 0;
+    activeMovie.prepareTextSpriteImages(focusedSprite);
+    renderer.sync(activeMovie.channels, focusedSprite);
+    app.render();
+    return LingoImage.fromDrawableSnapshot(app.canvas, app.renderer.width, app.renderer.height);
+  };
+
   const movie = new DirectorMovie(
     manifest,
     { log: appendLog },
@@ -684,7 +696,9 @@ async function boot(): Promise<void> {
       release306VersionCheckExternalVariablesUrl: origins306VersionCheckExternalVariablesUrlOverride(params),
       machineId: params.get("machineId")?.trim() || params.get("uniqueId")?.trim() || undefined,
     },
+    captureStageImage,
   );
+  movieForStageImage = movie;
   installRelease306CastLoadCompatibility(movie.runtime);
   installRelease306RoomBufferCompatibility(movie.runtime, members);
   installRelease306ResourceManagerCompatibility(movie.runtime, members);

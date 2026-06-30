@@ -311,52 +311,75 @@ test("blocked plugins must explain the missing boundary", () => {
 });
 
 test("embedded Shockless launch URL is built from selected profile metadata", () => {
-  const url = new URL(
-    buildShocklessEmbedUrl("http://127.0.0.1:49152/", {
-      profile: {
-        id: "dynamic-profile",
-        label: "Dynamic Profile",
-        versionId: "release-current",
-        buildNumber: null,
-        versionCheckBuild: null,
-        importedAt: "2026-06-20T00:00:00.000Z",
-        sourceFolderName: "current",
-        profileRoot: "X:/profiles/current",
-        ready: true,
-        reason: null,
-        storageMode: "referenced",
-        fixedStage: true,
-        resizablePresentation: true,
-        paths: {
-          client: "client",
-          runtimeData: "runtime-data",
-          assets: "assets",
-          scripts: "scripts",
+  const previousTcpHost = process.env.HABBPY_V4_ORIGINS_TCP_HOST;
+  const previousTcpPort = process.env.HABBPY_V4_ORIGINS_TCP_PORT;
+  const previousMusHost = process.env.HABBPY_V4_ORIGINS_MUS_HOST;
+  const previousMusPort = process.env.HABBPY_V4_ORIGINS_MUS_PORT;
+  try {
+    process.env.HABBPY_V4_ORIGINS_TCP_HOST = "game-ous.habbo.com";
+    process.env.HABBPY_V4_ORIGINS_TCP_PORT = "40001";
+    delete process.env.HABBPY_V4_ORIGINS_MUS_HOST;
+    delete process.env.HABBPY_V4_ORIGINS_MUS_PORT;
+    const url = new URL(
+      buildShocklessEmbedUrl("http://127.0.0.1:49152/", {
+        profile: {
+          id: "dynamic-profile",
+          label: "Dynamic Profile",
+          versionId: "release-current",
+          buildNumber: null,
+          versionCheckBuild: null,
+          importedAt: "2026-06-20T00:00:00.000Z",
+          sourceFolderName: "current",
+          profileRoot: "X:/profiles/current",
+          ready: true,
+          reason: null,
+          storageMode: "referenced",
+          fixedStage: true,
+          resizablePresentation: true,
+          paths: {
+            client: "client",
+            runtimeData: "runtime-data",
+            assets: "assets",
+            scripts: "scripts",
+          },
         },
-      },
-      engineRoot: "X:/engine",
-      relay: {
-        script: "X:/relay/origins-relay.mjs",
-        resourceDir: "X:/relay",
-        safeBodyLogging: false,
-      },
-      relayWsPort: 12340,
-      relayControlPort: 12341,
-      settings: {
-        resizablePresentation: true,
-        customHotelView: false,
-        entryView: null,
-        versionCheckBuild: null,
-      },
-    }),
-  );
+        engineRoot: "X:/engine",
+        relay: {
+          script: "X:/relay/origins-relay.mjs",
+          resourceDir: "X:/relay",
+          safeBodyLogging: false,
+        },
+        relayWsPort: 12340,
+        relayControlPort: 12341,
+        settings: {
+          resizablePresentation: true,
+          customHotelView: false,
+          entryView: null,
+          versionCheckBuild: null,
+        },
+      }),
+    );
 
-  assert.equal(url.searchParams.get("profile"), "dynamic-profile");
-  assert.equal(url.searchParams.get("profileVersion"), "release-current");
-  assert.equal(url.searchParams.get("resizablePresentation"), "1");
-  assert.equal(url.searchParams.get("bridgeHost"), "127.0.0.1");
-  assert.equal(url.searchParams.get("bridgePort"), "12340");
-  assert.equal(url.searchParams.has("versionCheckBuild"), false);
+    assert.equal(url.searchParams.get("profile"), "dynamic-profile");
+    assert.equal(url.searchParams.get("profileVersion"), "release-current");
+    assert.equal(url.searchParams.get("resizablePresentation"), "1");
+    assert.equal(url.searchParams.get("bridgeHost"), "127.0.0.1");
+    assert.equal(url.searchParams.get("bridgePort"), "12340");
+    assert.equal(url.searchParams.get("connection.info.host"), "game-ous.habbo.com");
+    assert.equal(url.searchParams.get("connection.info.port"), "40001");
+    assert.equal(url.searchParams.get("connection.mus.host"), "game-ous.habbo.com");
+    assert.equal(url.searchParams.get("connection.mus.port"), "40002");
+    assert.equal(url.searchParams.has("versionCheckBuild"), false);
+  } finally {
+    if (previousTcpHost === undefined) delete process.env.HABBPY_V4_ORIGINS_TCP_HOST;
+    else process.env.HABBPY_V4_ORIGINS_TCP_HOST = previousTcpHost;
+    if (previousTcpPort === undefined) delete process.env.HABBPY_V4_ORIGINS_TCP_PORT;
+    else process.env.HABBPY_V4_ORIGINS_TCP_PORT = previousTcpPort;
+    if (previousMusHost === undefined) delete process.env.HABBPY_V4_ORIGINS_MUS_HOST;
+    else process.env.HABBPY_V4_ORIGINS_MUS_HOST = previousMusHost;
+    if (previousMusPort === undefined) delete process.env.HABBPY_V4_ORIGINS_MUS_PORT;
+    else process.env.HABBPY_V4_ORIGINS_MUS_PORT = previousMusPort;
+  }
 });
 
 test("embedded Shockless presentation defaults to responsive with explicit fixed-stage opt-out", () => {
@@ -400,6 +423,20 @@ test("external variables normalization applies accepted VERSIONCHECK build", () 
   );
   assert.match(normalized, /client\.version\.id=1129/);
   assert.doesNotMatch(normalized, /client\.version\.id=401/);
+});
+
+test("external variables normalization forces official game and MUS endpoints over imported localhost values", () => {
+  const normalized = normalizeOriginsExternalVariables(
+    "connection.info.host=127.0.0.1\rconnection.info.port=40001\rconnection.mus.host=127.0.0.1\rconnection.mus.port=40002",
+    1129,
+    { host: "game-ous.habbo.com", port: 40001 },
+  );
+
+  assert.match(normalized, /connection\.info\.host=game-ous\.habbo\.com/);
+  assert.match(normalized, /connection\.info\.port=40001/);
+  assert.match(normalized, /connection\.mus\.host=game-ous\.habbo\.com/);
+  assert.match(normalized, /connection\.mus\.port=40002/);
+  assert.doesNotMatch(normalized, /connection\.mus\.host=127\.0\.0\.1/);
 });
 
 test("Shockless launch settings drop stale VERSIONCHECK overrides", () => {

@@ -1,5 +1,6 @@
-import { Package, Plus, Play, RefreshCw, Settings, Square } from "lucide-react";
+import { Download, Package, Plus, Play, RefreshCw, Settings, Square } from "lucide-react";
 import type { ClientSessionList, ClientSessionSummary, EngineLaunchState } from "../../shared/window-api";
+import type { AppUpdateState } from "../../shared/update";
 
 interface TopBarProps {
   readonly desktopBridgeAvailable: boolean;
@@ -11,6 +12,7 @@ interface TopBarProps {
   readonly clientSessions: ClientSessionList | null;
   readonly selectedClientSession: ClientSessionSummary | null;
   readonly selectedClientSnapshotLabel: string;
+  readonly updateState: AppUpdateState | null;
   readonly engineLocation: string;
   readonly engineEmbedded: boolean;
   readonly clientSessionTitle: (session: ClientSessionSummary) => string;
@@ -19,6 +21,7 @@ interface TopBarProps {
   readonly onStart: () => void;
   readonly onOpenPlugins: () => void;
   readonly onOpenSettings: () => void;
+  readonly onOpenUpdates: () => void;
   readonly onSelectClientSession: (id: number) => void;
   readonly onAddManualVisibleClient: () => void;
 }
@@ -26,9 +29,10 @@ interface TopBarProps {
 export function TopBar({
   desktopBridgeAvailable, engineBusy, profileImportRunning, engineUrl, engineLaunch,
   selectedProfile, clientSessions, selectedClientSession, selectedClientSnapshotLabel,
-  engineLocation, engineEmbedded, clientSessionTitle,
-  onRefresh, onStop, onStart, onOpenPlugins, onOpenSettings, onSelectClientSession, onAddManualVisibleClient,
+  updateState, engineLocation, engineEmbedded, clientSessionTitle,
+  onRefresh, onStop, onStart, onOpenPlugins, onOpenSettings, onOpenUpdates, onSelectClientSession, onAddManualVisibleClient,
 }: TopBarProps) {
+  const updateAvailable = updateState?.status === "available" || updateState?.status === "downloaded";
   return (
     <header className="top-bar">
       <div className="top-bar-copy">
@@ -44,6 +48,14 @@ export function TopBar({
         </button>
         <button className="engine-action-button" type="button" onClick={() => void onOpenSettings()} title="Settings">
           <Settings size={14} /><span>Settings</span>
+        </button>
+        <button
+          className={`engine-action-button update-action ${updateAvailable ? "update-available" : ""}`}
+          type="button"
+          onClick={() => void onOpenUpdates()}
+          title={updateState?.message ?? "Updates"}
+        >
+          <Download size={14} /><span>{updateAvailable ? "Update" : "Updates"}</span>
         </button>
         <button className="engine-action-button" type="button" onClick={() => void onRefresh()} disabled={!desktopBridgeAvailable || engineBusy || profileImportRunning} title="Refresh">
           <RefreshCw size={14} /><span>Refresh</span>

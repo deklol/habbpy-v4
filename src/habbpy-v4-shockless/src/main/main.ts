@@ -13,6 +13,7 @@ import { PluginManager } from "./pluginManager.js";
 import { stopActiveProfileImports } from "./profileImportRunner.js";
 import { readRelayLogDeltaSnapshot, readRelayLogSnapshot } from "./relayLog.js";
 import { readShocklessSettings, stopActiveEmbeddedRelays, writeShocklessSettings } from "./shocklessEmbed.js";
+import { UpdateManager } from "./updateService.js";
 import { isAllowedGardeningRelayAction } from "../shared/gardeningRelayPackets.js";
 import { isAllowedFurniRelayAction } from "../shared/furniRelayPackets.js";
 import { isAllowedFishingRelayAction } from "../shared/fishingRelayPackets.js";
@@ -45,6 +46,7 @@ const RELAY_CONTROL_HOST = "127.0.0.1";
 let clientLibrary: ClientLibraryStore | null = null;
 let multiSessionManager: MultiSessionManager | null = null;
 let pluginManagerInstance: PluginManager | null = null;
+let updateManagerInstance: UpdateManager | null = null;
 let mainWindow: BrowserWindow | null = null;
 let isQuitting = false;
 let forcedExitTimer: NodeJS.Timeout | null = null;
@@ -101,6 +103,7 @@ function createWindow(): void {
   });
 
   mainWindow = window;
+  updateManager().addListener(window.webContents);
   applyAppMenu(window, {
     dataDir: path.join(appDataPath(), "HabbpyV4"),
     pluginsDir: path.join(appDataPath(), "HabbpyV4", "plugins"),
@@ -125,6 +128,10 @@ function createWindow(): void {
     if (mainWindow === window) mainWindow = null;
   });
 
+  window.webContents.once("did-finish-load", () => {
+    if (process.env.HABBPY_V4_DISABLE_UPDATE_CHECK === "1") return;
+    setTimeout(() => void updateManager().checkForUpdates({ silent: true }), 600);
+  });
   void window.loadURL(rendererUrl());
 }
 
@@ -154,6 +161,35 @@ ipcMain.handle("habbpy-v4:set-app-preferences", (_event, patch: Partial<Record<k
       typeof patch?.autoSubmitVisibleLogin === "boolean" ? patch.autoSubmitVisibleLogin : current.autoSubmitVisibleLogin,
   });
   return appPreferencesState(appDataPath(), launchHardwareAccelerationEnabled);
+});
+ipcMain.handle("habbpy-v4:get-update-state", (event) => {
+  updateManager().addListener(event.sender);
+  return updateManager().snapshot();
+});
+ipcMain.handle("habbpy-v4:check-for-updates", (event) => {
+  updateManager().addListener(event.sender);
+  return updateManager().checkForUpdates({ silent: false });
+});
+ipcMain.handle("habbpy-v4:download-update", (event) => {
+  updateManager().addListener(event.sender);
+  return updateManager().downloadUpdate();
+});
+ipcMain.handle("habbpy-v4:install-downloaded-update", async (event) => {
+  updateManager().addListener(event.sender);
+  const state = await updateManager().installDownloadedUpdate();
+  if (state.status === "installing") {
+    setTimeout(() => {
+      isQuitting = true;
+      disposeAppResources();
+      app.quit();
+      scheduleForcedExit();
+    }, 100);
+  }
+  return state;
+});
+ipcMain.handle("habbpy-v4:skip-update", (event, version: string) => {
+  updateManager().addListener(event.sender);
+  return updateManager().skipUpdate(String(version ?? ""));
 });
 ipcMain.handle("habbpy-v4:get-plugin-registry-state", () => pluginManager().state());
 ipcMain.handle("habbpy-v4:set-plugin-enabled", (_event, pluginId: string, enabled: boolean) =>
@@ -426,6 +462,17 @@ function sessionManager(): MultiSessionManager {
 function pluginManager(): PluginManager {
   pluginManagerInstance ??= new PluginManager(appDataPath());
   return pluginManagerInstance;
+}
+
+function updateManager(): UpdateManager {
+  updateManagerInstance ??= new UpdateManager({
+    appDataPath: appDataPath(),
+    currentVersion: appVersion(),
+    installDir: process.env.PORTABLE_EXECUTABLE_DIR?.trim() || path.dirname(app.getPath("exe")),
+    executablePath: app.getPath("exe"),
+    isPackaged: app.isPackaged,
+  });
+  return updateManagerInstance;
 }
 
 function relayLogClients(): readonly { readonly id: number; readonly label: string }[] {

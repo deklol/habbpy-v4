@@ -13,6 +13,7 @@ export type Origins306ConnectionParams = {
 export function origins306ExternalParams(searchParams: URLSearchParams = new URLSearchParams()): Map<string, string> {
   const params = new Map<string, string>();
   const connection = origins306ConnectionParams(searchParams);
+  const musConnection = origins306MusConnectionParams(searchParams, connection);
   const userpageTemplate = firstParam(searchParams, ["link.format.userpage", "userPageTemplate"]) ?? ORIGINS306_DEFAULT_USERPAGE_TEMPLATE;
   const clientVersionId = origins306ClientVersionId(searchParams);
   const defaultBundle = [
@@ -20,6 +21,9 @@ export function origins306ExternalParams(searchParams: URLSearchParams = new URL
     `connection.info.port=${connection.port}`,
     "connection.info.id=#info",
     "connection.room.id=#info",
+    `connection.mus.host=${musConnection.host}`,
+    `connection.mus.port=${musConnection.port}`,
+    "connection.mus.id=#mus",
     `link.format.userpage=${userpageTemplate}`,
     `client.version.id=${clientVersionId}`,
   ].join(";");
@@ -135,6 +139,28 @@ export function origins306ConnectionParams(searchParams: URLSearchParams = new U
           "upstreamPort",
         ]),
       ) ?? ORIGINS306_DEFAULT_CONNECTION_PORT,
+  };
+}
+
+export function origins306MusConnectionParams(
+  searchParams: URLSearchParams = new URLSearchParams(),
+  connection: Origins306ConnectionParams = origins306ConnectionParams(searchParams),
+): Origins306ConnectionParams {
+  return {
+    host:
+      firstParam(searchParams, [
+        "connection.mus.host",
+        "musHost",
+        "binaryHost",
+      ]) ?? connection.host,
+    port:
+      parsePort(
+        firstParam(searchParams, [
+          "connection.mus.port",
+          "musPort",
+          "binaryPort",
+        ]),
+      ) ?? Math.min(65535, connection.port + 1),
   };
 }
 

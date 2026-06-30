@@ -5,6 +5,17 @@ const api: HabbpyV4Api = {
   getAppInfo: () => ipcRenderer.invoke("habbpy-v4:get-app-info"),
   getAppPreferences: () => ipcRenderer.invoke("habbpy-v4:get-app-preferences"),
   setAppPreferences: (patch) => ipcRenderer.invoke("habbpy-v4:set-app-preferences", patch),
+  getUpdateState: () => ipcRenderer.invoke("habbpy-v4:get-update-state"),
+  checkForUpdates: () => ipcRenderer.invoke("habbpy-v4:check-for-updates"),
+  downloadUpdate: () => ipcRenderer.invoke("habbpy-v4:download-update"),
+  installDownloadedUpdate: () => ipcRenderer.invoke("habbpy-v4:install-downloaded-update"),
+  skipUpdate: (version) => ipcRenderer.invoke("habbpy-v4:skip-update", version),
+  onUpdateState: (listener) => {
+    const channel = "habbpy-v4:update-state";
+    const wrapped = (_event: Electron.IpcRendererEvent, state: unknown) => listener(state as Parameters<typeof listener>[0]);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
   getPluginRegistryState: () => ipcRenderer.invoke("habbpy-v4:get-plugin-registry-state"),
   setPluginEnabled: (pluginId, enabled) => ipcRenderer.invoke("habbpy-v4:set-plugin-enabled", pluginId, enabled),
   setPluginSurfaceEnabled: (pluginId, surfaceId, enabled) =>

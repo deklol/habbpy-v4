@@ -1,6 +1,7 @@
 import { ChunkRef, DirectorHost, MissingScriptRef, Runtime, ScriptInstance, UnsupportedFeatureError } from "./Runtime";
+import { inspectDirectorBitmapMedia, type DirectorBitmapMediaInspection } from "./directorBitmapMedia";
 import { LingoColor, LingoDate, LingoPoint, LingoRect } from "./geometry";
-import { LingoImage } from "./imaging";
+import { LingoBitmapMedia, LingoImage } from "./imaging";
 import { paletteColor } from "./palettes";
 import {
   LINGO_VOID,
@@ -114,23 +115,6 @@ export class TimeoutRef implements LingoObjectLike {
   }
 }
 
-/** Placeholder for (the stage).image until the image subsystem lands; the
- * boot path only reads its dimensions (crap.fixer refresh sprite). */
-export class StageImageRef implements LingoObjectLike {
-  readonly lingoType = "image";
-  constructor(
-    private readonly owner: DirectorMovie,
-  ) {}
-
-  get width(): number {
-    return this.owner.stageViewportWidth;
-  }
-
-  get height(): number {
-    return this.owner.stageViewportHeight;
-  }
-}
-
 /** Director sound(channel) host object. Habbo's generated Sound Channel Class
  * owns scheduling and loop timing; this object supplies the native Director
  * channel surface it checks via ilk(#instance). */
@@ -214,7 +198,6 @@ export class DirectorMovie implements DirectorHost {
   private readonly castLibs: CastLibRef[];
   private readonly stage = new StageRef();
   private stageViewport = { width: 0, height: 0 };
-  private readonly stageImage = new StageImageRef(this);
   private readonly behaviorInstances = new Map<string, ScriptInstance>();
   private preloads = new Map<string, "loading" | "done" | "failed">();
   private halted: string | null = null;
@@ -322,6 +305,9 @@ export class DirectorMovie implements DirectorHost {
     /** Director Multiuser/BobbaXtra shim backed by the local Origins 306
      * relay. The browser side stays plaintext; the relay owns BobbaCrypto. */
     networkOptions: DirectorNetworkBridgeOptions = {},
+    /** Live stage-image snapshot provider for `(the stage).image`. The
+     * Director host owns the API shape; the browser app supplies Pixi pixels. */
+    private readonly stageImageProvider: () => LingoImage | null = () => null,
   ) {
     this.runtime = new Runtime(this);
     this.network = createDirectorNetworkHost(
@@ -1038,13 +1024,14 @@ export class DirectorMovie implements DirectorHost {
         );
       }
       case "sprite": {
+        if (args[0] instanceof SpriteChannel) return args[0];
         const number = Number(args[0] ?? 0) | 0;
         return this.channels[number] ?? LINGO_VOID;
       }
       case "sound":
         return this.soundChannel(args[0] ?? 1);
       case "puppetsprite": {
-        const number = Number(args[0] ?? 0) | 0;
+        const number = args[0] instanceof SpriteChannel ? args[0].number : Number(args[0] ?? 0) | 0;
         const channel = this.channels[number];
         if (channel) {
           if (Number(args[1] ?? 0)) {
@@ -1292,7 +1279,7 @@ export class DirectorMovie implements DirectorHost {
         case "rect":
           return new LingoRect(0, 0, this.stageViewport.width, this.stageViewport.height);
         case "image":
-          return this.stageImage;
+          return this.stageImageProvider() ?? new LingoImage(this.stageViewport.width, this.stageViewport.height, 32);
         case "title":
           return "Habbo Origins";
         case "bgcolor":
@@ -1302,11 +1289,6 @@ export class DirectorMovie implements DirectorHost {
         default:
           return undefined;
       }
-    }
-    if (receiver instanceof StageImageRef) {
-      if (property === "width") return receiver.width;
-      if (property === "height") return receiver.height;
-      return undefined;
     }
     if (receiver instanceof TimeoutRef) {
       switch (property) {
@@ -1355,6 +1337,24 @@ export class DirectorMovie implements DirectorHost {
           return undefined;
       }
     }
+    if (receiver instanceof LingoImage) {
+      switch (property) {
+        case "width":
+          return receiver.width;
+        case "height":
+          return receiver.height;
+        case "depth":
+          return receiver.depth;
+        case "rect":
+          return receiver.getRect();
+        case "paletteref":
+          return receiver.paletteRef;
+        case "usealpha":
+          return receiver.useAlpha;
+        default:
+          return undefined;
+      }
+    }
     if (receiver instanceof CastMember) {
       switch (property) {
         case "name":
@@ -1368,6 +1368,8 @@ export class DirectorMovie implements DirectorHost {
           return LingoSymbol.for(receiver.type);
         case "text":
           return receiver.text;
+        case "scripttext":
+          return receiver.type === "script" ? receiver.text : "";
         case "castlibnum":
           return receiver.castNumber;
         case "char":
@@ -1384,6 +1386,11 @@ export class DirectorMovie implements DirectorHost {
             return this.ensureTextMemberImage(receiver);
           }
           return receiver.effectiveImage();
+        case "media":
+          if (receiver.type === "field" || receiver.type === "text") {
+            return this.ensureTextMemberImage(receiver).toDirectorBitmapMedia(mediaSourceForMember(receiver));
+          }
+          return receiver.effectiveImage().toDirectorBitmapMedia(mediaSourceForMember(receiver));
         case "rect":
           return this.memberRect(receiver);
         case "regpoint":
@@ -1622,6 +1629,33 @@ export class DirectorMovie implements DirectorHost {
           // buffer — aliased, that is a self-copy through a white fill).
           receiver.imageSource = value instanceof LingoImage ? value : null;
           receiver.image = value instanceof LingoImage ? value.duplicate() : null;
+          if (receiver.image) {
+            receiver.paletteRef = receiver.image.paletteRef;
+            receiver.palette = receiver.image.paletteRef;
+          }
+          this.onStageChange();
+          return true;
+        case "media":
+          if (isPhotoInvalidMedia(value) && receiver.imageSource) {
+            this.log.log("info", `photo media fallback ignored for ${receiver.name || "runtime bitmap"}; keeping retrieved bitmap`);
+            return true;
+          }
+          if (value instanceof LingoImage) {
+            receiver.imageSource = value;
+          } else if (value instanceof LingoBitmapMedia) {
+            receiver.imageSource = LingoImage.fromDirectorBitmapMedia(value);
+            if (!receiver.imageSource && !isPhotoInvalidMedia(value)) {
+              this.log.log(
+                "info",
+                `bitmap media decode failed for ${receiver.name || "runtime bitmap"}; ${formatDirectorBitmapMediaInspection(
+                  inspectDirectorBitmapMedia(value.bytes),
+                )}`,
+              );
+            }
+          } else {
+            receiver.imageSource = null;
+          }
+          receiver.image = receiver.imageSource ? receiver.imageSource.duplicate() : null;
           if (receiver.image) {
             receiver.paletteRef = receiver.image.paletteRef;
             receiver.palette = receiver.image.paletteRef;
@@ -2618,4 +2652,35 @@ export class DirectorMovie implements DirectorHost {
     }
     return undefined;
   };
+}
+
+function mediaSourceForMember(member: CastMember): { readonly memberName: string; readonly memberNumber: number; readonly castName: string } {
+  return {
+    memberName: member.name,
+    memberNumber: member.number,
+    castName: member.castName,
+  };
+}
+
+function isPhotoInvalidMedia(value: LingoValue): boolean {
+  return value instanceof LingoBitmapMedia && value.source.memberName?.toLowerCase() === "photo_invalid";
+}
+
+function formatDirectorBitmapMediaInspection(info: DirectorBitmapMediaInspection): string {
+  const fields = [
+    `accepted=${info.accepted ? 1 : 0}`,
+    `reason=${info.reason}`,
+    `bytes=${info.bytes}`,
+    `prefix=${info.prefix}`,
+  ];
+  if (info.offset !== undefined) fields.push(`offset=${info.offset}`);
+  if (info.fourCC !== undefined) fields.push(`fourCC=${JSON.stringify(info.fourCC)}`);
+  if (info.width !== undefined && info.height !== undefined) fields.push(`size=${info.width}x${info.height}`);
+  if (info.rowBytes !== undefined) fields.push(`rowBytes=${info.rowBytes}`);
+  if (info.minRowBytes !== undefined) fields.push(`minRowBytes=${info.minRowBytes}`);
+  if (info.bitDepth !== undefined) fields.push(`bitDepth=${info.bitDepth}`);
+  if (info.palette !== undefined) fields.push(`palette=${info.palette}`);
+  if (info.paletteName !== undefined) fields.push(`paletteName=${info.paletteName}`);
+  if (info.packedLength !== undefined) fields.push(`packedLength=${info.packedLength}`);
+  return fields.join(" ");
 }

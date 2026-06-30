@@ -9,7 +9,12 @@ const workspace = resolve(__dirname, "..");
 const portableParent = resolve(workspace, "dist", "portable");
 const portableRoot = join(portableParent, "HabbpyV4");
 const portableClientsRoot = join(portableRoot, "clients");
-const preservePortableClients = process.env.HABBPY_V4_PRESERVE_PORTABLE_CLIENTS === "1";
+const args = new Set(process.argv.slice(2));
+const cleanPortableClients =
+  args.has("--clean-clients") ||
+  process.env.HABBPY_V4_CLEAN_PORTABLE_CLIENTS === "1" ||
+  process.env.HABBPY_V4_PRESERVE_PORTABLE_CLIENTS === "0";
+const preservePortableClients = !cleanPortableClients;
 const appRoot = join(portableRoot, "resources", "app");
 const packagedEngineRoot = join(portableRoot, "resources", "engine");
 const appName = "Habbpy v4.exe";
@@ -189,6 +194,7 @@ const summary = {
   engine: relative(workspace, join(packagedEngineRoot, "dist", "index.html")),
   importer: relative(workspace, join(packagedEngineRoot, "standalone", "dist", "main", "cli", "profile-import.js")),
   relayResources: relative(workspace, join(portableRoot, "resources", "relay")),
+  preservePortableClients,
 };
 console.log(JSON.stringify(summary, null, 2));
 

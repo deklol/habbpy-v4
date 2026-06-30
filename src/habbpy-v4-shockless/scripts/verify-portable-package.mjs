@@ -3,7 +3,11 @@ import { basename, dirname, extname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const portableRoot = resolve(process.argv[2] ?? join(workspace, "dist", "portable", "HabbpyV4"));
+const args = process.argv.slice(2);
+const allowLocalClients = args.includes("--allow-local-clients");
+const strictNoClients = args.includes("--strict-no-clients");
+const portableArg = args.find((arg) => !arg.startsWith("--"));
+const portableRoot = resolve(portableArg ?? join(workspace, "dist", "portable", "HabbpyV4"));
 const textExtensions = new Set([".cjs", ".css", ".html", ".js", ".json", ".mjs", ".txt"]);
 const premadeModuleIds = readPremadeModuleIds(join(portableRoot, "plugins", "_premade-modules"));
 const requiredFiles = [
@@ -13,6 +17,7 @@ const requiredFiles = [
   "resources/app/dist/main/main/main.js",
   "resources/app/dist/main/main/profileImportRunner.js",
   "resources/app/dist/main/main/shocklessEmbed.js",
+  "resources/app/dist/main/main/updateInstallerHelper.js",
   "resources/app/dist/plugins/template/habbpy.plugin.json",
   "resources/app/dist/plugins/template/plugin.js",
   "plugins/welcome-message/habbpy.plugin.json",
@@ -102,8 +107,11 @@ if (copiedForbiddenPluginPaths.length > 0) {
 if (copiedForbiddenFiles.length > 0) {
   fail(`Portable package copied private local file(s): ${copiedForbiddenFiles.join(", ")}`);
 }
-if (copiedClientPaths.length > 0) {
+if (copiedClientPaths.length > 0 && !allowLocalClients) {
   fail(`Portable package copied imported/decompiled client profile path(s): ${copiedClientPaths.slice(0, 20).join(", ")}`);
+}
+if (strictNoClients && copiedClientPaths.length > 0) {
+  fail(`Portable package must not contain imported/decompiled client profile path(s): ${copiedClientPaths.slice(0, 20).join(", ")}`);
 }
 if (leakedText.length > 0) {
   fail(`Portable package contains local absolute path needle(s): ${leakedText.join(", ")}`);
@@ -123,6 +131,7 @@ console.log(
       forbiddenPluginPathsCopied: copiedForbiddenPluginPaths.length,
       forbiddenFilesCopied: copiedForbiddenFiles.length,
       clientPathsCopied: copiedClientPaths.length,
+      clientPathsAllowed: allowLocalClients,
       localAbsolutePathNeedles: leakedText.length,
     },
     null,

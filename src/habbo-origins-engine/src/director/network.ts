@@ -1,6 +1,11 @@
 import { ScriptInstance } from "./Runtime";
 import * as ops from "./ops";
 import { LINGO_VOID, LingoObjectLike, LingoPropList, LingoSymbol, LingoValue } from "./values";
+import { latin1BytesFromString, stringFromLatin1Bytes } from "./byteStrings";
+import { decodeMusMessages, encodeMusLogonMessage, encodeMusMessage } from "./mus";
+
+export { latin1BytesFromString, stringFromLatin1Bytes } from "./byteStrings";
+export { decodeMusMessages, encodeMusLogonMessage, encodeMusMessage, MUS_TYPES, type DecodedMusMessage } from "./mus";
 
 const ORIGINS_MACHINE_ID_STORAGE_KEY = "director.origins.machineId";
 const ORIGINS_MACHINE_ID_PATTERN = /^BX1(?:-[A-Z0-9]{4}){5}$/;
@@ -78,23 +83,6 @@ export function resolveBridgeUrl(options: DirectorNetworkBridgeOptions | undefin
     12326;
 
   return `${protocol}://${host}:${port}`;
-}
-
-export function latin1BytesFromString(value: string): Uint8Array {
-  const bytes = new Uint8Array(value.length);
-  for (let index = 0; index < value.length; index += 1) {
-    bytes[index] = value.charCodeAt(index) & 0xff;
-  }
-  return bytes;
-}
-
-export function stringFromLatin1Bytes(bytes: Uint8Array): string {
-  let output = "";
-  const chunkSize = 8192;
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    output += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
-  }
-  return output;
 }
 
 export function formatOutgoingPacketTrace(payload: string): string {
@@ -499,6 +487,50 @@ function shouldReuseLoginIdentifier(
   return true;
 }
 
+type MultiuserConnectTarget = {
+  readonly host: string;
+  readonly port: number;
+};
+
+function connectTargetFromArgs(args: LingoValue[]): MultiuserConnectTarget | null {
+  const host = ops.stringOf(args[2] ?? "").trim();
+  const port = parsePortFromValue(args[3]);
+  if (!host || host === "*" || !port) return null;
+  return { host, port };
+}
+
+function shouldUseMusBridge(target: MultiuserConnectTarget | null): boolean {
+  if (!target) return false;
+  const params = currentSearchParams();
+  const gameHost =
+    params.get("connection.info.host")?.trim() ??
+    params.get("connectionHost")?.trim() ??
+    params.get("gameHost")?.trim() ??
+    params.get("tcpHost")?.trim() ??
+    "game-ous.habbo.com";
+  const gamePort =
+    parsePort(params.get("connection.info.port")) ??
+    parsePort(params.get("connectionPort")) ??
+    parsePort(params.get("gamePort")) ??
+    parsePort(params.get("tcpPort")) ??
+    40001;
+  return target.host.toLowerCase() !== gameHost.toLowerCase() || target.port !== gamePort;
+}
+
+function isGameConnectionFlag(value: LingoValue): boolean {
+  if (value === LINGO_VOID) return false;
+  if (typeof value === "number") return value !== 0;
+  return ops.stringOf(value).trim() === "1";
+}
+
+function resolveRawBridgeUrl(baseUrl: string, target: MultiuserConnectTarget): string {
+  const url = new URL(baseUrl);
+  url.searchParams.set("mode", "raw");
+  url.searchParams.set("targetHost", target.host);
+  url.searchParams.set("targetPort", String(target.port));
+  return url.toString();
+}
+
 class MultiuserXtraRef implements LingoObjectLike {
   readonly lingoType = "xtraRef";
 
@@ -513,6 +545,8 @@ class MultiuserXtraInstance implements LingoObjectLike {
   private handlerName: string | undefined;
   private handlerTarget: ScriptInstance | undefined;
   private readonly messages: LingoPropList[] = [];
+  private bridgeMode: "game" | "mus" = "game";
+  private musReceiveBuffer = new Uint8Array();
 
   constructor(
     private readonly options: RequiredNormalizedNetworkOptions,
@@ -532,7 +566,7 @@ class MultiuserXtraInstance implements LingoObjectLike {
       case "setnetmessagehandler":
         return this.setNetMessageHandler(args[0] ?? LINGO_VOID, args[1] ?? LINGO_VOID);
       case "connecttonetserver":
-        return this.connectToNetServer();
+        return this.connectToNetServer(args);
       case "sendnetmessage":
         return this.sendNetMessage(args[0] ?? LINGO_VOID, args[1] ?? LINGO_VOID, args[2] ?? LINGO_VOID);
       case "getnetmessage":
@@ -561,7 +595,7 @@ class MultiuserXtraInstance implements LingoObjectLike {
     return 0;
   }
 
-  private connectToNetServer(): number {
+  private connectToNetServer(args: LingoValue[] = []): number {
     if (!this.options.enabled) {
       this.log(`network bridge disabled for ${this.options.url}`);
       return 1;
@@ -570,13 +604,18 @@ class MultiuserXtraInstance implements LingoObjectLike {
       return 1;
     }
 
+    const target = connectTargetFromArgs(args);
+    this.bridgeMode = isGameConnectionFlag(args[5] ?? LINGO_VOID) || !shouldUseMusBridge(target) ? "game" : "mus";
+    this.musReceiveBuffer = new Uint8Array();
+    const bridgeUrl = this.bridgeMode === "mus" && target ? resolveRawBridgeUrl(this.options.url, target) : this.options.url;
+
     let socket: DirectorWebSocketLike;
     try {
-      socket = this.options.webSocketFactory(this.options.url);
+      socket = this.options.webSocketFactory(bridgeUrl);
     } catch (error) {
       this.enqueueMessage("error", LINGO_VOID, 1);
       this.triggerHandler();
-      this.log(`network bridge unavailable ${this.options.url}: ${error instanceof Error ? error.message : String(error)}`);
+      this.log(`network bridge unavailable ${bridgeUrl}: ${error instanceof Error ? error.message : String(error)}`);
       return 0;
     }
     this.socket = socket;
@@ -587,15 +626,28 @@ class MultiuserXtraInstance implements LingoObjectLike {
         return;
       }
       this.options.onConnect();
+      if (this.bridgeMode === "mus") {
+        socket.send(encodeMusLogonMessage());
+      }
       this.enqueueMessage("ConnectToNetServer", LINGO_VOID, 0);
       this.triggerHandler();
-      this.log(`network bridge connected ${this.options.url}`);
+      this.log(`network bridge connected ${bridgeUrl}`);
     });
     socket.addEventListener("message", (event) => {
       void this.readSocketMessage(event.data)
         .then((content) => {
           if (!this.targetStillOwnsThisXtra()) {
             this.closeStaleSocket(socket, "message");
+            return;
+          }
+          if (this.bridgeMode === "mus") {
+            const decoded = decodeMusMessages(latin1BytesFromString(content), this.musReceiveBuffer);
+            this.musReceiveBuffer = new Uint8Array(decoded.remaining);
+            this.options.beforeMessage();
+            for (const message of decoded.messages) {
+              this.enqueueMessage(message.subject, message.content, message.errorCode);
+              this.triggerHandler();
+            }
             return;
           }
           if (this.options.tracePackets) {
@@ -623,15 +675,30 @@ class MultiuserXtraInstance implements LingoObjectLike {
       }
       this.enqueueMessage("error", LINGO_VOID, 1);
       this.triggerHandler();
-      this.log(`network bridge socket error ${this.options.url}`);
+      this.log(`network bridge socket error ${bridgeUrl}`);
     });
     socket.addEventListener("close", () => {
-      this.log(`network bridge closed ${this.options.url}`);
+      this.log(`network bridge closed ${bridgeUrl}`);
     });
     return 1;
   }
 
   private sendNetMessage(_session: LingoValue, subject: LingoValue, content: LingoValue): number {
+    if (this.bridgeMode === "mus") {
+      const subjectText = subject === LINGO_VOID ? "" : ops.stringOf(subject);
+      const contentText = content === LINGO_VOID ? "" : ops.stringOf(content);
+      if (contentText.length === 1 && contentText.charCodeAt(0) === 0) {
+        this.socket?.close();
+        return 1;
+      }
+      if (!this.socket || this.socket.readyState !== WebSocketReadyState.Open) {
+        this.log(`MUS bridge send skipped before open (${subjectText || "message"})`);
+        return 0;
+      }
+      this.socket.send(encodeMusMessage(subjectText || "msg", content));
+      return 1;
+    }
+
     const versionCheckedPayload = rewriteRelease306VersionCheckPacket(this.payloadForMessage(subject, content), {
       build: this.options.release306VersionCheckBuild,
       clientType: this.options.release306VersionCheckClientType,
@@ -924,5 +991,11 @@ function parsePort(value: string | null | undefined): number | undefined {
     return undefined;
   }
   const port = Number.parseInt(value, 10);
+  return Number.isInteger(port) && port > 0 && port <= 65535 ? port : undefined;
+}
+
+function parsePortFromValue(value: LingoValue | undefined): number | undefined {
+  if (value === undefined || value === LINGO_VOID) return undefined;
+  const port = typeof value === "number" ? value : Number.parseInt(ops.stringOf(value), 10);
   return Number.isInteger(port) && port > 0 && port <= 65535 ? port : undefined;
 }

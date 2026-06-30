@@ -63,6 +63,16 @@ interface WebSocketFrameHandlers {
   readonly pong: (payload: Buffer) => void;
 }
 
+interface WebSocketRequest {
+  readonly target: string;
+  readonly headers: Record<string, string>;
+}
+
+interface RawRelayTarget {
+  readonly host: string;
+  readonly port: number;
+}
+
 interface PacketBuffer {
   push(chunk: Buffer): void;
   receive(): Buffer[];
@@ -160,6 +170,9 @@ class OriginsRelaySession {
   private encryptedServerChunks: PacketBuffer | undefined;
   private serverCryptoEnabled = false;
   private closed = false;
+  private rawTarget: RawRelayTarget | null = null;
+  private rawClientLogBuffer: Buffer<ArrayBufferLike> = Buffer.alloc(0);
+  private rawServerLogBuffer: Buffer<ArrayBufferLike> = Buffer.alloc(0);
   private readonly sessionLogStream: WriteStream | null;
   private pluginPolicyLogged = false;
 
@@ -188,15 +201,23 @@ class OriginsRelaySession {
       if (end < 0) return;
 
       const headerText = this.httpHandshakeBuffer.subarray(0, end).toString("latin1");
-      const headers = parseHttpHeaders(headerText);
-      const key = headers["sec-websocket-key"];
+      const request = parseWebSocketRequest(headerText);
+      const key = request.headers["sec-websocket-key"];
       if (!key) {
+        this.browserSocket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
+        return;
+      }
+      let rawTarget: RawRelayTarget | null;
+      try {
+        rawTarget = parseRawRelayTarget(request.target);
+      } catch (error) {
+        this.log(`websocket request rejected: ${errorMessage(error)}`);
         this.browserSocket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
         return;
       }
 
       const leftover = this.httpHandshakeBuffer.subarray(end + 4);
-      void this.connectUpstreamAndUpgrade(key, leftover);
+      void this.connectUpstreamAndUpgrade(key, leftover, rawTarget);
       return;
     }
 
@@ -208,29 +229,45 @@ class OriginsRelaySession {
     });
   }
 
-  private async connectUpstreamAndUpgrade(webSocketKey: string, leftover: Buffer): Promise<void> {
+  private async connectUpstreamAndUpgrade(
+    webSocketKey: string,
+    leftover: Buffer,
+    rawTarget: RawRelayTarget | null,
+  ): Promise<void> {
     try {
-      const upstreamHost = await resolveUpstreamHost(this.settings);
-      this.upstreamSocket = net.connect({ host: upstreamHost, port: this.settings.tcpPort });
+      this.rawTarget = rawTarget;
+      const upstreamHost = rawTarget ? await resolveRawUpstreamHost(rawTarget, this.settings) : await resolveUpstreamHost(this.settings);
+      const upstreamPort = rawTarget ? rawTarget.port : this.settings.tcpPort;
+      this.upstreamSocket = net.connect({ host: upstreamHost, port: upstreamPort });
       this.upstreamSocket.on("data", (chunk: Buffer) => this.handleUpstreamData(chunk));
-      this.upstreamSocket.on("close", () => this.close("upstream closed"));
-      this.upstreamSocket.on("error", (error: Error) => this.close(`upstream error ${error.message}`));
+      this.upstreamSocket.on("close", () => {
+        if (this.websocketUpgraded) this.close("upstream closed");
+      });
+      this.upstreamSocket.on("error", (error: Error) => {
+        if (this.websocketUpgraded) this.close(`upstream error ${error.message}`);
+      });
 
       await onceConnect(this.upstreamSocket);
       this.websocketUpgraded = true;
       this.browserSocket.write(webSocketUpgradeResponse(webSocketKey));
-      this.log(`browser ws -> ${upstreamHost}:${this.settings.tcpPort}`);
+      this.log(rawTarget ? `browser raw ws -> ${upstreamHost}:${upstreamPort}` : `browser ws -> ${upstreamHost}:${upstreamPort}`);
 
       if (leftover.length > 0) this.handleBrowserData(leftover);
     } catch (error) {
       const message = errorMessage(error);
       this.log(`upstream connect failed: ${message}`);
-      this.browserSocket.end("HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n");
+      if (!this.browserSocket.destroyed) this.browserSocket.end("HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n");
       this.close(`upstream connect failed ${message}`);
     }
   }
 
   private handleBrowserPayload(payload: Buffer): void {
+    if (this.rawTarget) {
+      this.logRawPayload("browser raw -> official", payload);
+      this.upstreamSocket?.write(payload);
+      return;
+    }
+
     this.clientPackets.push(payload);
     let packets: Buffer[];
     try {
@@ -286,6 +323,12 @@ class OriginsRelaySession {
   }
 
   private handleUpstreamData(chunk: Buffer): void {
+    if (this.rawTarget) {
+      this.logRawPayload("official raw -> browser", chunk);
+      this.browserSocket.write(encodeWebSocketFrame(chunk, 0x02));
+      return;
+    }
+
     try {
       if (this.serverCryptoEnabled) {
         this.encryptedServerChunks?.push(chunk);
@@ -355,7 +398,9 @@ class OriginsRelaySession {
 
   private log(message: string): void {
     const line = `[${new Date().toISOString()}] [origins-relay #${this.id}] ${message}\n`;
-    this.sessionLogStream?.write(line);
+    if (this.sessionLogStream && !this.sessionLogStream.destroyed && !this.sessionLogStream.writableEnded) {
+      this.sessionLogStream.write(line);
+    }
     if (this.settings.quiet) return;
     console.log(`[origins-relay #${this.id}] ${message}`);
   }
@@ -369,6 +414,23 @@ class OriginsRelaySession {
         ? ` header=${headerId} keyLength=${readSafeOutgoingString(packet).length}`
         : ` header=${headerId} bytes=${packet.length}`;
     this.log(`${prefix}${suffix}${safeBodySuffix(prefix, headerId, packet, this.settings.logPacketBodies)}`);
+  }
+
+  private logRawPayload(prefix: string, payload: Buffer): void {
+    if (!this.settings.logPackets) return;
+    const isServer = prefix.startsWith("official raw");
+    const buffered = appendRawMusLogBuffer(isServer ? this.rawServerLogBuffer : this.rawClientLogBuffer, payload);
+    if (isServer) this.rawServerLogBuffer = buffered.remaining;
+    else this.rawClientLogBuffer = buffered.remaining;
+
+    if (buffered.frames.length === 0) {
+      this.log(`${prefix} bytes=${payload.length}${safeRawMusChunkSuffix(payload, buffered.remaining.length)}`);
+      return;
+    }
+
+    for (const frame of buffered.frames) {
+      this.log(`${prefix} bytes=${payload.length}${safeRawMusSuffix(frame)} rawBufferedRemaining=${buffered.remaining.length}`);
+    }
   }
 }
 
@@ -585,6 +647,18 @@ async function resolveUpstreamHost(settings: RelaySettings): Promise<string> {
   }
 }
 
+async function resolveRawUpstreamHost(target: RawRelayTarget, settings: RelaySettings): Promise<string> {
+  if (!settings.dnsBypassHosts || isLocalHostOrAddress(target.host)) return target.host;
+
+  try {
+    const addresses = await dns.resolve4(target.host);
+    const publicAddress = addresses.find((address) => !isLocalAddress(address));
+    return publicAddress ?? target.host;
+  } catch {
+    return target.host;
+  }
+}
+
 function webSocketUpgradeResponse(key: string): string {
   const accept = crypto
     .createHash("sha1")
@@ -600,14 +674,32 @@ function webSocketUpgradeResponse(key: string): string {
   ].join("\r\n");
 }
 
-function parseHttpHeaders(text: string): Record<string, string> {
+function parseWebSocketRequest(text: string): WebSocketRequest {
+  const lines = text.split(/\r\n/);
+  const requestLine = lines[0] ?? "";
+  const target = requestLine.split(/\s+/)[1] ?? "/";
+  return { target, headers: parseHttpHeaders(lines.slice(1)) };
+}
+
+function parseHttpHeaders(lines: string[]): Record<string, string> {
   const headers: Record<string, string> = {};
-  for (const line of text.split(/\r\n/).slice(1)) {
+  for (const line of lines) {
     const separator = line.indexOf(":");
     if (separator <= 0) continue;
     headers[line.slice(0, separator).trim().toLowerCase()] = line.slice(separator + 1).trim();
   }
   return headers;
+}
+
+function parseRawRelayTarget(target: string): RawRelayTarget | null {
+  const url = new URL(target, "ws://127.0.0.1");
+  if (url.searchParams.get("mode") !== "raw") return null;
+  const host = url.searchParams.get("targetHost")?.trim().toLowerCase() ?? "";
+  const port = parseOptionalPort(url.searchParams.get("targetPort"));
+  if (!host || !port || !isAllowedRawRelayHost(host)) {
+    throw new Error(`Raw relay target is not allowed: ${host}:${String(url.searchParams.get("targetPort") ?? "")}`);
+  }
+  return { host, port };
 }
 
 function drainWebSocketFrames(buffer: Buffer, handlers: WebSocketFrameHandlers): Buffer {
@@ -708,6 +800,172 @@ function safeBodySuffix(prefix: string, headerId: number, packet: Buffer, mode: 
   return ` bodyStatus=sampled bodyLen=${bodyLength} bodySample=${JSON.stringify(sample)}`;
 }
 
+function safeRawMusSuffix(payload: Buffer): string {
+  const frame = parseRawMusFrameSummary(payload);
+  if (!frame) return ` rawStatus=unparsed rawPrefix=${payload.subarray(0, 24).toString("hex")}`;
+  const contentType = frame.contentType === null ? "" : ` musContentType=${frame.contentType}`;
+  const content = frame.contentSummary ? ` ${frame.contentSummary}` : "";
+  const remaining = frame.remainingBytes === 0 ? "" : ` rawRemaining=${frame.remainingBytes}`;
+  return ` rawStatus=mus musSubject=${JSON.stringify(frame.subject)} musFrameLen=${frame.frameLength}${contentType}${content}${remaining}`;
+}
+
+function safeRawMusChunkSuffix(payload: Buffer, bufferedBytes: number): string {
+  const suffix = safeRawMusSuffix(payload);
+  if (!suffix.includes("rawStatus=unparsed")) return suffix;
+  return `${suffix} rawBuffered=${bufferedBytes}`;
+}
+
+function appendRawMusLogBuffer(
+  previous: Buffer,
+  payload: Buffer,
+): { readonly frames: readonly Buffer[]; readonly remaining: Buffer } {
+  const combined = previous.length > 0 ? Buffer.concat([previous, payload]) : Buffer.from(payload);
+  const frames: Buffer[] = [];
+  let offset = 0;
+  while (combined.length - offset >= 6) {
+    if (combined[offset] !== 0x72 || combined[offset + 1] !== 0x00) {
+      const next = combined.indexOf(Buffer.from([0x72, 0x00]), offset + 1);
+      if (next < 0) return { frames, remaining: combined.subarray(offset) };
+      offset = next;
+      continue;
+    }
+    const bodyLength = combined.readInt32BE(offset + 2);
+    if (bodyLength < 0) {
+      offset += 2;
+      continue;
+    }
+    const frameLength = 6 + bodyLength;
+    if (combined.length - offset < frameLength) break;
+    frames.push(combined.subarray(offset, offset + frameLength));
+    offset += frameLength;
+  }
+  return { frames, remaining: combined.subarray(offset) };
+}
+
+function parseRawMusFrameSummary(
+  payload: Buffer,
+): {
+  readonly subject: string;
+  readonly frameLength: number;
+  readonly contentType: number | null;
+  readonly contentSummary: string;
+  readonly remainingBytes: number;
+} | null {
+  if (payload.length < 6 || payload[0] !== 0x72 || payload[1] !== 0x00) return null;
+  const bodyLength = payload.readInt32BE(2);
+  if (bodyLength < 0 || payload.length < bodyLength + 6) return null;
+
+  const bodyStart = 6;
+  const bodyEnd = bodyStart + bodyLength;
+  let offset = bodyStart + 8; // errorCode + timestamp
+  const subject = readRawMusEvenString(payload, offset, bodyEnd);
+  if (!subject) return null;
+  offset = subject.offset;
+  const sender = readRawMusEvenString(payload, offset, bodyEnd);
+  if (!sender) return null;
+  offset = sender.offset;
+  if (offset + 4 > bodyEnd) {
+    return {
+      subject: subject.value,
+      frameLength: bodyLength,
+      contentType: null,
+      contentSummary: "",
+      remainingBytes: payload.length - bodyEnd,
+    };
+  }
+  const receiverCount = Math.max(0, payload.readInt32BE(offset));
+  offset += 4;
+  for (let index = 0; index < receiverCount; index += 1) {
+    const receiver = readRawMusEvenString(payload, offset, bodyEnd);
+    if (!receiver) return null;
+    offset = receiver.offset;
+  }
+  const contentType = offset + 2 <= bodyEnd ? payload.readInt16BE(offset) : null;
+  const contentSummary =
+    contentType === null ? "" : summarizeRawMusContent(payload, contentType, offset + 2, bodyEnd);
+  return { subject: subject.value, frameLength: bodyLength, contentType, contentSummary, remainingBytes: payload.length - bodyEnd };
+}
+
+function summarizeRawMusContent(payload: Buffer, contentType: number, offset: number, end: number): string {
+  if (contentType === 10) return summarizeRawMusPropList(payload, offset, end);
+  if (contentType === 5 || contentType === 20) return summarizeRawMusMediaValue(payload, offset, end, "musImage");
+  return "";
+}
+
+function summarizeRawMusPropList(payload: Buffer, offset: number, end: number): string {
+  if (offset + 4 > end) return "musProps=invalid";
+  const count = Math.max(0, payload.readInt32BE(offset));
+  offset += 4;
+  const parts: string[] = [`musPropCount=${count}`];
+  for (let index = 0; index < count && index < 32; index += 1) {
+    if (offset + 2 > end) return `${parts.join(" ")} musProps=truncated`;
+    offset += 2;
+    const key = readRawMusEvenString(payload, offset, end);
+    if (!key) return `${parts.join(" ")} musProps=truncated`;
+    offset = key.offset;
+    if (offset + 2 > end) return `${parts.join(" ")} musProps=truncated`;
+    const valueType = payload.readInt16BE(offset);
+    offset += 2;
+    const value = readRawMusValueSlice(payload, valueType, offset, end);
+    if (!value) return `${parts.join(" ")} musProps=truncated`;
+    offset = value.offset;
+
+    const keyName = key.value.toLowerCase();
+    if (keyName === "image" && (valueType === 5 || valueType === 20)) {
+      parts.push(`musImageType=${valueType}`, summarizeRawMusMediaBytes(value.bytes, "musImage"));
+    } else if (keyName === "cs" && valueType === 1 && value.bytes.length >= 4) {
+      parts.push(`musPhotoCs=${value.bytes.readInt32BE(0)}`);
+    } else if (keyName === "preset" && valueType === 1 && value.bytes.length >= 4) {
+      parts.push(`musPhotoPreset=${value.bytes.readInt32BE(0)}`);
+    } else if (keyName === "id" && valueType === 1 && value.bytes.length >= 4) {
+      parts.push(`musPhotoId=${value.bytes.readInt32BE(0)}`);
+    }
+  }
+  return parts.join(" ");
+}
+
+function readRawMusValueSlice(
+  payload: Buffer,
+  type: number,
+  offset: number,
+  end: number,
+): { readonly bytes: Buffer; readonly offset: number } | null {
+  if (type === 1) {
+    if (offset + 4 > end) return null;
+    return { bytes: payload.subarray(offset, offset + 4), offset: offset + 4 };
+  }
+  if (offset + 4 > end) return null;
+  const length = Math.max(0, payload.readInt32BE(offset));
+  offset += 4;
+  const valueEnd = offset + length;
+  if (valueEnd > end) return null;
+  return { bytes: payload.subarray(offset, valueEnd), offset: valueEnd + (length % 2) };
+}
+
+function summarizeRawMusMediaValue(payload: Buffer, offset: number, end: number, label: string): string {
+  if (offset + 4 > end) return `${label}=truncated`;
+  const length = Math.max(0, payload.readInt32BE(offset));
+  const start = offset + 4;
+  const valueEnd = start + length;
+  if (valueEnd > end) return `${label}=truncated`;
+  return summarizeRawMusMediaBytes(payload.subarray(start, valueEnd), label);
+}
+
+function summarizeRawMusMediaBytes(bytes: Buffer, label: string): string {
+  return `${label}Bytes=${bytes.length} ${label}Prefix=${bytes.subarray(0, 24).toString("hex")}`;
+}
+
+function readRawMusEvenString(payload: Buffer, offset: number, end: number): { readonly value: string; readonly offset: number } | null {
+  if (offset + 4 > end) return null;
+  const length = payload.readInt32BE(offset);
+  offset += 4;
+  if (length < 0 || offset + length > end) return null;
+  const value = payload.subarray(offset, offset + length).toString("latin1");
+  offset += length + (length % 2);
+  if (offset > end) return null;
+  return { value, offset };
+}
+
 function isSensitiveClientPacket(prefix: string, headerId: number): boolean {
   if (!prefix.startsWith("browser -> official")) return false;
   return headerId === PACKETS.TRY_LOGIN || headerId === PACKETS.UNIQUEID || headerId === PACKETS.GENERATEKEY;
@@ -761,8 +1019,26 @@ function parsePort(value: number | string | undefined, fallback: number): number
   return parsed;
 }
 
+function parseOptionalPort(value: string | null | undefined): number | null {
+  if (!value || value.trim().length === 0) return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= 65535 ? parsed : null;
+}
+
+function isAllowedRawRelayHost(host: string): boolean {
+  if (!/^[a-z0-9.-]+$/i.test(host)) return false;
+  if (readEnvString("ORIGINS_RAW_RELAY_ALLOW_ANY") === "1") return true;
+  if (host === "localhost" || host === "0.0.0.0" || host.startsWith("127.")) return false;
+  if (host === "habbo.com" || host.endsWith(".habbo.com")) return true;
+  return false;
+}
+
 function isLocalAddress(address: string): boolean {
   return address === "127.0.0.1" || address.startsWith("127.") || address === "0.0.0.0";
+}
+
+function isLocalHostOrAddress(host: string): boolean {
+  return host === "localhost" || isLocalAddress(host);
 }
 
 function resolveRelayResourceDir(): string {

@@ -28,7 +28,6 @@ const defaultPlugins = [
   "Packet Log",
   "Injection",
   "Dev Tools",
-  "Plugin Manager",
   "Sample Plugin",
 ];
 const pluginsToCapture = (process.env.HABBPY_V4_SCREENSHOT_PLUGINS || defaultPlugins.join(","))
@@ -216,6 +215,24 @@ try {
         };
         return clone(fixture.appPreferences);
       },
+      getUpdateState: async () => clone(fixture.updateState),
+      checkForUpdates: async () => {
+        fixture.updateState = {
+          ...fixture.updateState,
+          status: "up-to-date",
+          lastCheckedAt: new Date().toISOString(),
+          message: "Headless fixture is up to date.",
+          error: null,
+        };
+        return clone(fixture.updateState);
+      },
+      downloadUpdate: async () => clone(fixture.updateState),
+      installDownloadedUpdate: async () => clone(fixture.updateState),
+      skipUpdate: async (version) => {
+        fixture.updateState = { ...fixture.updateState, status: "skipped", skippedVersion: String(version || ""), message: `Skipped ${version || "update"}.` };
+        return clone(fixture.updateState);
+      },
+      onUpdateState: () => () => undefined,
       getPluginRegistryState: async () => clone(pluginRegistry),
       setPluginEnabled: async (pluginId, enabled) => {
         const id = String(pluginId || "");
@@ -1431,6 +1448,17 @@ function createFixture() {
       hardwareAccelerationActive: true,
       hardwareAccelerationRestartRequired: false,
       gpuLaunchSwitches: ["enable-gpu-rasterization", "enable-zero-copy", "ignore-gpu-blocklist", "enable-accelerated-2d-canvas"],
+    },
+    updateState: {
+      status: "idle",
+      currentVersion: "0.0.1",
+      lastCheckedAt: null,
+      skippedVersion: null,
+      available: null,
+      progress: null,
+      stagedPath: null,
+      message: "Headless fixture update checker idle.",
+      error: null,
     },
     pluginRegistry: createPluginRegistryFixture(),
     library: {

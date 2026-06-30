@@ -4,6 +4,7 @@ import { ScriptInstance, ScriptRef, type GeneratedScriptModule } from "../../src
 import { LingoColor, LingoDate, LingoRect } from "../../src/director/geometry";
 import { CastMember, CastRegistry } from "../../src/director/members";
 import { LingoImage } from "../../src/director/imaging";
+import { paletteTableForBitmapDepth } from "../../src/director/palettes";
 import { SpriteChannel } from "../../src/director/sprites";
 import { LINGO_VOID, LingoFloat, LingoList, LingoPropList, type LingoValue, symbol } from "../../src/director/values";
 
@@ -50,6 +51,16 @@ function createMovie(members: CastRegistry): DirectorMovie {
 }
 
 describe("Director sprite and member host properties", () => {
+  it("resolves sprite objects passed back to sprite and puppetSprite", () => {
+    const members = new CastRegistry({ movie: manifestWithCasts(), textFields: [], bitmaps: [] }, "/assets/");
+    const movie = createMovie(members);
+    const sprite = movie.runtime.call("sprite", [5]) as SpriteChannel;
+
+    expect(movie.runtime.call("sprite", [sprite])).toBe(sprite);
+    expect(movie.runtime.call("puppetSprite", [sprite, 1])).toBe(1);
+    expect(sprite.puppet).toBe(1);
+  });
+
   it("reports an opt-in live stage viewport through Director stage APIs", () => {
     const manifest = manifestWithCasts();
     const members = new CastRegistry({ movie: manifest, textFields: [], bitmaps: [] }, "/assets/");
@@ -262,6 +273,29 @@ describe("Director sprite and member host properties", () => {
     movie.setProp(member, "palette", symbol("systemMac"));
     expect(movie.getProp(member, "palette")).toBe(symbol("systemMac"));
     expect(movie.getProp(member, "paletteref")).toBe(symbol("systemMac"));
+  });
+
+  it("reports empty scriptText for non-script members so bitmap media is not rejected as script data", () => {
+    const member = new CastMember("bin", 99, 2, "runtime_photo_bitmap", "bitmap");
+    const movie = createMovie(new CastRegistry({ movie: manifestWithCasts(), textFields: [], bitmaps: [] }, "/assets/"));
+
+    expect(movie.runtime.getProp(member, "scriptText")).toBe("");
+  });
+
+  it("keeps retrieved photo bitmap media when source fallback tries to apply photo_invalid", () => {
+    const movie = createMovie(new CastRegistry({ movie: manifestWithCasts(), textFields: [], bitmaps: [] }, "/assets/"));
+    const palette = paletteTableForBitmapDepth("grayscale", 8);
+    const retrieved = LingoImage.fromPaletteIndices(2, 1, new Uint8Array([8, 16]), palette, symbol("grayscale"), 8);
+    const invalid = LingoImage.fromPaletteIndices(2, 1, new Uint8Array([200, 220]), palette, symbol("grayscale"), 8);
+    const targetMember = new CastMember("bin", 99, 2, "runtime_photo_bitmap", "bitmap");
+    const invalidMember = new CastMember("hh_photo", 7, 1, "photo_invalid", "bitmap");
+
+    movie.runtime.setProp(targetMember, "media", retrieved.toDirectorBitmapMedia());
+    movie.runtime.setProp(invalidMember, "image", invalid);
+    movie.runtime.setProp(targetMember, "media", movie.runtime.getProp(invalidMember, "media"));
+
+    expect(targetMember.image?.getPixel(0, 0).paletteIndex).toBe(8);
+    expect(targetMember.image?.getPixel(1, 0).paletteIndex).toBe(16);
   });
 
   it("returns a Director date object for the systemDate property", () => {

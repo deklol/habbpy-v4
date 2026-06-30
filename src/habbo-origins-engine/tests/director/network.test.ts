@@ -4,18 +4,22 @@ import { ScriptInstance } from "../../src/director/Runtime";
 import { CastRegistry } from "../../src/director/members";
 import {
   decodeHabboBase64,
+  decodeMusMessages,
   decodeVl64Text,
   encodeHabboBase64,
+  encodeMusMessage,
   encodeVl64,
   type DirectorNetworkBridgeOptions,
   type DirectorWebSocketLike,
   formatOutgoingPacketTrace,
   latin1BytesFromString,
+  MUS_TYPES,
   rewriteRelease306VersionCheckPayload,
   rewriteRelease306VersionCheckPacket,
   stringFromLatin1Bytes,
 } from "../../src/director/network";
-import { LINGO_VOID, LingoValue, symbol } from "../../src/director/values";
+import { LingoBitmapMedia } from "../../src/director/imaging";
+import { LINGO_VOID, LingoPropList, LingoValue, symbol } from "../../src/director/values";
 
 class FakeSocket implements DirectorWebSocketLike {
   binaryType?: BinaryType;
@@ -118,6 +122,44 @@ function tryLoginPayload(identifier: string, password: string, totp = "", steamI
     encodeStringParam(totp) +
     encodeStringParam(steamId);
   return encodeHabboBase64(body.length, 3) + body;
+}
+
+function musBindataPicturePayload(bytes: Uint8Array): Uint8Array {
+  const body: number[] = [];
+  writeInt32(body, 0);
+  writeInt32(body, 0);
+  writeEvenString(body, "BINDATA");
+  writeEvenString(body, "System");
+  writeInt32(body, 1);
+  writeEvenString(body, "*");
+  writeInt16(body, MUS_TYPES.PropList);
+  writeInt32(body, 1);
+  writeInt16(body, MUS_TYPES.Symbol);
+  writeEvenString(body, "image");
+  writeInt16(body, MUS_TYPES.Picture);
+  writeInt32(body, bytes.length);
+  body.push(...bytes);
+  if (bytes.length % 2 !== 0) body.push(0);
+
+  const frame: number[] = [0x72, 0x00];
+  writeInt32(frame, body.length);
+  frame.push(...body);
+  return new Uint8Array(frame);
+}
+
+function writeInt16(output: number[], value: number): void {
+  output.push((value >>> 8) & 0xff, value & 0xff);
+}
+
+function writeInt32(output: number[], value: number): void {
+  output.push((value >>> 24) & 0xff, (value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff);
+}
+
+function writeEvenString(output: number[], value: string): void {
+  const bytes = latin1BytesFromString(value);
+  writeInt32(output, bytes.length);
+  output.push(...bytes);
+  if (bytes.length % 2 !== 0) output.push(0);
 }
 
 function readVersionCheckBuild(payload: string): number {
@@ -237,6 +279,94 @@ describe("Director network bridge", () => {
 
     expect(movie.callMethod(multiuser, "sendnetmessage", [0, 0, "@Chello"])).toBe(1);
     expect([...socket!.sent[0]!]).toEqual([64, 67, 104, 101, 108, 108, 111]);
+  });
+
+  it("routes MUS connections through the raw bridge and frames text messages", async () => {
+    let socket: FakeSocket | undefined;
+    const movie = createMovie((url) => {
+      const parsed = new URL(url);
+      expect(parsed.searchParams.get("mode")).toBe("raw");
+      expect(parsed.searchParams.get("targetHost")).toBe("mus-ous.habbo.com");
+      expect(parsed.searchParams.get("targetPort")).toBe("30001");
+      socket = new FakeSocket();
+      return socket;
+    });
+    const multiuser = movie.runtime.call("new", [movie.runtime.call("xtra", ["Multiuser"])]);
+    let lastSubject: LingoValue = LINGO_VOID;
+    let lastContent: LingoValue = LINGO_VOID;
+
+    const target = new ScriptInstance({
+      scriptName: "MUS Target",
+      scriptType: "parent",
+      scriptProperties: [],
+      scriptGlobals: [],
+      handlers: {
+        xtramsghandler(ctx) {
+          const message = ctx.callMethod(multiuser, "getnetmessage", []);
+          lastSubject = ctx.callMethod(message, "getaprop", [symbol("subject")]);
+          lastContent = ctx.callMethod(message, "getaprop", [symbol("content")]);
+          return 1;
+        },
+      },
+    });
+
+    expect(movie.callMethod(multiuser, "setnetmessagehandler", [symbol("xtraMsgHandler"), target])).toBe(0);
+    expect(movie.callMethod(multiuser, "connecttonetserver", ["*", "*", "mus-ous.habbo.com", 30001, "*", 0])).toBe(1);
+    socket!.open();
+    expect(lastSubject).toBe("ConnectToNetServer");
+
+    const logon = decodeMusMessages(socket!.sent[0]!);
+    expect(logon.messages[0]?.subject).toBe("Logon");
+
+    expect(movie.callMethod(multiuser, "sendnetmessage", ["*", "PHOTOTXT", "/hello"])).toBe(1);
+    const sent = decodeMusMessages(socket!.sent[1]!);
+    expect(sent.messages[0]?.subject).toBe("PHOTOTXT");
+    expect(sent.messages[0]?.content).toBe("/hello");
+
+    socket!.message(encodeMusMessage("BINDATA_SAVED", "123"));
+    await Promise.resolve();
+    expect(lastSubject).toBe("BINDATA_SAVED");
+    expect(lastContent).toBe("123");
+  });
+
+  it("encodes MUS BINDATA property lists with media bytes", () => {
+    const media = new LingoBitmapMedia(new Uint8Array([1, 2, 3]));
+    const payload = LingoPropList.fromPairs([
+      [symbol("image"), media],
+      [symbol("time"), "1/1/2026 12:00"],
+      [symbol("cs"), 42],
+      [symbol("preset"), 1],
+    ]);
+    const decoded = decodeMusMessages(encodeMusMessage("BINDATA", payload)).messages[0]?.content;
+
+    expect(decoded).toBeInstanceOf(LingoPropList);
+    const list = decoded as LingoPropList;
+    expect(list.values[0]).toBeInstanceOf(LingoBitmapMedia);
+    expect([...(list.values[0] as LingoBitmapMedia).bytes]).toEqual([1, 2, 3]);
+    expect(list.values[2]).toBe(42);
+  });
+
+  it("decodes MUS Picture values as bitmap media for retrieved photo BINDATA", () => {
+    const decoded = decodeMusMessages(musBindataPicturePayload(new Uint8Array([4, 5, 6, 7]))).messages[0]?.content;
+
+    expect(decoded).toBeInstanceOf(LingoPropList);
+    const list = decoded as LingoPropList;
+    expect(list.keys[0]).toBe(symbol("image"));
+    expect(list.values[0]).toBeInstanceOf(LingoBitmapMedia);
+    expect([...(list.values[0] as LingoBitmapMedia).bytes]).toEqual([4, 5, 6, 7]);
+  });
+
+  it("keeps flagged game connections on the framed bridge even for custom hosts", () => {
+    const seenUrls: string[] = [];
+    const movie = createMovie((url) => {
+      seenUrls.push(url);
+      return new FakeSocket();
+    });
+    const multiuser = movie.runtime.call("new", [movie.runtime.call("xtra", ["Multiuser"])]);
+
+    expect(movie.callMethod(multiuser, "connecttonetserver", ["*", "*", "127.0.0.1", 31000, "*", 1])).toBe(1);
+
+    expect(seenUrls).toEqual(["ws://127.0.0.1:12326"]);
   });
 
   it("ignores stale Multiuser callbacks after a source connection replaces pXtra", () => {
