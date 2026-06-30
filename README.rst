@@ -28,19 +28,6 @@ Languages And Stack
 - Playwright-based automation and screenshot checks
 - Shockless engine runtime with browser-rendered Director/Shockwave compatibility layers
 
-Screenshots
------------
-
-.. image:: media/screenshots/main-ui-plugin-dock-closed-20260623-164528.png
-   :alt: Habbpy v4 Main app UI with the plugin dock closed
-
-Main app UI with the plugin dock closed
-
-.. image:: media/screenshots/game-room-codex-test-lab-20260623-074701.png
-   :alt: Habbpy v4 Embedded Shockless room view
-
-Embedded Shockless room view
-
 License
 -------
 

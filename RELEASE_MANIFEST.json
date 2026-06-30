@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-06-30T01:29:36.645Z",
+  "generatedAt": "2026-06-30T01:36:26.867Z",
   "ok": true,
   "releaseRoot": "release",
-  "files": 614,
+  "files": 612,
   "findings": [],
   "paths": {
     "portable": "portable/HabbpyV4/Habbpy v4.exe",
