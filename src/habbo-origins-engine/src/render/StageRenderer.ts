@@ -111,6 +111,7 @@ export class StageRenderer {
   private dirty = true;
   private customHotelView: CustomHotelViewPresentation | null = null;
   private suppressedChannels = new Set<number>();
+  private manualHiddenChannels = new Set<number>();
   private roomStagePresentation: RoomStagePresentation | null = null;
   private roomStagePresentationSignature = "";
 
@@ -183,6 +184,14 @@ export class StageRenderer {
     this.markDirty();
   }
 
+  /** Channels hidden by dev/easter-egg toggles (hidefurni/hideusers/hideui).
+   * Independent of suppressedChannels (custom hotel view); render skips either. */
+  setManualHiddenChannels(channels: ReadonlySet<number>): void {
+    if (this.sameNumberSet(this.manualHiddenChannels, channels)) return;
+    this.manualHiddenChannels = new Set(channels);
+    this.markDirty();
+  }
+
   setRoomStagePresentation(presentation: RoomStagePresentation | null): void {
     const normalized =
       presentation && presentation.scale > 1 && presentation.channels.size > 0
@@ -244,7 +253,7 @@ export class StageRenderer {
     this.syncCustomHotelViewNodes();
 
     for (const channel of channels) {
-      if (this.suppressedChannels.has(channel.number)) continue;
+      if (this.suppressedChannels.has(channel.number) || this.manualHiddenChannels.has(channel.number)) continue;
       const member = channel.member;
       const shouldShow = channel.puppet === 1 && channel.visible === 1 && member !== null;
       if (!shouldShow) continue;

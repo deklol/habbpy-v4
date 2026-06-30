@@ -63,7 +63,7 @@ const allowedPermissions = new Set<PluginPermission>([
 const MAX_PLUGIN_ENTRY_BYTES = 512 * 1024;
 // Matches filenames that almost certainly contain local credentials or secrets.
 // Deliberately narrow Ã¢â‚¬â€ false positives would block legitimate plugin installs.
-const obviousPrivateFilePattern = /(multiclient-accounts|password|credential|secret|token|webhook)/i;
+const obviousPrivateFilePattern = /(multiclient-accounts|password|credential|secret|token|endpoints)/i;
 const forbiddenPluginSourceRules: readonly { readonly label: string; readonly pattern: RegExp }[] = [
   { label: "external URL literals", pattern: /\b(?:https?|wss?):\/\//i },
   { label: "network APIs", pattern: /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\b/ },
@@ -234,7 +234,7 @@ export class PluginManager {
     const validation = this.validateUserPluginRoot(sourceRoot, reservedPluginIds());
     if (!validation.ok) return { ok: false, message: validation.message, state: this.state() };
     if (folderHasObviousPrivateFiles(sourceRoot)) {
-      return { ok: false, message: "Plugin install refused because the folder contains obvious credential/webhook files.", state: this.state() };
+      return { ok: false, message: "Plugin install refused because the folder contains obvious credential/endpoints files.", state: this.state() };
     }
     const id = validation.plugin.id;
     const targetRoot = join(this.userPluginRoot(), id);

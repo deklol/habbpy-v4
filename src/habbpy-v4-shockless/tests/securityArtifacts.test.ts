@@ -8,12 +8,12 @@ const scannedRoots = ["src", "docs", "scripts", "tests", "examples"];
 const scannedFiles = ["package.json", "package-lock.json"];
 const textExtensions = new Set([".ts", ".tsx", ".cts", ".mts", ".js", ".mjs", ".json", ".md", ".txt"]);
 
-test("source and package-facing files do not contain local credentials or webhook URLs", () => {
+test("source and package-facing files do not contain local credentials or endpoints URLs", () => {
   const accountNeedles = localAccountNeedles();
-  const webhookNeedle = `discord.com${"/api/webhooks/"}`;
+  const endpointNeedle = `private-service.com${"/api/endpoints/"}`;
   for (const filePath of sourceFacingFiles()) {
     const text = readFileSync(filePath, "utf8");
-    assert.equal(text.includes(webhookNeedle), false, `Discord webhook URL leaked in ${relative(repoRoot, filePath)}`);
+    assert.equal(text.includes(endpointNeedle), false, `private endpoints URL leaked in ${relative(repoRoot, filePath)}`);
     for (const needle of accountNeedles) {
       assert.equal(text.includes(needle), false, `Local test credential value leaked in ${relative(repoRoot, filePath)}`);
     }

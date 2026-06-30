@@ -9,12 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "visual:assets:306": "node tools/build-visual-bitmap-assets.mjs --version release306",
-    "external:assets:306": "node tools/materialize-external-bitmaps.mjs --version release306",
-    "lingo:verify": "tsx tools/lingo-verify.ts",
-    "lingo:index": "tsx tools/lingo-index.ts",
-    "lingo:generate": "tsx tools/lingo-generate.ts"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "jpeg-js": "^0.4.4",

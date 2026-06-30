@@ -1,16 +1,26 @@
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
 const standaloneRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(standaloneRoot, "..");
+const sourceCompiler = join(repoRoot, "tools", "profile-script-compiler.ts");
+const bundledCompiler = join(standaloneRoot, "resources", "compiler", "profile-script-compiler.mjs");
 
 mkdirSync(join(standaloneRoot, "resources", "compiler"), { recursive: true });
 
+if (!existsSync(sourceCompiler)) {
+  if (existsSync(bundledCompiler)) {
+    console.log("Profile script compiler source not present; using bundled compiler resource.");
+    process.exit(0);
+  }
+  throw new Error(`Profile script compiler source was not found: ${sourceCompiler}`);
+}
+
 await build({
-  entryPoints: [join(repoRoot, "tools", "profile-script-compiler.ts")],
-  outfile: join(standaloneRoot, "resources", "compiler", "profile-script-compiler.mjs"),
+  entryPoints: [sourceCompiler],
+  outfile: bundledCompiler,
   bundle: true,
   platform: "node",
   format: "esm",

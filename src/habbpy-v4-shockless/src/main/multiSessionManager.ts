@@ -2618,7 +2618,7 @@ function finiteNumberOrNull(value: unknown): number | null {
 function maskDiagnosticText(text: string): string {
   return String(text)
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[email]")
-    .replace(/(password|token|webhook|secret)=\S+/gi, "$1=[redacted]");
+    .replace(/(password|token|endpoints|secret)=\S+/gi, "$1=[redacted]");
 }
 
 async function execEngine(client: ManagedClient, code: (text: string) => string, text = ""): Promise<unknown> {

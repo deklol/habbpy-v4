@@ -64,14 +64,23 @@ if (missing.length > 0) {
 
 const copiedForbiddenPluginPaths = forbiddenPluginPaths.filter((entry) => pathExists(join(portableRoot, entry)));
 const copiedForbiddenFiles = [];
+const copiedClientPaths = [];
 const leakedText = [];
 let standaloneResourceFileCount = 0;
 let standaloneResourceBytes = 0;
 
+if (pathExists(join(portableRoot, "clients"))) {
+  copiedClientPaths.push("clients");
+}
+
 for (const filePath of walk(portableRoot)) {
   const name = basename(filePath);
+  const relativePath = relative(portableRoot, filePath);
+  if (relativePath.split(/[\\/]/).some((part) => part.toLowerCase() === "clients")) {
+    copiedClientPaths.push(relativePath);
+  }
   if (forbiddenFileNames.has(name.toLowerCase())) {
-    copiedForbiddenFiles.push(relative(portableRoot, filePath));
+    copiedForbiddenFiles.push(relativePath);
   }
   if (filePath.includes(`${join("resources", "engine", "standalone", "resources")}`)) {
     standaloneResourceFileCount += 1;
@@ -81,7 +90,7 @@ for (const filePath of walk(portableRoot)) {
   const text = readFileSync(filePath, "utf8");
   for (const pattern of forbiddenTextPatterns) {
     if (pattern.test(text)) {
-      leakedText.push(relative(portableRoot, filePath));
+      leakedText.push(relativePath);
       break;
     }
   }
@@ -92,6 +101,9 @@ if (copiedForbiddenPluginPaths.length > 0) {
 }
 if (copiedForbiddenFiles.length > 0) {
   fail(`Portable package copied private local file(s): ${copiedForbiddenFiles.join(", ")}`);
+}
+if (copiedClientPaths.length > 0) {
+  fail(`Portable package copied imported/decompiled client profile path(s): ${copiedClientPaths.slice(0, 20).join(", ")}`);
 }
 if (leakedText.length > 0) {
   fail(`Portable package contains local absolute path needle(s): ${leakedText.join(", ")}`);
@@ -110,6 +122,7 @@ console.log(
       standaloneResourceBytes,
       forbiddenPluginPathsCopied: copiedForbiddenPluginPaths.length,
       forbiddenFilesCopied: copiedForbiddenFiles.length,
+      clientPathsCopied: copiedClientPaths.length,
       localAbsolutePathNeedles: leakedText.length,
     },
     null,

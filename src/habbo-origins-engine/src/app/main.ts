@@ -1,4 +1,4 @@
-import { Application, TextureSource } from "pixi.js";
+import { Application, ColorMatrixFilter, TextureSource } from "pixi.js";
 // Director inks 35/38 (Subtract Pin/Subtract) map to the GPU "subtract"
 // blend, which Pixi only honors with the advanced-blend-modes extension;
 // without it the room dimmer draws opaque and blacks out the stage.
@@ -535,6 +535,42 @@ async function boot(): Promise<void> {
       });
   });
 
+  const bundledBulletinImageUrls = new Map<string, string>([
+    ["thumb.messenger_alert", "/img/messenger_alert.png"],
+  ]);
+  const bundledBulletinImageMembers = new Map<string, Promise<string>>();
+  const ensureBundledBulletinImageMember = async (imageName: string): Promise<string> => {
+    const url = bundledBulletinImageUrls.get(imageName);
+    if (!url) return imageName;
+    const cached = bundledBulletinImageMembers.get(imageName);
+    if (cached) return cached;
+    const promise = (async () => {
+      const decoded = await scheduleDecode(() => fetchImageBitmap(url, bitmapDecodeCache));
+      if (!decoded) return "thumb.system_notification";
+      const existing = members.find(imageName, null);
+      const member = existing instanceof CastMember && existing.number > 0
+        ? existing
+        : members.create("Internal", imageName, "bitmap");
+      const bitmap: BitmapInfo = {
+        width: decoded.width,
+        height: decoded.height,
+        regX: 0,
+        regY: 0,
+        pngUrl: url,
+        decoded: LingoImage.fromDrawable(decoded, decoded.width, decoded.height),
+      };
+      member.type = "bitmap";
+      member.bitmap = bitmap;
+      member.image = null;
+      member.imageSource = null;
+      member.regPointOverride = { x: 0, y: 0 };
+      return imageName;
+    })().catch(() => "thumb.system_notification");
+    bundledBulletinImageMembers.set(imageName, promise);
+    return promise;
+  };
+  void ensureBundledBulletinImageMember("thumb.messenger_alert");
+
   let movieForRoomBuffer: DirectorMovie | null = null;
   const getRoomAssetBuffer = (): ScriptInstance | null => {
     const activeMovie = movieForRoomBuffer;
@@ -1033,6 +1069,10 @@ async function boot(): Promise<void> {
       event.preventDefault();
       return;
     }
+    // Keep Director's `the shiftDown` accurate for Shift+click handlers (e.g. the
+    // navigator "Who's in here?" on a public room). Shift is a modifier, not a
+    // mapped key, so keyDown never sets it; refresh it from the mouse event here.
+    movie.shiftDown = event.shiftKey ? 1 : 0;
     movie.pointerMove(sourcePoint.x, sourcePoint.y);
     movie.pointerDown();
     renderDirty = true;
@@ -1053,6 +1093,7 @@ async function boot(): Promise<void> {
       event.preventDefault();
       return;
     }
+    movie.shiftDown = event.shiftKey ? 1 : 0;
     movie.pointerMove(sourcePoint.x, sourcePoint.y);
     movie.pointerUp();
     renderDirty = true;
@@ -2219,6 +2260,19 @@ async function boot(): Promise<void> {
           if (wrapper instanceof ScriptInstance) addRoomStageSprite(instancePropValue(wrapper, "psprite"), channels);
         }
       }
+      // The window landscape (sky) is a separately-reserved managed sprite that lives in
+      // neither pSpriteList/pActSprList nor the wrappers, so the room zoom skipped it and
+      // the sky stayed at 1x. Include it so it scales in lockstep with the walls/windows.
+      if (movie.runtime.hasHandler(visualizer, "getsprbyid")) {
+        addRoomStageSprite(movie.runtime.callMethod(visualizer, "getsprbyid", ["landscape"]), channels);
+      }
+    }
+
+    // The cloud animation (Landscape Animation Manager) owns its own reserved sprite —
+    // include it too so the clouds zoom with the sky instead of staying small.
+    const landscapeAnim = objectById("landscape_animation_manager");
+    if (landscapeAnim instanceof ScriptInstance) {
+      addRoomStageSprite(instancePropValue(landscapeAnim, "psprite"), channels);
     }
 
     const roomComponent = objectById("#room_component");
@@ -2602,6 +2656,87 @@ async function boot(): Promise<void> {
       errors,
     };
   };
+  // --- Private-room entry watchdog: auto-retry a stalled join instead of hanging ---
+  // A private-room open (Navigator Component.prepareRoomEntry -> TRYFLAT/GOTOFLAT/
+  // room_directory -> ROOM_READY) normally reaches "ready" within a couple of seconds.
+  // If the server never returns the room data the source just waits on the loader bar
+  // forever (classic Habbo has no retry). Watch for a load that has made NO progress for
+  // a while (route, sprite count, cast-loaded and active flag all frozen) while a flat is
+  // still targeted and unready, then clear the room-connection guard
+  // (pRoomConnectionRequested, which otherwise blocks a re-send) and re-fire
+  // prepareRoomEntry — an instant retry rather than an indefinite hang.
+  const ROOM_ENTRY_STALL_MS = 1800;
+  const ROOM_ENTRY_MAX_RETRIES = 8;
+  let roomEntryWatch: { flatId: string; fingerprint: string; sinceMs: number; retries: number } | null = null;
+  const roomComponentInstance = (): ScriptInstance | null => {
+    const objectList = objectManagerList(movie.runtime.getGlobal("gcore"));
+    const rc = objectList ? propListLookup(objectList, "#room_component") : LINGO_VOID;
+    return rc instanceof ScriptInstance ? rc : null;
+  };
+  const retryRoomEntry = (flatId: string): void => {
+    const rc = roomComponentInstance();
+    if (rc) {
+      // Clear the connection guard so the open can be re-sent on the re-drive.
+      try {
+        movie.runtime.setInstanceProp(rc, "proomconnectionrequested", 0);
+      } catch {
+        /* best effort */
+      }
+    }
+    const navigatorComponent = navigatorComponentFromObjects();
+    if (navigatorComponent instanceof ScriptInstance && movie.runtime.hasHandler(navigatorComponent, "prepareroomentry")) {
+      try {
+        movie.runtime.callMethod(navigatorComponent, "prepareroomentry", [flatId, LingoSymbol.for("private"), 1]);
+      } catch (error) {
+        appendLog("error", `room-entry retry failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  };
+  const roomEntryWatchdogSnapshot = (): Record<string, unknown> => ({
+    watching: roomEntryWatch
+      ? { ...roomEntryWatch, stalledMs: Math.round(performance.now() - roomEntryWatch.sinceMs) }
+      : null,
+    stallMs: ROOM_ENTRY_STALL_MS,
+    maxRetries: ROOM_ENTRY_MAX_RETRIES,
+  });
+  const roomEntryWatchdogTick = (): void => {
+    const flatId = currentPrivateRoomFlatId();
+    const summary = roomReadySummary();
+    if (!flatId || summary.ready) {
+      roomEntryWatch = null;
+      return;
+    }
+    const rc = roomComponentInstance();
+    // Progress fingerprint: anything moving here means the load is still advancing.
+    const fingerprint = [
+      summary.route,
+      summary.roomLikeSpriteCount,
+      rc ? debugValue(instancePropValue(rc, "pcastloaded")) : "-",
+      rc ? debugValue(instancePropValue(rc, "pactiveflag")) : "-",
+    ].join("|");
+    const now = performance.now();
+    if (!roomEntryWatch || roomEntryWatch.flatId !== flatId) {
+      roomEntryWatch = { flatId, fingerprint, sinceMs: now, retries: 0 };
+      return;
+    }
+    if (roomEntryWatch.fingerprint !== fingerprint) {
+      // Still progressing — reset the stall clock, keep the retry budget for this flat.
+      roomEntryWatch.fingerprint = fingerprint;
+      roomEntryWatch.sinceMs = now;
+      return;
+    }
+    if (now - roomEntryWatch.sinceMs >= ROOM_ENTRY_STALL_MS && roomEntryWatch.retries < ROOM_ENTRY_MAX_RETRIES) {
+      appendLog(
+        "info",
+        `private room ${flatId} stalled at "${summary.route}" for ${Math.round(now - roomEntryWatch.sinceMs)}ms with no progress; auto-retrying entry (attempt ${roomEntryWatch.retries + 1}/${ROOM_ENTRY_MAX_RETRIES})`,
+      );
+      retryRoomEntry(flatId);
+      roomEntryWatch.sinceMs = now;
+      roomEntryWatch.retries += 1;
+    }
+  };
+  const roomEntryWatchdogTimer = setInterval(roomEntryWatchdogTick, 1000);
+  void roomEntryWatchdogTimer;
   const sessionObjectFromObjects = (): ScriptInstance | null => {
     const objectList = objectManagerList(movie.runtime.getGlobal("gcore"));
     if (!objectList) return null;
@@ -2773,12 +2908,99 @@ async function boot(): Promise<void> {
       rafPerSecond: Math.round((rafCount / elapsedMs) * 100000) / 100,
       averageRafDeltaMs: Math.round(averageRafDeltaMs * 100) / 100,
       worstRafDeltaMs: Math.round(worstRafDeltaMs * 100) / 100,
+      // Live frame rate from the RECENT frame-delta average (not the lifetime rafPerSecond),
+      // so a stall shows up immediately: main-thread lag delays RAF, the recent deltas grow,
+      // and this number drops — the way a normal game-engine FPS readout behaves.
+      currentFps: averageRafDeltaMs > 0 ? Math.round(1000 / averageRafDeltaMs) : 0,
       frameTempo: movie.frameTempo,
       directorTickCount: tick.tickCount,
       directorTicksPerSecond: Math.round((tick.tickCount / elapsedMs) * 100000) / 100,
       activeTimeoutCount: tick.timeouts.filter((timeout) => timeout.active).length,
     };
   };
+  // --- Dev / easter-egg overlays -------------------------------------------
+  // Hide whole categories of the live scene and apply a scene-wide colour
+  // filter. Inert by default; the hidden-channel set is only recomputed while a
+  // toggle is on. Reuses the room-zoom channel collectors so furni/user/UI sets
+  // are sourced the same way the renderer already groups them.
+  let hideFurni = false;
+  let hideUsers = false;
+  let hideUi = false;
+  const collectFurniChannels = (channels: Set<number>): void => {
+    const roomComponent = objectById("#room_component");
+    if (!(roomComponent instanceof ScriptInstance)) return;
+    for (const propName of ["pactiveobjlist", "ppassiveobjlist", "pitemobjlist"]) {
+      addRoomObjectListSprites(instancePropValue(roomComponent, propName), channels);
+    }
+  };
+  const collectUserChannels = (channels: Set<number>): void => {
+    const roomComponent = objectById("#room_component");
+    if (roomComponent instanceof ScriptInstance) {
+      addRoomObjectListSprites(instancePropValue(roomComponent, "puserobjlist"), channels);
+    }
+    // Avatars keep their sprite as pSprite (not psprlist), so the object-list
+    // walk misses them; the Canvas:uid/h_ scan catches the avatar bodies.
+    addFallbackAvatarStageSprites(channels);
+  };
+  const collectUiChannels = (channels: Set<number>): void => {
+    const windowManager = sourceWindowManager();
+    if (!windowManager) return;
+    for (const id of sourceWindowIds(windowManager)) {
+      const windowObject = sourceWindowById(windowManager, id);
+      if (!windowObject) continue;
+      for (const element of sourceWindowElements(windowObject)) {
+        const sprite = instancePropValue(element, "psprite");
+        if (sprite instanceof SpriteChannel) channels.add(sprite.number);
+      }
+    }
+  };
+  const manualHiddenChannels = (): Set<number> => {
+    const channels = new Set<number>();
+    if (hideFurni) collectFurniChannels(channels);
+    if (hideUsers) collectUserChannels(channels);
+    if (hideUi) collectUiChannels(channels);
+    return channels;
+  };
+  const setHideFurni = (value: boolean): Record<string, unknown> => {
+    hideFurni = Boolean(value);
+    renderer.markDirty();
+    return { hideFurni };
+  };
+  const setHideUsers = (value: boolean): Record<string, unknown> => {
+    hideUsers = Boolean(value);
+    renderer.markDirty();
+    return { hideUsers };
+  };
+  const setHideUi = (value: boolean): Record<string, unknown> => {
+    hideUi = Boolean(value);
+    renderer.markDirty();
+    return { hideUi };
+  };
+  // Scene-wide colour filters via PixiJS ColorMatrixFilter (built into pixi.js,
+  // no extra deps). Applied to app.stage so it covers the whole rendered scene.
+  const SCENE_FILTERS: Record<string, () => ColorMatrixFilter> = {
+    greyscale: () => { const f = new ColorMatrixFilter(); f.desaturate(); return f; },
+    sepia: () => { const f = new ColorMatrixFilter(); f.sepia(false); return f; },
+    negative: () => { const f = new ColorMatrixFilter(); f.negative(false); return f; },
+    nightvision: () => { const f = new ColorMatrixFilter(); f.night(0.5, false); return f; },
+    vintage: () => { const f = new ColorMatrixFilter(); f.vintage(false); return f; },
+    predator: () => { const f = new ColorMatrixFilter(); f.predator(0.6, false); return f; },
+    lsd: () => { const f = new ColorMatrixFilter(); f.lsd(false); return f; },
+  };
+  const setSceneFilter = (name: unknown): Record<string, unknown> => {
+    const key = String(name ?? "").trim().toLowerCase();
+    if (key === "" || key === "none" || key === "off") {
+      app.stage.filters = [];
+      return { ok: true, filter: "none", available: Object.keys(SCENE_FILTERS) };
+    }
+    const factory = SCENE_FILTERS[key];
+    if (!factory) {
+      return { ok: false, error: `unknown filter: ${key}`, available: ["none", ...Object.keys(SCENE_FILTERS)] };
+    }
+    app.stage.filters = [factory()];
+    return { ok: true, filter: key };
+  };
+
   let userNameLabelsEnabled = false;
   const setUserNameLabels = (enabled: boolean): Record<string, unknown> => {
     userNameLabelsEnabled = Boolean(enabled);
@@ -2810,14 +3032,29 @@ async function boot(): Promise<void> {
       if (!(user instanceof ScriptInstance)) return [];
       const name = String(debugValue(prop(user, "pname")) ?? debugValue(key) ?? "").trim();
       if (!name || name === "<Void>") return [];
-      const sprites = prop(user, "psprlist");
-      const spriteItems =
-        sprites instanceof LingoList
-          ? sprites.items
-          : sprites instanceof LingoPropList
-            ? sprites.values
-            : [];
-      const candidateSprites = spriteItems.length > 0 ? spriteItems : avatarSpriteGroups[users.findIndex((entry) => entry.user === user)] ?? [];
+      // The avatar (Human Class, hh_human) carries its OWN sprite as pSprite — it
+      // has no psprlist. Reading pSprite ties each label to its avatar's sprite so
+      // it stays locked on the correct avatar through movement. The old psprlist
+      // read always came back empty and fell through to a Z-sorted, index-matched
+      // fallback that reshuffled names every time avatars moved.
+      const candidateSprites: LingoValue[] = [];
+      for (const spriteProp of ["psprite", "pmattespr"]) {
+        const sprite = prop(user, spriteProp);
+        if (sprite instanceof SpriteChannel) candidateSprites.push(sprite);
+      }
+      if (candidateSprites.length === 0) {
+        // Degrade to the legacy sprite list / fallback only when pSprite is
+        // absent, so a missing avatar sprite drops to old behaviour, not no label.
+        const sprites = prop(user, "psprlist");
+        const spriteItems =
+          sprites instanceof LingoList
+            ? sprites.items
+            : sprites instanceof LingoPropList
+              ? sprites.values
+              : [];
+        const fallback = spriteItems.length > 0 ? spriteItems : avatarSpriteGroups[users.findIndex((entry) => entry.user === user)] ?? [];
+        candidateSprites.push(...fallback);
+      }
       if (candidateSprites.length === 0) return [];
       let left = Number.POSITIVE_INFINITY;
       let top = Number.POSITIVE_INFINITY;
@@ -2833,7 +3070,7 @@ async function boot(): Promise<void> {
         maxZ = Math.max(maxZ, entry.locZ);
       }
       if (!Number.isFinite(left) || !Number.isFinite(top) || !Number.isFinite(right) || !Number.isFinite(maxZ)) return [];
-      const id = String(debugValue(prop(user, "id")) ?? debugValue(key) ?? name);
+      const id = String(debugValue(prop(user, "pid")) ?? debugValue(prop(user, "id")) ?? debugValue(key) ?? name);
       return [{
         id,
         name,
@@ -2864,9 +3101,68 @@ async function boot(): Promise<void> {
       });
   };
 
+  const cleanBulletinText = (value: unknown, fallback: string, maxLength: number): string => {
+    const text = String(value ?? "")
+      .replace(/[\x00-\x1f\x7f]+/g, " ")
+      .replace(/\[/g, "(")
+      .replace(/\]/g, ")")
+      .replace(/\s+/g, " ")
+      .trim();
+    return (text || fallback).slice(0, maxLength);
+  };
+
+  const cleanBulletinColor = (value: unknown, fallback: string): string => {
+    const text = String(value ?? "").trim();
+    return /^#[0-9a-fA-F]{6}$/.test(text) ? text : fallback;
+  };
+
+  const cleanBulletinImageName = (value: unknown): string => {
+    const text = String(value ?? "").trim();
+    if (/^thumb\.[A-Za-z0-9_.-]{1,96}$/.test(text) && text !== "thumb.hobba_notification") return text;
+    return "thumb.system_notification";
+  };
+
+  const showBulletinNotificationWithSource = async (input: Record<string, unknown> = {}): Promise<Record<string, unknown>> => {
+    const objectList = objectManagerList(movie.runtime.getGlobal("gcore"));
+    const manager = objectList ? propListLookup(objectList, "bulletin_notification_manager") : LINGO_VOID;
+    if (!(manager instanceof ScriptInstance)) {
+      return { ok: false, message: "bulletin_notification_manager is not available yet." };
+    }
+
+    const title = cleanBulletinText(input.title, "Notification", 72);
+    const message = cleanBulletinText(input.message ?? input.body ?? input.text, "", 180);
+    if (!message) return { ok: false, message: "Notification message is empty." };
+    const imageName = await ensureBundledBulletinImageMember(cleanBulletinImageName(input.imageName));
+    const titleColor = cleanBulletinColor(input.titleColor, "#2e2e2e");
+    const backgroundColor = cleanBulletinColor(input.backgroundColor ?? input.bgColor, "#5994ab");
+    const result = movie.runtime.callMethod(manager, "createnotification", [
+      title,
+      message,
+      imageName,
+      titleColor,
+      backgroundColor,
+      0,
+      LINGO_VOID,
+      LINGO_VOID,
+    ]);
+    if (resizeEngine) resizeSnapshot = resizeEngine.apply("notification");
+    return {
+      ok: true,
+      message: "Notification queued.",
+      title,
+      imageName,
+      result: debugValue(result),
+      resize: resizeSnapshot ? { changed: resizeSnapshot.changed, anchors: resizeSnapshot.anchors.slice(-5) } : null,
+    };
+  };
+
   // Expose live state for diagnostics/capture.
   (window as unknown as { __engine: unknown }).__engine = {
     dev: {
+      setHideFurni,
+      setHideUsers,
+      setHideUi,
+      setSceneFilter,
       stageClick,
       clickSprite,
       editableFields,
@@ -2879,6 +3175,7 @@ async function boot(): Promise<void> {
       beginPublicRoomEntry: beginPublicRoomEntryWithSourceEvents,
       enterPublicRoom: enterPublicRoomWithSourceEvents,
       sendChat: sendChatWithSourceEvents,
+      showBulletinNotification: showBulletinNotificationWithSource,
       chatHistory: chatHistoryFromSourceSession,
       navigatorPublicNodes,
       navigatorNodes,
@@ -2967,6 +3264,7 @@ async function boot(): Promise<void> {
       roomReady: roomReadySummary,
       waitForRoomReady,
       roomEntryState,
+      roomEntryWatchdog: roomEntryWatchdogSnapshot,
       performanceStats,
       setUserNameLabels,
       userNameLabels: () => ({ enabled: userNameLabelsEnabled, labels: userNameLabels() }),
@@ -3245,6 +3543,7 @@ async function boot(): Promise<void> {
     }
     if (!holdRoomAssets) {
       renderer.setRoomStagePresentation(currentRoomStagePresentation());
+      renderer.setManualHiddenChannels(manualHiddenChannels());
       if (renderDirty || renderer.needsSync()) {
         movie.prepareTextSpriteImages(focusedSprite);
         renderer.sync(movie.channels, focusedSprite);

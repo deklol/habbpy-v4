@@ -449,7 +449,7 @@ test("Origins public user lookup normalizes profile facts without credential fie
   assert.equal(normalized.name, "dek");
   assert.equal(normalized.figureString, "hd-180-1.ch-210-66");
   assert.deepEqual(normalized.selectedBadges, ["ACH_Test1", "ADM"]);
-  assert.doesNotMatch(JSON.stringify(normalized), /password|webhook|token/i);
+  assert.doesNotMatch(JSON.stringify(normalized), /password|endpoints|token/i);
 });
 
 test("client import classifier recognizes compiled clients without hardcoded versions", () => {

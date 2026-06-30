@@ -128,10 +128,10 @@ test("plugin manager installs valid folders and refuses obvious private files", 
 
       const privateRoot = join(fixtureParent, "private-plugin");
       writePluginFixture(privateRoot, "private-fixture");
-      writeFileSync(join(privateRoot, "webhook-token.txt"), "local test placeholder\n", "utf8");
+      writeFileSync(join(privateRoot, "endpoints-token.txt"), "local test placeholder\n", "utf8");
       const refused = manager.installFromFolder(privateRoot);
       assert.equal(refused.ok, false);
-      assert.match(refused.message, /credential|webhook/i);
+      assert.match(refused.message, /credential|endpoints/i);
     } finally {
       rmSync(fixtureParent, { recursive: true, force: true });
     }

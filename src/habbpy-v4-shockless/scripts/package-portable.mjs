@@ -9,6 +9,7 @@ const workspace = resolve(__dirname, "..");
 const portableParent = resolve(workspace, "dist", "portable");
 const portableRoot = join(portableParent, "HabbpyV4");
 const portableClientsRoot = join(portableRoot, "clients");
+const preservePortableClients = process.env.HABBPY_V4_PRESERVE_PORTABLE_CLIENTS === "1";
 const appRoot = join(portableRoot, "resources", "app");
 const packagedEngineRoot = join(portableRoot, "resources", "engine");
 const appName = "Habbpy v4.exe";
@@ -110,7 +111,7 @@ await assertPathExists(
 );
 
 await cleanupPreserveTempDirs();
-await clearPortableRootPreservingClients();
+await clearPortableRoot();
 await mkdir(portableParent, { recursive: true });
 await cp(electronDist, portableRoot, { recursive: true, force: true });
 
@@ -191,14 +192,17 @@ const summary = {
 };
 console.log(JSON.stringify(summary, null, 2));
 
-async function clearPortableRootPreservingClients() {
+async function clearPortableRoot() {
   if (!(await pathExists(portableRoot))) return;
   const entries = await readdir(portableRoot, { withFileTypes: true });
   await Promise.all(
     entries
-      .filter((entry) => entry.name.toLowerCase() !== "clients")
+      .filter((entry) => !preservePortableClients || entry.name.toLowerCase() !== "clients")
       .map((entry) => rm(join(portableRoot, entry.name), { recursive: true, force: true })),
   );
+  if (!preservePortableClients) {
+    await rm(portableClientsRoot, { recursive: true, force: true });
+  }
 }
 
 async function cleanupPreserveTempDirs() {

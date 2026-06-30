@@ -933,7 +933,22 @@ export class LingoImage implements LingoObjectLike {
     }
     const copy = new LingoImage(this.width, this.height, this.depth, this.paletteRef, { initWhite: false });
     copy.setMatteCoveragePolicy(this.matteCoveragePolicy);
-    copy.copyPixels(this, this.getRect(), this.getRect(), null);
+    if (this.incomplete) {
+      // Duplicating a still-decoding image used to freeze a one-shot blank snapshot that
+      // never healed. The window clouds duplicate their 8-bit graphics at init and derive
+      // a matte from the copy, so a duplicate taken before decode left the clouds
+      // permanently flat-white / outline-less (intermittent, decode-vs-init timing). Track
+      // the source's completion and re-copy when it finishes — same pattern createMatte()
+      // already uses for the same reason.
+      copy.pendingFill = true;
+      this.onComplete(() => {
+        copy.copyPixels(this, this.getRect(), this.getRect(), null);
+        copy.pendingFill = false;
+        copy.flushIfComplete();
+      });
+    } else {
+      copy.copyPixels(this, this.getRect(), this.getRect(), null);
+    }
     return copy;
   }
 

@@ -698,7 +698,7 @@ await furni.pickupItem({ id: 12345, kind: "floor" });</code></pre>
             <tr><td>Schema controls</td><td>Supported controls include headers, text, notices, sections, buttons, <code>buttonGrid</code>, toggles, inputs, selects, keybinds, key/value rows, logs, and selectable tables with <code>rowKey</code>, <code>selectedRowKey</code>, <code>rowAction</code>, and <code>maxRows</code>.</td></tr>
             <tr><td><code>packets.send()</code></td><td>Implemented for client-to-server Shockwave packets through the validated builder. Known action helpers remain preferred for normal gameplay actions.</td></tr>
             <tr><td>Selected visible runtime</td><td>Stage clicks, Navigator control, window clicks, room entry, client rights, and selector-based room object reads currently target the selected visible runtime. Chat helpers can route to target relay sessions for packet-backed modes.</td></tr>
-            <tr><td>Security boundary</td><td>User plugins do not receive Node, Electron, filesystem, account credentials, webhook values, or raw local test files.</td></tr>
+            <tr><td>Security boundary</td><td>User plugins do not receive Node, Electron, filesystem, account credentials, endpoints values, or raw local test files.</td></tr>
             <tr><td>Known actions</td><td>Use typed domain APIs for known actions. Use packet observation for discovery or local events when no first-class event exists yet.</td></tr>
           </tbody>
         </table>

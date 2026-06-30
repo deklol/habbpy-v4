@@ -92,7 +92,7 @@ describe("OriginsResizeEngine", () => {
     expect(rect).toMatchObject({ left: 0, top: 0, right: 960, bottom: 540 });
   });
 
-  it("keeps source-owned wall wrappers from being double-offset after resize", () => {
+  it("anchors wall wrappers flush with the floor instead of double-offsetting them after resize", () => {
     const movie = createMovie();
     const objectList = new LingoPropList();
     const gCore = new ScriptInstance(moduleFor("Object Manager Class", ["pObjectList"]));
@@ -169,7 +169,7 @@ describe("OriginsResizeEngine", () => {
     const snapshot = engine.apply("same-viewport-wrapper-refresh");
 
     expect(snapshot.anchors).toEqual(expect.arrayContaining([expect.objectContaining({ id: "wrapper:floor", action: "wrapper-follow" })]));
-    expect(snapshot.anchors.some((anchor) => anchor.id === "wrapper:wall" && anchor.action === "wrapper-source-owned-corrected")).toBe(true);
+    expect(snapshot.anchors.some((anchor) => anchor.id === "wrapper:wall" && anchor.action === "wrapper-follow")).toBe(true);
     expect(roomVisualizer.props.get("plocx")).toBe(270);
     expect(roomVisualizer.props.get("plocy")).toBe(110);
     expect(floorSprite.locH).toBe(302);

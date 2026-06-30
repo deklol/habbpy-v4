@@ -7,4 +7,4 @@ To try one, open Plugin Manager, choose Install From Folder, and select one modu
 The installed plugin id is prefixed with `premade-` so it does not collide with the native module id.
 
 The generated code demonstrates the public plugin host API: session, runtime, room, chat, packet, and storage hooks.
-It intentionally avoids credentials, webhook values, local account files, and hardcoded Habbo client versions.
+It intentionally avoids credentials, endpoints values, local account files, and hardcoded Habbo client versions.

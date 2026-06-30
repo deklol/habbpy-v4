@@ -76,11 +76,44 @@ export function origins306VersionCheckExternalVariablesUrlOverride(searchParams:
   ]);
 }
 
+const ORIGINS306_ENTRY_VIEW_CASTS: ReadonlySet<string> = new Set([
+  "hh_entry_uk",
+  "hh_entry_us",
+  "hh_entry_br",
+  "hh_entry_es",
+  "hh_entry_ru",
+  "hh_entry_wnt",
+]);
+
+/** The hotel-view country variant chosen in the launcher (e.g. "hh_entry_us"),
+ * validated against the known entry casts so only a real variant is injected. */
+export function origins306EntryViewOverride(searchParams: URLSearchParams = new URLSearchParams()): string | undefined {
+  const value = firstParam(searchParams, ["entryView", "hotelEntryCast"])?.toLowerCase();
+  return value && ORIGINS306_ENTRY_VIEW_CASTS.has(value) ? value : undefined;
+}
+
 export function overrideOrigins306ExternalVariables(
   text: string,
   searchParams: URLSearchParams = new URLSearchParams(),
 ): string {
-  return setExternalVariable(text, "client.version.id", String(origins306ClientVersionId(searchParams)));
+  let result = setExternalVariable(text, "client.version.id", String(origins306ClientVersionId(searchParams)));
+  const entryView = origins306EntryViewOverride(searchParams);
+  if (entryView) result = replaceCountryEntryCast(result, entryView);
+  return result;
+}
+
+/** Swaps the country hotel-view cast (cast.entry.N=hh_entry_<country>) for the
+ * chosen variant. The base hh_entry framework cast is left untouched. */
+function replaceCountryEntryCast(text: string, entryView: string): string {
+  const lines = text.split(/\r\n|\r|\n/);
+  let replaced = false;
+  const result = lines.map((line) => {
+    const match = /^(cast\.entry\.\d+)=hh_entry_[a-z]+$/i.exec(line.trim());
+    if (!match) return line;
+    replaced = true;
+    return `${match[1]}=${entryView}`;
+  });
+  return replaced ? result.join("\r") : text;
 }
 
 export function origins306ConnectionParams(searchParams: URLSearchParams = new URLSearchParams()): Origins306ConnectionParams {

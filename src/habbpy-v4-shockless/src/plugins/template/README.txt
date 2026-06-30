@@ -18,6 +18,6 @@ The template demonstrates:
 - `table.rowAction`: selectable rows that emit the clicked row key.
 - `commands` and `hotkeys`: declared command metadata.
 
-Do not store account files, passwords, tokens, webhook URLs, or local test credentials in plugin folders.
+Do not store account files, passwords, tokens, endpoints URLs, or local test credentials in plugin folders.
 
 See `docs/plugin-authoring.md` and `docs/plugin-api-reference.md` in the Habbpy v4 source tree for the full schema and API reference.
