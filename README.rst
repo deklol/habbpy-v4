@@ -38,12 +38,12 @@ Main App Screenshot
 
 Decompiling
 
-.. image:: https://i.dek.cx/3k9p
+.. image:: https://i.dek.cx/3k9p.png
    :alt: Decompiling
 
 Hotel View Select
 
-.. image:: https://i.dek.cx/h7qv
+.. image:: https://i.dek.cx/h7qv.png
    :alt: Hotel View Select
 
 Resizable Client (Very buggy, especially with Hotel Views)
@@ -53,27 +53,27 @@ Resizable Client (Very buggy, especially with Hotel Views)
 
 Plugin Manager
 
-.. image:: https://i.dek.cx/x8nv
+.. image:: https://i.dek.cx/x8nv.png
    :alt: Plugin Manager
 
 Settings
 
-.. image:: https://i.dek.cx/3329
+.. image:: https://i.dek.cx/3329.png
    :alt: Settings
 
 Loading
 
-.. image:: https://i.dek.cx/w1pf
+.. image:: https://i.dek.cx/w1pf.png
    :alt: Loading
 
 In-Game
 
-.. image:: https://i.dek.cx/fpp0
+.. image:: https://i.dek.cx/fpp0.png
    :alt: In-Game
 
 About
 
-.. image:: https://i.dek.cx/cllp
+.. image:: https://i.dek.cx/cllp.png
    :alt: About
 
 License
