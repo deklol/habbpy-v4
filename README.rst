@@ -28,6 +28,54 @@ Languages And Stack
 - Playwright-based automation and screenshot checks
 - Shockless engine runtime with browser-rendered Director/Shockwave compatibility layers
 
+Screenshots
+-----------
+
+Main App Screenshot
+
+.. image:: https://i.dek.cx/fpp0.png
+   :alt: Main App Screenshot
+
+Decompiling
+
+.. image:: https://i.dek.cx/3k9p
+   :alt: Decompiling
+
+Hotel View Select
+
+.. image:: https://i.dek.cx/h7qv
+   :alt: Hotel View Select
+
+Resizable Client (Very buggy, especially with Hotel Views)
+
+.. image:: https://i.dek.cx/2iiv.png
+   :alt: Resizable Client (Very buggy, especially with Hotel Views)
+
+Plugin Manager
+
+.. image:: https://i.dek.cx/x8nv
+   :alt: Plugin Manager
+
+Settings
+
+.. image:: https://i.dek.cx/3329
+   :alt: Settings
+
+Loading
+
+.. image:: https://i.dek.cx/w1pf
+   :alt: Loading
+
+In-Game
+
+.. image:: https://i.dek.cx/fpp0
+   :alt: In-Game
+
+About
+
+.. image:: https://i.dek.cx/cllp
+   :alt: About
+
 License
 -------
 
