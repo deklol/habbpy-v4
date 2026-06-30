@@ -12,7 +12,7 @@
     "build:renderer": "vite build",
     "build": "npm run typecheck && npm run build:main && npm run build:renderer",
     "package:portable": "npm run build && node scripts/package-portable.mjs && node scripts/verify-portable-package.mjs --allow-local-clients",
-    "package:portable:clean": "npm run build && npm run generate:premade-plugins && node scripts/package-portable.mjs --clean-clients && node scripts/verify-portable-package.mjs --strict-no-clients",
+    "package:portable:clean": "npm run build && node scripts/package-portable.mjs --clean-clients && node scripts/verify-portable-package.mjs --strict-no-clients",
     "verify:portable": "node scripts/verify-portable-package.mjs",
     "update:manifest": "node scripts/create-update-manifest.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit",
