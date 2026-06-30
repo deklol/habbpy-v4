@@ -3,6 +3,7 @@ export const UPDATE_REPOSITORY_NAME = "habbpy-v4";
 export const UPDATE_MANIFEST_ASSET_NAME = "update.json";
 export const UPDATE_PLATFORM = "win32-x64";
 export const MAX_UPDATE_BYTES = 750 * 1024 * 1024;
+export const INSTALLER_MANAGED_PLUGIN_ROOTS = ["plugins/welcome-message", "plugins/_premade-modules"] as const;
 
 export type AppUpdateStatus =
   | "idle"
@@ -188,8 +189,7 @@ export function portableInstallPathIsPreserved(relativePath: string): boolean {
 
 export function installerManagedPluginPath(relativePath: string): boolean {
   const normalized = relativePath.replaceAll("\\", "/").toLowerCase();
-  return normalized === "plugins/welcome-message" || normalized.startsWith("plugins/welcome-message/") ||
-    normalized === "plugins/_premade-modules" || normalized.startsWith("plugins/_premade-modules/");
+  return INSTALLER_MANAGED_PLUGIN_ROOTS.some((root) => normalized === root || normalized.startsWith(`${root}/`));
 }
 
 function parseVersion(version: string): { readonly parts: readonly number[]; readonly prerelease: string } {

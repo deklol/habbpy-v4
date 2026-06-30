@@ -1,14 +1,14 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream, existsSync, readFileSync } from "node:fs";
-import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { fileURLToPath } from "node:url";
 import type { WebContents } from "electron";
 import {
   emptyUpdateState,
+  INSTALLER_MANAGED_PLUGIN_ROOTS,
   installerManagedPluginPath,
   isNewerAppVersion,
   isSafeHttpsUrl,
@@ -26,9 +26,6 @@ import {
   type UpdateReleaseManifest,
 } from "../shared/update.js";
 import { errorMessage } from "../shared/errors.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 const GITHUB_API_RELEASE_URL = `https://api.github.com/repos/${UPDATE_REPOSITORY_OWNER}/${UPDATE_REPOSITORY_NAME}/releases/latest`;
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -88,6 +85,7 @@ export interface UpdateInstallPlan {
   readonly appExePath: string;
   readonly parentPid: number;
   readonly relaunch: boolean;
+  readonly managedPluginRoots: readonly string[];
 }
 
 export class UpdateManager {
@@ -235,24 +233,34 @@ export class UpdateManager {
       return this.state;
     }
 
-    const planPath = await this.writeInstallPlan(this.state.available, this.state.stagedPath);
-    const helperPath = this.installerHelperPath(this.state.stagedPath);
-    if (!existsSync(helperPath)) {
+    const staged = await validateStagedUpdatePayload(this.state.stagedPath);
+    if (!staged.ok || !staged.payloadRoot) {
       this.setState({
         status: "error",
-        error: "Updater helper is missing from the packaged app.",
-        message: "Updater helper is missing from the packaged app.",
+        error: staged.message,
+        message: staged.message,
       });
       return this.state;
     }
-    const helperRunnerPath = await this.writeHelperRunner(this.state.available.version);
 
-    const child = spawn(helperRunnerPath, [helperPath, planPath], {
+    const planPath = await this.writeInstallPlan(this.state.available, staged.payloadRoot);
+    const installerScriptPath = await this.writeInstallerScript(this.state.available);
+    await appendFile(
+      join(this.updateRoot(this.state.available.version), "install.log"),
+      `${new Date().toISOString()} Launching external updater installer ${installerScriptPath}\n`,
+      "utf8",
+    );
+
+    const child = spawn(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", installerScriptPath, "-PlanPath", planPath],
+      {
+      cwd: this.updateRoot(this.state.available.version),
       detached: true,
       stdio: "ignore",
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
       windowsHide: true,
-    });
+      },
+    );
     child.unref();
     this.setState({
       status: "installing",
@@ -391,25 +399,17 @@ export class UpdateManager {
       appExePath: this.options.executablePath,
       parentPid: process.pid,
       relaunch: true,
+      managedPluginRoots: [...INSTALLER_MANAGED_PLUGIN_ROOTS],
     };
     const planPath = join(root, "install-plan.json");
     await writeFile(planPath, `${JSON.stringify(plan, null, 2)}\n`, "utf8");
     return planPath;
   }
 
-  private installerHelperPath(stagedPayloadRoot: string): string {
-    const stagedHelper = join(stagedPayloadRoot, "resources", "app", "dist", "main", "main", "updateInstallerHelper.js");
-    if (existsSync(stagedHelper)) return stagedHelper;
-    return join(__dirname, "updateInstallerHelper.js");
-  }
-
-  private async writeHelperRunner(version: string): Promise<string> {
-    const root = this.updateRoot(version);
-    await mkdir(root, { recursive: true });
-    const helperRunnerPath = join(root, "updater-runner.exe");
-    await rm(helperRunnerPath, { force: true });
-    await copyFile(this.options.executablePath, helperRunnerPath);
-    return helperRunnerPath;
+  private async writeInstallerScript(update: UpdateReleaseInfo): Promise<string> {
+    const scriptPath = join(this.updateRoot(update.version), "install-update.ps1");
+    await writeFile(scriptPath, buildPowerShellInstallerScript(), "utf8");
+    return scriptPath;
   }
 
   private updateRoot(version: string): string {
@@ -480,6 +480,326 @@ try {
 [System.IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $Destination)
 `;
   await runPowershell(script);
+}
+
+export function buildPowerShellInstallerScript(): string {
+  return String.raw`param(
+  [Parameter(Mandatory = $true)]
+  [string]$PlanPath
+)
+
+$ErrorActionPreference = "Stop"
+$ProcessDrainTimeoutMs = 15000
+$ProcessForceTimeoutMs = 15000
+$ParentWaitTimeoutMs = 60000
+$FileRetryTimeoutMs = 60000
+$FileRetryDelayMs = 500
+
+function Get-FullPath([string]$Path) {
+  return [System.IO.Path]::GetFullPath($Path)
+}
+
+function Write-InstallLog([object]$Plan, [string]$Message) {
+  $logPath = [string]$Plan.logPath
+  if ([string]::IsNullOrWhiteSpace($logPath)) { return }
+  $logDir = [System.IO.Path]::GetDirectoryName($logPath)
+  if (-not [string]::IsNullOrWhiteSpace($logDir)) {
+    New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+  }
+  Add-Content -LiteralPath $logPath -Value "$((Get-Date).ToUniversalTime().ToString("o")) $Message" -Encoding UTF8
+}
+
+function Assert-SafeRelativePath([string]$RelativePath) {
+  $normalized = $RelativePath.Replace("\", "/")
+  if ([string]::IsNullOrWhiteSpace($normalized) -or $normalized.StartsWith("/") -or $normalized -match "^[A-Za-z]:" -or ($normalized.Split("/") -contains "..")) {
+    throw "Unsafe installer path: $RelativePath"
+  }
+}
+
+function Assert-Inside([string]$Parent, [string]$Target) {
+  $parentFull = Get-FullPath $Parent
+  $targetFull = Get-FullPath $Target
+  $separator = [System.IO.Path]::DirectorySeparatorChar
+  if ($targetFull -ne $parentFull -and -not $targetFull.StartsWith($parentFull + $separator, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw ("Refusing path outside " + $parentFull + ": " + $targetFull)
+  }
+}
+
+function Join-SafePath([string]$Root, [string]$RelativePath) {
+  Assert-SafeRelativePath $RelativePath
+  $rootFull = Get-FullPath $Root
+  $target = Get-FullPath ([System.IO.Path]::Combine($rootFull, $RelativePath))
+  Assert-Inside $rootFull $target
+  return $target
+}
+
+function Get-Plan([string]$Path) {
+  if ([string]::IsNullOrWhiteSpace($Path)) { throw "Missing updater install plan path." }
+  if (-not (Test-Path -LiteralPath $Path)) { throw "Updater install plan does not exist: $Path" }
+  return Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+}
+
+function Validate-Plan([object]$Plan) {
+  if ([int]$Plan.schemaVersion -ne 1) { throw "Unsupported update install plan schema." }
+  $installDir = Get-FullPath ([string]$Plan.installDir)
+  $stagedPayloadRoot = Get-FullPath ([string]$Plan.stagedPayloadRoot)
+  $appExePath = Get-FullPath ([string]$Plan.appExePath)
+  Assert-Inside $installDir $appExePath
+  if (-not (Test-Path -LiteralPath $installDir -PathType Container)) { throw "Install directory is missing: $installDir" }
+  if (-not (Test-Path -LiteralPath $stagedPayloadRoot -PathType Container)) { throw "Staged update payload is missing: $stagedPayloadRoot" }
+  $requiredFiles = @(
+    "Habbpy v4.exe",
+    "resources/app/package.json",
+    "resources/app/dist/main/main/main.js",
+    "resources/app/dist/main/main/updateInstallerHelper.js",
+    "resources/engine/dist/index.html",
+    "resources/relay/origins-relay.mjs"
+  )
+  foreach ($file in $requiredFiles) {
+    $target = Join-SafePath $stagedPayloadRoot $file
+    if (-not (Test-Path -LiteralPath $target -PathType Leaf)) { throw "Staged update is missing $file." }
+  }
+}
+
+function Test-PreservedInstallPath([string]$RelativePath) {
+  $parts = @($RelativePath.Replace("\", "/").Split("/") | Where-Object { $_ })
+  if ($parts.Count -eq 0) { return $false }
+  $first = [string]$parts[0]
+  return [string]::Equals($first, "clients", [System.StringComparison]::OrdinalIgnoreCase) -or [string]::Equals($first, "data", [System.StringComparison]::OrdinalIgnoreCase)
+}
+
+function Get-ManagedPluginRoots([object]$Plan) {
+  $roots = @()
+  if ($Plan.PSObject.Properties.Name -contains "managedPluginRoots") {
+    foreach ($root in @($Plan.managedPluginRoots)) {
+      $clean = ([string]$root).Replace("\", "/").Trim("/")
+      if (-not [string]::IsNullOrWhiteSpace($clean)) { $roots += $clean.ToLowerInvariant() }
+    }
+  }
+  if ($roots.Count -eq 0) {
+    $roots = @("plugins/welcome-message", "plugins/_premade-modules")
+  }
+  return $roots
+}
+
+function Test-ManagedPluginPath([object]$Plan, [string]$RelativePath) {
+  $normalized = $RelativePath.Replace("\", "/").Trim("/").ToLowerInvariant()
+  foreach ($root in Get-ManagedPluginRoots $Plan) {
+    if ($normalized -eq $root -or $normalized.StartsWith($root + "/", [System.StringComparison]::OrdinalIgnoreCase)) {
+      return $true
+    }
+  }
+  return $false
+}
+
+function Invoke-WithRetry([object]$Plan, [string]$Label, [scriptblock]$Operation) {
+  $startedAt = Get-Date
+  $attempt = 0
+  while ($true) {
+    try {
+      & $Operation
+      return
+    } catch {
+      $elapsedMs = ((Get-Date) - $startedAt).TotalMilliseconds
+      if ($elapsedMs -ge $FileRetryTimeoutMs) { throw }
+      if ($attempt -eq 0 -or ($attempt % 10) -eq 0) {
+        Write-InstallLog $Plan ("Waiting for file lock during " + $Label + ": " + $_.Exception.Message)
+      }
+      $attempt += 1
+      Start-Sleep -Milliseconds $FileRetryDelayMs
+    }
+  }
+}
+
+function Remember-Path([hashtable]$Table, [string]$RelativePath) {
+  $Table[$RelativePath.ToLowerInvariant()] = $RelativePath
+}
+
+function Test-Remembered([hashtable]$Table, [string]$RelativePath) {
+  return $Table.ContainsKey($RelativePath.ToLowerInvariant())
+}
+
+function Get-ReversedRememberedPaths([hashtable]$Table) {
+  $values = @($Table.Values)
+  for ($index = $values.Count - 1; $index -ge 0; $index -= 1) {
+    $values[$index]
+  }
+}
+
+function Backup-AndRemove([object]$Plan, [string]$Root, [string]$BackupRoot, [string]$RelativePath, [hashtable]$BackedUp) {
+  $source = Join-SafePath $Root $RelativePath
+  if (-not (Test-Path -LiteralPath $source)) { return }
+  $backup = Join-SafePath $BackupRoot $RelativePath
+  $backupParent = [System.IO.Path]::GetDirectoryName($backup)
+  if (-not [string]::IsNullOrWhiteSpace($backupParent)) {
+    New-Item -ItemType Directory -Path $backupParent -Force | Out-Null
+  }
+  Invoke-WithRetry $Plan "backup $RelativePath" { Copy-Item -LiteralPath $source -Destination $backup -Recurse -Force }
+  Invoke-WithRetry $Plan "remove $RelativePath" { Remove-Item -LiteralPath $source -Recurse -Force }
+  Remember-Path $BackedUp $RelativePath
+}
+
+function Copy-InstallEntry([object]$Plan, [string]$SourceRoot, [string]$TargetRoot, [string]$BackupRoot, [string]$RelativePath, [hashtable]$BackedUp, [hashtable]$Added) {
+  $source = Join-SafePath $SourceRoot $RelativePath
+  $target = Join-SafePath $TargetRoot $RelativePath
+  if (Test-Path -LiteralPath $target) {
+    if (-not (Test-Remembered $BackedUp $RelativePath)) {
+      Backup-AndRemove $Plan $TargetRoot $BackupRoot $RelativePath $BackedUp
+    }
+  } else {
+    Remember-Path $Added $RelativePath
+  }
+  $targetParent = [System.IO.Path]::GetDirectoryName($target)
+  if (-not [string]::IsNullOrWhiteSpace($targetParent)) {
+    New-Item -ItemType Directory -Path $targetParent -Force | Out-Null
+  }
+  Invoke-WithRetry $Plan "copy $RelativePath" { Copy-Item -LiteralPath $source -Destination $target -Recurse -Force }
+}
+
+function Install-BundledPlugins([object]$Plan, [string]$StagedPayloadRoot, [string]$InstallDir, [string]$BackupDir, [hashtable]$BackedUp, [hashtable]$Added) {
+  $stagedPlugins = Join-SafePath $StagedPayloadRoot "plugins"
+  if (-not (Test-Path -LiteralPath $stagedPlugins -PathType Container)) { return }
+  New-Item -ItemType Directory -Path (Join-SafePath $InstallDir "plugins") -Force | Out-Null
+  foreach ($entry in Get-ChildItem -LiteralPath $stagedPlugins -Force) {
+    $relativePath = "plugins/$($entry.Name)"
+    if (-not (Test-ManagedPluginPath $Plan $relativePath)) { continue }
+    Copy-InstallEntry $Plan $StagedPayloadRoot $InstallDir $BackupDir $relativePath $BackedUp $Added
+  }
+}
+
+function Rollback-Install([object]$Plan, [string]$InstallDir, [string]$BackupDir, [hashtable]$BackedUp, [hashtable]$Added, [object]$OriginalError) {
+  Write-InstallLog $Plan "Install failed; rolling back. $($OriginalError.Exception.Message)"
+  foreach ($relativePath in Get-ReversedRememberedPaths $Added) {
+    $target = Join-SafePath $InstallDir $relativePath
+    Invoke-WithRetry $Plan "rollback remove $relativePath" {
+      if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
+    }
+  }
+  foreach ($relativePath in Get-ReversedRememberedPaths $BackedUp) {
+    $backup = Join-SafePath $BackupDir $relativePath
+    $target = Join-SafePath $InstallDir $relativePath
+    Invoke-WithRetry $Plan "rollback clear $relativePath" {
+      if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
+    }
+    if (Test-Path -LiteralPath $backup) {
+      $targetParent = [System.IO.Path]::GetDirectoryName($target)
+      if (-not [string]::IsNullOrWhiteSpace($targetParent)) {
+        New-Item -ItemType Directory -Path $targetParent -Force | Out-Null
+      }
+      Invoke-WithRetry $Plan "rollback restore $relativePath" { Copy-Item -LiteralPath $backup -Destination $target -Recurse -Force }
+    }
+  }
+}
+
+function Wait-ForProcessExit([object]$Plan, [int]$ProcessId, [int]$TimeoutMs) {
+  if ($ProcessId -le 0) { return }
+  $startedAt = Get-Date
+  while (((Get-Date) - $startedAt).TotalMilliseconds -lt $TimeoutMs) {
+    $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+    if ($null -eq $process) { return }
+    Start-Sleep -Milliseconds 250
+  }
+  Write-InstallLog $Plan "Timed out waiting for parent process $ProcessId to exit."
+}
+
+function Get-InstallDirectoryProcesses([object]$Plan) {
+  $installDir = Get-FullPath ([string]$Plan.installDir)
+  $currentPid = $PID
+  @(Get-CimInstance Win32_Process | Where-Object {
+    $_.ProcessId -ne $currentPid -and (
+      ($_.ExecutablePath -and $_.ExecutablePath.StartsWith($installDir, [System.StringComparison]::OrdinalIgnoreCase)) -or
+      ($_.CommandLine -and $_.CommandLine.IndexOf($installDir, [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+    )
+  })
+}
+
+function Wait-ForInstallDirectoryProcesses([object]$Plan, [int]$TimeoutMs) {
+  $startedAt = Get-Date
+  while (((Get-Date) - $startedAt).TotalMilliseconds -lt $TimeoutMs) {
+    $processes = @(Get-InstallDirectoryProcesses $Plan)
+    if ($processes.Count -eq 0) { return }
+    Start-Sleep -Milliseconds 250
+  }
+}
+
+function Stop-InstallDirectoryProcesses([object]$Plan) {
+  $processes = @(Get-InstallDirectoryProcesses $Plan)
+  if ($processes.Count -eq 0) { return }
+  Write-InstallLog $Plan "Terminating $($processes.Count) stale install process(es): $(($processes | ForEach-Object { "$($_.Name):$($_.ProcessId)" }) -join ", ")"
+  foreach ($process in $processes) {
+    try {
+      Stop-Process -Id ([int]$process.ProcessId) -Force -ErrorAction Stop
+    } catch {
+      Write-InstallLog $Plan "Failed to terminate $($process.Name):$($process.ProcessId): $($_.Exception.Message)"
+    }
+  }
+}
+
+function Install-StagedUpdate([object]$Plan) {
+  $installDir = Get-FullPath ([string]$Plan.installDir)
+  $stagedPayloadRoot = Get-FullPath ([string]$Plan.stagedPayloadRoot)
+  $backupDir = Get-FullPath ([string]$Plan.backupDir)
+  $backedUp = @{}
+  $added = @{}
+
+  if (Test-Path -LiteralPath $backupDir) {
+    Invoke-WithRetry $Plan "clear previous backup" { Remove-Item -LiteralPath $backupDir -Recurse -Force }
+  }
+  New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+
+  try {
+    foreach ($entry in Get-ChildItem -LiteralPath $installDir -Force) {
+      $relativePath = $entry.Name
+      if (Test-PreservedInstallPath $relativePath) { continue }
+      if ([string]::Equals($relativePath, "plugins", [System.StringComparison]::OrdinalIgnoreCase)) { continue }
+      Backup-AndRemove $Plan $installDir $backupDir $relativePath $backedUp
+    }
+
+    foreach ($entry in Get-ChildItem -LiteralPath $stagedPayloadRoot -Force) {
+      $relativePath = $entry.Name
+      if (Test-PreservedInstallPath $relativePath) { continue }
+      if ([string]::Equals($relativePath, "plugins", [System.StringComparison]::OrdinalIgnoreCase)) { continue }
+      Copy-InstallEntry $Plan $stagedPayloadRoot $installDir $backupDir $relativePath $backedUp $added
+    }
+
+    Install-BundledPlugins $Plan $stagedPayloadRoot $installDir $backupDir $backedUp $added
+  } catch {
+    Rollback-Install $Plan $installDir $backupDir $backedUp $added $_
+    throw
+  }
+}
+
+function Restart-App([object]$Plan) {
+  if ($Plan.relaunch -ne $true) { return }
+  $appExePath = Get-FullPath ([string]$Plan.appExePath)
+  $installDir = Get-FullPath ([string]$Plan.installDir)
+  if (-not (Test-Path -LiteralPath $appExePath -PathType Leaf)) {
+    Write-InstallLog $Plan "Updated app executable is missing; not relaunching: $appExePath"
+    return
+  }
+  Start-Process -FilePath $appExePath -WorkingDirectory $installDir | Out-Null
+}
+
+$plan = $null
+try {
+  $plan = Get-Plan $PlanPath
+  Write-InstallLog $plan "External updater installer started."
+  Validate-Plan $plan
+  Wait-ForProcessExit $plan ([int]$plan.parentPid) $ParentWaitTimeoutMs
+  Wait-ForInstallDirectoryProcesses $plan $ProcessDrainTimeoutMs
+  Stop-InstallDirectoryProcesses $plan
+  Wait-ForInstallDirectoryProcesses $plan $ProcessForceTimeoutMs
+  Install-StagedUpdate $plan
+  Write-InstallLog $plan "Install complete."
+  Restart-App $plan
+} catch {
+  if ($null -ne $plan) {
+    Write-InstallLog $plan "FAILED: $($_.Exception.ToString())"
+  }
+  exit 1
+}
+exit 0
+`;
 }
 
 function readPersistedState(filePath: string): PersistedUpdateState {
