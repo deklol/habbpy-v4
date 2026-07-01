@@ -50,6 +50,7 @@ import { installRelease306StringServicesCompatibility } from "../habbo/stringSer
 import { installRelease306TextManagerCompatibility } from "../habbo/textManagerCompatibility";
 import { installOriginsVariableManagerCompatibility } from "../habbo/variableManagerCompatibility";
 import { OriginsResizeEngine, type ResizeEngineSnapshot } from "../habbo/resizeEngine";
+import { collectUserNameLabels, roomUserListFromComponent, type UserNameLabelStyleSettings } from "../habbo/userNameLabels";
 import {
   CUSTOM_HOTEL_VIEW_ASSETS,
   customHotelViewBannerUrl,
@@ -3016,103 +3017,58 @@ async function boot(): Promise<void> {
   };
 
   let userNameLabelsEnabled = false;
-  const setUserNameLabels = (enabled: boolean): Record<string, unknown> => {
+  let userNameLabelSettings: UserNameLabelStyleSettings = {};
+  const setUserNameLabels = (enabled: boolean, settings: UserNameLabelStyleSettings = {}): Record<string, unknown> => {
     userNameLabelsEnabled = Boolean(enabled);
+    userNameLabelSettings = cleanUserNameLabelSettings({
+      ...userNameLabelSettings,
+      ...settings,
+    });
     if (!userNameLabelsEnabled) renderer.setUserNameLabels([]);
     renderer.markDirty();
-    return { enabled: userNameLabelsEnabled };
+    return { enabled: userNameLabelsEnabled, settings: userNameLabelSettings };
   };
   const userNameLabels = (): UserNameLabel[] => {
     if (!userNameLabelsEnabled) return [];
     const objectList = objectManagerList(movie.runtime.getGlobal("gcore"));
     const roomComponent = objectList ? propListLookup(objectList, "#room_component") : LINGO_VOID;
     if (!(roomComponent instanceof ScriptInstance)) return [];
-    const prop = (object: ScriptInstance, name: string): LingoValue => {
-      try {
-        return movie.runtime.getProp(object, name);
-      } catch {
-        return instancePropValue(object, name) ?? LINGO_VOID;
-      }
-    };
-    const userList = prop(roomComponent, "puserobjlist");
-    const users =
-      userList instanceof LingoPropList
-        ? userList.keys.map((key, index) => ({ key, user: userList.values[index] }))
-        : userList instanceof LingoList
-          ? userList.items.map((user, index) => ({ key: index + 1, user }))
-          : [];
-    const avatarSpriteGroups = fallbackAvatarSpriteGroups(movie.channels);
-    return users.flatMap(({ key, user }): UserNameLabel[] => {
-      if (!(user instanceof ScriptInstance)) return [];
-      const name = String(debugValue(prop(user, "pname")) ?? debugValue(key) ?? "").trim();
-      if (!name || name === "<Void>") return [];
-      // The avatar (Human Class, hh_human) carries its OWN sprite as pSprite — it
-      // has no psprlist. Reading pSprite ties each label to its avatar's sprite so
-      // it stays locked on the correct avatar through movement. The old psprlist
-      // read always came back empty and fell through to a Z-sorted, index-matched
-      // fallback that reshuffled names every time avatars moved.
-      const candidateSprites: LingoValue[] = [];
-      for (const spriteProp of ["psprite", "pmattespr"]) {
-        const sprite = prop(user, spriteProp);
-        if (sprite instanceof SpriteChannel) candidateSprites.push(sprite);
-      }
-      if (candidateSprites.length === 0) {
-        // Degrade to the legacy sprite list / fallback only when pSprite is
-        // absent, so a missing avatar sprite drops to old behaviour, not no label.
-        const sprites = prop(user, "psprlist");
-        const spriteItems =
-          sprites instanceof LingoList
-            ? sprites.items
-            : sprites instanceof LingoPropList
-              ? sprites.values
-              : [];
-        const fallback = spriteItems.length > 0 ? spriteItems : avatarSpriteGroups[users.findIndex((entry) => entry.user === user)] ?? [];
-        candidateSprites.push(...fallback);
-      }
-      if (candidateSprites.length === 0) return [];
-      let left = Number.POSITIVE_INFINITY;
-      let top = Number.POSITIVE_INFINITY;
-      let right = Number.NEGATIVE_INFINITY;
-      let maxZ = Number.NEGATIVE_INFINITY;
-      for (const entry of candidateSprites) {
-        if (!(entry instanceof SpriteChannel) || entry.visible === 0) continue;
-        const rect = movie.spriteBounds(entry.number);
-        if (!rect) continue;
-        left = Math.min(left, rect.left);
-        top = Math.min(top, rect.top);
-        right = Math.max(right, rect.right);
-        maxZ = Math.max(maxZ, entry.locZ);
-      }
-      if (!Number.isFinite(left) || !Number.isFinite(top) || !Number.isFinite(right) || !Number.isFinite(maxZ)) return [];
-      const id = String(debugValue(prop(user, "pid")) ?? debugValue(prop(user, "id")) ?? debugValue(key) ?? name);
-      return [{
-        id,
-        name,
-        x: Math.round((left + right) / 2),
-        y: Math.round(top - 3),
-        z: maxZ,
-      }];
+    return collectUserNameLabels({
+      runtime: movie.runtime,
+      userList: roomUserListFromComponent(roomComponent, movie.runtime),
+      channels: movie.channels,
+      spriteBounds: (channelNumber) => movie.spriteBounds(channelNumber),
+      settings: {
+        ...userNameLabelSettings,
+        sessionUserName: sourceSessionText("userName") || sourceSessionText("#userName"),
+      },
     });
   };
 
-  const fallbackAvatarSpriteGroups = (channels: readonly SpriteChannel[]): SpriteChannel[][] => {
-    const groups = new Map<string, SpriteChannel[]>();
-    for (const channel of channels) {
-      if (channel.visible === 0 || channel.blend <= 0) continue;
-      const memberName = channel.member?.name ?? "";
-      if (!/^Canvas:uid:/i.test(memberName) && !/^h_/i.test(memberName)) continue;
-      const key = `${Math.round(channel.locH)}:${Math.round(channel.locV)}`;
-      const group = groups.get(key) ?? [];
-      group.push(channel);
-      groups.set(key, group);
-    }
-    return [...groups.values()]
-      .filter((group) => group.some((channel) => /^Canvas:uid:/i.test(channel.member?.name ?? "") || /^h_/i.test(channel.member?.name ?? "")))
-      .sort((left, right) => {
-        const leftZ = Math.max(...left.map((channel) => channel.locZ));
-        const rightZ = Math.max(...right.map((channel) => channel.locZ));
-        return leftZ - rightZ;
-      });
+  const cleanUserNameLabelSettings = (settings: UserNameLabelStyleSettings): UserNameLabelStyleSettings => ({
+    sourceYOffset: cleanFiniteNumber(settings.sourceYOffset),
+    selfColor: cleanHexColor(settings.selfColor),
+    otherColor: cleanHexColor(settings.otherColor),
+  });
+
+  const cleanFiniteNumber = (value: unknown): number | undefined => {
+    const numeric = typeof value === "number" ? value : typeof value === "string" ? Number.parseFloat(value) : Number.NaN;
+    return Number.isFinite(numeric) ? numeric : undefined;
+  };
+
+  const cleanHexColor = (value: unknown): string | undefined => {
+    if (typeof value !== "string") return undefined;
+    const text = value.trim();
+    return /^#[0-9a-fA-F]{6}$/.test(text) ? text.toLowerCase() : undefined;
+  };
+
+  const sourceSessionText = (key: string): string => {
+    const value = sourceSessionGet(key);
+    const text = String(debugValue(value))
+      .replace(/[\x00-\x1f\x7f]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return text === "<Void>" ? "" : text.slice(0, 64);
   };
 
   const cleanBulletinText = (value: unknown, fallback: string, maxLength: number): string => {

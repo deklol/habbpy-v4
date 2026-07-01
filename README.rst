@@ -1,19 +1,19 @@
-Habbpy v4
+Shockless
 =========
 
-Habbpy v4 is a local desktop companion shell for the Shockless engine. It packages a playable Windows app, the Habbpy v4 application source, and the Shockless engine source needed to rebuild, audit, or modify the project under the GNU Affero General Public License v3.0.
+Shockless is a local desktop companion shell for the Shockless engine. It packages a playable Windows app, the Shockless application source, and the Shockless engine source needed to rebuild, audit, or modify the project under the GNU Affero General Public License v3.0.
 
 What It Is
 ----------
 
-Habbpy v4 wraps a modern Shockwave-compatible runtime in an Electron desktop shell. The app can import a user-supplied compiled client into a playable Shockless profile, embed that profile in the GameHost, expose live session and packet state, and run first-party or user-installed plugins through a restricted plugin API.
+Shockless wraps a modern Shockwave-compatible runtime in an Electron desktop shell. The app can import a user-supplied compiled client into a playable Shockless profile, embed that profile in the GameHost, expose live session and packet state, and run first-party or user-installed plugins through a restricted plugin API.
 
 How It Works
 ------------
 
 - The Electron main process manages app lifecycle, client profile import, portable packaging, and visible or hidden runtime sessions.
 - The React renderer provides the GameHost, right-side plugin dock, backtick console, packet log, client importer, plugin manager, and module panels.
-- Shockless runs the imported client in a browser runtime and exposes controlled engine/session hooks back to Habbpy v4.
+- Shockless runs the imported client in a browser runtime and exposes controlled engine/session hooks back to Shockless.
 - The relay and packet-log layers parse live client/server traffic into readable packet rows for panels, console output, and plugin events.
 - User plugins run in a restricted Worker host. Plugins request named permissions and call grouped APIs for rooms, users, furni, chat, packets, sessions, storage, timers, and UI panels.
 
@@ -84,17 +84,17 @@ This public release is provided under the GNU Affero General Public License v3.0
 Release Layout
 --------------
 
-- ``habbpy-v4-portable-windows.zip`` from GitHub Releases
-  Ready-to-run Windows portable build. Extract the full ``HabbpyV4`` folder and run ``Habbpy v4.exe`` from inside it. This archive includes the bundled Shockless importer resources required by ``Import/Build Client``.
+- ``shockless-portable-windows.zip`` from GitHub Releases
+  Ready-to-run Windows portable build. Extract the full ``Shockless`` folder and run ``Shockless.exe`` from inside it. This archive includes the bundled Shockless importer resources required by ``Import/Build Client``.
 
-- ``habbpy-v4-source-agplv3.zip`` or a GitHub source checkout
+- ``shockless-source-agplv3.zip`` or a GitHub source checkout
   Source and public documentation only. This does not include the portable executable or built Shockless importer resources until you build them locally.
 
-- src/habbpy-v4-shockless
+- src/shockless-engine
   Electron/React application source, plugin manager, packet log, multi-session shell, relay bridge, and plugin API.
 
 - src/habbo-origins-engine
-  Shockless engine source and standalone importer source used by Habbpy v4.
+  Shockless engine source and standalone importer source used by Shockless.
 
 - docs
   Public HTML documentation with clean file names.
@@ -115,9 +115,9 @@ Key Features
 How To Import A Client
 ----------------------
 
-1. Download ``habbpy-v4-portable-windows.zip`` from GitHub Releases.
-2. Extract the full ``HabbpyV4`` folder.
-3. Run ``HabbpyV4/Habbpy v4.exe``.
+1. Download ``shockless-portable-windows.zip`` from GitHub Releases.
+2. Extract the full ``Shockless`` folder.
+3. Run ``Shockless/Shockless.exe``.
 4. Open the Connection panel and choose ``Import/Build Client``.
 5. Select either a compiled Habbo client folder or an existing Shockless profile folder.
 6. Leave the importer open while it validates the folder, copies the client, indexes casts, extracts text, prepares assets, prepares scripts, and validates the playable profile.
@@ -125,7 +125,7 @@ How To Import A Client
 
 Do not run a plain GitHub source checkout as if it were the portable app. Source checkouts must be built first so ``resources/engine/standalone/dist/main/cli/profile-import.js`` exists.
 
-Imported playable profiles are stored beside the portable app in its local client profile folder and are reused on later launches. Habbpy v4 does not hardcode client build folders; the importer discovers the selected folder and builds or reuses the matching playable profile.
+Imported playable profiles are stored beside the portable app in its local client profile folder and are reused on later launches. Shockless does not hardcode client build folders; the importer discovers the selected folder and builds or reuses the matching playable profile.
 
 Requirements For Rebuilding
 ---------------------------
@@ -150,11 +150,11 @@ Build the engine::
 
 Build and package the desktop app::
 
-   cd ../../habbpy-v4-shockless
+   cd ../../shockless-engine
    npm install
    npm run package:portable
 
-The packaged app is written to ``src/habbpy-v4-shockless/dist/portable/HabbpyV4``. The app packaging script expects ``src/habbo-origins-engine`` to sit beside ``src/habbpy-v4-shockless``, which is already how this release is laid out. ``npm run package:portable`` verifies that the Shockless standalone profile importer and ProjectorRays resources are included before the package is considered valid.
+The packaged app is written to ``src/shockless-engine/dist/portable/Shockless``. The app packaging script expects ``src/habbo-origins-engine`` to sit beside ``src/shockless-engine``, which is already how this release is laid out. ``npm run package:portable`` verifies that the Shockless standalone profile importer and ProjectorRays resources are included before the package is considered valid.
 
 Limitations
 -----------

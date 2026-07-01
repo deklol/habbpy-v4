@@ -28,6 +28,7 @@ type StageNode = Sprite | Graphics | TilingSprite | TextFieldNode;
 export interface UserNameLabel {
   readonly id: string;
   readonly name: string;
+  readonly color?: string;
   readonly x: number;
   readonly y: number;
   readonly z: number;
@@ -72,6 +73,7 @@ interface UserNameLabelNode extends Container {
   __outlineNodes: Text[];
   __fillNode: Text;
   __labelText: string;
+  __fillColor: string;
 }
 
 /**
@@ -217,12 +219,14 @@ export class StageRenderer {
       if (!id || !text) continue;
       seen.add(id);
       let node = this.userNameLabelNodes.get(id);
+      const fill = normalizedUserNameLabelColor(label.color);
       if (!node) {
-        node = this.createUserNameLabelNode(text);
+        node = this.createUserNameLabelNode(text, fill);
         this.root.addChild(node);
         this.userNameLabelNodes.set(id, node);
       }
       if (node.__labelText !== text) this.updateUserNameLabelText(node, text);
+      if (node.__fillColor !== fill) this.updateUserNameLabelColor(node, fill);
       const point = this.transformRoomPoint(label.x, label.y + 15);
       node.x = Math.round(point.x);
       node.y = Math.round(point.y);
@@ -499,10 +503,11 @@ export class StageRenderer {
     };
   }
 
-  private createUserNameLabelNode(text: string): UserNameLabelNode {
+  private createUserNameLabelNode(text: string, fill: string): UserNameLabelNode {
     const node = new Container() as UserNameLabelNode;
     node.sortableChildren = true;
     node.__labelText = text;
+    node.__fillColor = fill;
     node.__outlineNodes = [];
     const offsets = [
       [-1, -1],
@@ -522,7 +527,7 @@ export class StageRenderer {
       node.addChild(outline);
       node.__outlineNodes.push(outline);
     }
-    node.__fillNode = this.createUserNameLabelText(text, "#ffffff");
+    node.__fillNode = this.createUserNameLabelText(text, fill);
     node.__fillNode.zIndex = 1;
     node.addChild(node.__fillNode);
     return node;
@@ -551,6 +556,11 @@ export class StageRenderer {
     for (const outline of node.__outlineNodes) {
       outline.text = text;
     }
+  }
+
+  private updateUserNameLabelColor(node: UserNameLabelNode, fill: string): void {
+    node.__fillColor = fill;
+    node.__fillNode.style.fill = fill;
   }
 
   private sameCustomHotelViewPresentation(
@@ -965,4 +975,10 @@ export class StageRenderer {
 
 export function userNameLabelZIndex(labelZ: number): number {
   return Math.max(0, Math.round(labelZ)) + 1;
+}
+
+export function normalizedUserNameLabelColor(value: unknown): string {
+  if (typeof value !== "string") return "#ffffff";
+  const text = value.trim();
+  return /^#[0-9a-fA-F]{6}$/.test(text) ? text.toLowerCase() : "#ffffff";
 }

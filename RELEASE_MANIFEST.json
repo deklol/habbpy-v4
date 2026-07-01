@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-06-30T19:36:01.935Z",
+  "generatedAt": "2026-07-01T02:42:44.550Z",
   "ok": true,
   "releaseRoot": "release",
-  "files": 627,
+  "files": 649,
   "findings": [],
   "paths": {
-    "portable": "portable/HabbpyV4/Habbpy v4.exe",
-    "appSource": "src/habbpy-v4-shockless",
+    "portable": "portable/Shockless/Shockless.exe",
+    "appSource": "src/shockless-engine",
     "engineSource": "src/habbo-origins-engine",
     "docs": "docs"
   }
